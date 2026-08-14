@@ -16,6 +16,30 @@
         </x-page-header>
     </x-slot>
 
+    <div x-data="{ loaded: false }" x-init="loaded = true">
+        {{-- Skeleton: table --}}
+        <div x-show="!loaded" class="rounded-xl border border-line bg-surface">
+            <div class="border-b border-line px-5 py-4">
+                <div class="h-4 w-48 animate-pulse rounded bg-surface-muted"></div>
+            </div>
+            <div class="p-5 space-y-3">
+                @foreach (range(1, 5) as $i)
+                    <div class="flex items-center gap-4">
+                        <div class="h-3 w-24 animate-pulse rounded bg-surface-muted"></div>
+                        <div class="h-3 w-32 animate-pulse rounded bg-surface-muted"></div>
+                        <div class="h-3 w-20 animate-pulse rounded bg-surface-muted"></div>
+                        <div class="h-3 w-20 animate-pulse rounded bg-surface-muted"></div>
+                        <div class="h-5 w-16 animate-pulse rounded-full bg-surface-muted"></div>
+                        <div class="ml-auto h-3 w-16 animate-pulse rounded bg-surface-muted"></div>
+                        <div class="h-3 w-16 animate-pulse rounded bg-surface-muted"></div>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+
+        {{-- Real content --}}
+        <div x-show="loaded" x-cloak>
+
     <x-card :padding="false">
         <form method="GET" action="{{ route('sales.invoices.index') }}" class="flex flex-wrap items-end gap-3 border-b border-line px-5 py-4">
             <div class="min-w-[220px] flex-1">
@@ -81,8 +105,13 @@
                                         <span class="font-medium text-emerald-600 dark:text-emerald-400">{{ money(0, $invoice->currency) }}</span>
                                     @endif
                                 </td>
-                                <td class="text-right">
+                                    <td class="text-right">
                                     <div class="flex items-center justify-end gap-1">
+                                        @if (auth()->user()->can('sales.invoices.view'))
+                                            <a href="{{ route('sales.invoices.show', $invoice) }}" class="btn-ghost btn-icon btn-sm" title="View">
+                                                <x-icon name="eye" class="size-4" />
+                                            </a>
+                                        @endif
                                         <a href="{{ route('sales.invoices.edit', $invoice) }}" class="btn-ghost btn-icon btn-sm" title="Edit">
                                             <x-icon name="edit" class="size-4" />
                                         </a>
@@ -111,4 +140,5 @@
             </div>
         @endif
     </x-card>
+    </div> {{-- end real content --}}
 </x-app-layout>

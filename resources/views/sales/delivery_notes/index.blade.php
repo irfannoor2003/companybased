@@ -73,6 +73,11 @@
                                 <td><x-sales.status-badge :status="$note->status" /></td>
                                 <td class="text-right">
                                     <div class="flex items-center justify-end gap-1">
+                                        @if (auth()->user()->can('sales.delivery_notes.view'))
+                                            <a href="{{ route('sales.delivery_notes.show', $note) }}" class="btn-ghost btn-icon btn-sm" title="View">
+                                                <x-icon name="eye" class="size-4" />
+                                            </a>
+                                        @endif
                                         <a href="{{ route('sales.delivery_notes.edit', $note) }}" class="btn-ghost btn-icon btn-sm" title="Edit">
                                             <x-icon name="edit" class="size-4" />
                                         </a>

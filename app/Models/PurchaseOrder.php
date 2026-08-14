@@ -16,7 +16,7 @@ class PurchaseOrder extends Model
 
     protected $fillable = [
         'number', 'quote_id', 'supplier_id', 'warehouse_id', 'order_date',
-        'expected_delivery_date', 'status', 'currency', 'subtotal', 'discount_amount',
+        'expected_delivery_date', 'status', 'currency', 'exchange_rate', 'subtotal', 'discount_amount',
         'tax_amount', 'total', 'shipping_address', 'notes',
     ];
 
@@ -27,6 +27,7 @@ class PurchaseOrder extends Model
         return [
             'order_date' => 'date',
             'expected_delivery_date' => 'date',
+            'exchange_rate' => 'decimal:6',
             'subtotal' => 'decimal:2',
             'discount_amount' => 'decimal:2',
             'tax_amount' => 'decimal:2',

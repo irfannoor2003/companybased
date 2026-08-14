@@ -9,11 +9,13 @@ use App\Models\SalesDeliveryNote;
 use App\Models\SalesOrder;
 use App\Models\SalesStatusEvent;
 use App\Services\TrackingService;
+use App\Support\DocumentData;
 use App\Support\ExportsCsv;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DeliveryNoteController extends Controller
@@ -78,6 +80,29 @@ class DeliveryNoteController extends Controller
         $products = Product::query()->where('is_active', true)->orderBy('name')->get();
 
         return view('sales.delivery_notes.edit', compact('deliveryNote', 'customers', 'products'));
+    }
+
+    public function show(SalesDeliveryNote $deliveryNote): View
+    {
+        $deliveryNote->load(['customer', 'items.product', 'order']);
+
+        return view('documents.show', DocumentData::build($deliveryNote));
+    }
+
+    public function pdf(SalesDeliveryNote $deliveryNote): StreamedResponse
+    {
+        $deliveryNote->load(['customer', 'items.product', 'order']);
+
+        $html = view('pdf.document', DocumentData::build($deliveryNote))->render();
+
+        $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, 'delivery-note-'.$deliveryNote->number.'.pdf', [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="delivery-note-'.$deliveryNote->number.'.pdf"',
+        ]);
     }
 
     public function update(Request $request, SalesDeliveryNote $deliveryNote): RedirectResponse

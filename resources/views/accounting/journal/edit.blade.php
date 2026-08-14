@@ -125,7 +125,7 @@
                     return d === c ? 'Balanced' : 'Difference: ' + this.money(d / 100 - c / 100);
                 },
                 money(v) {
-                    return new Intl.NumberFormat('en', { style: 'currency', currency: 'USD' }).format(v || 0);
+                    return new Intl.NumberFormat('en', { style: 'currency', currency: '{{ settings('company.currency', 'USD') }}' }).format(v || 0);
                 },
             };
         }

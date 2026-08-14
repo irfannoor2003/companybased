@@ -15,6 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class InvoiceController extends Controller
 {
@@ -61,6 +62,7 @@ class InvoiceController extends Controller
             'due_date' => $data['due_date'] ?? null,
             'status' => $data['status'],
             'currency' => $data['currency'] ?? null,
+            'exchange_rate' => exchange_rate_for($data['currency'] ?? null),
             'notes' => $data['notes'] ?? null,
         ]);
 
@@ -82,6 +84,29 @@ class InvoiceController extends Controller
         return view('sales.invoices.edit', compact('invoice', 'customers', 'products'));
     }
 
+    public function show(SalesInvoice $invoice): View
+    {
+        $invoice->load(['customer', 'items.product', 'payments', 'statusEvents.user', 'creditNotes']);
+
+        return view('sales.invoices.show', compact('invoice'));
+    }
+
+    public function pdf(SalesInvoice $invoice): StreamedResponse
+    {
+        $invoice->load(['customer', 'items.product', 'payments', 'creditNotes']);
+
+        $html = view('sales.invoices.pdf', compact('invoice'))->render();
+
+        $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, 'invoice-'.$invoice->number.'.pdf', [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="invoice-'.$invoice->number.'.pdf"',
+        ]);
+    }
+
     public function update(Request $request, SalesInvoice $invoice): RedirectResponse
     {
         $data = $this->validateData($request);
@@ -93,6 +118,7 @@ class InvoiceController extends Controller
             'due_date' => $data['due_date'] ?? null,
             'status' => $data['status'],
             'currency' => $data['currency'] ?? null,
+            'exchange_rate' => exchange_rate_for($data['currency'] ?? null),
             'notes' => $data['notes'] ?? null,
         ]);
 
@@ -155,6 +181,7 @@ class InvoiceController extends Controller
         }
 
         SalesPayment::create([
+            'number' => next_document_number('sales_payment', 'RC'),
             'invoice_id' => $invoice->id,
             'customer_id' => $invoice->customer_id,
             'amount' => $data['amount'],
@@ -162,6 +189,7 @@ class InvoiceController extends Controller
             'method' => $data['method'],
             'reference' => $data['reference'] ?? null,
             'currency' => $invoice->currency,
+            'exchange_rate' => $invoice->exchange_rate ?? exchange_rate_for($invoice->currency),
             'notes' => $data['notes'] ?? null,
         ]);
 

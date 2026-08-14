@@ -16,7 +16,7 @@ class WithholdingTaxReceipt extends Model
 
     protected $fillable = [
         'number', 'customer_id', 'invoice_id', 'receipt_date', 'amount',
-        'tax_rate_percent', 'tax_amount', 'currency', 'notes',
+        'tax_rate_percent', 'tax_amount', 'currency', 'exchange_rate', 'notes',
     ];
 
     protected $auditModule = 'sales';
@@ -28,6 +28,7 @@ class WithholdingTaxReceipt extends Model
             'amount' => 'decimal:2',
             'tax_rate_percent' => 'decimal:2',
             'tax_amount' => 'decimal:2',
+            'exchange_rate' => 'decimal:6',
         ];
     }
 

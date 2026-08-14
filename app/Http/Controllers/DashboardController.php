@@ -22,13 +22,14 @@ class DashboardController extends Controller
 
         $stats = [
             'users' => User::count(),
-            'roles' => Role::count(),
+            'roles' => Role::where('name', '!=', 'Super Admin')->count(),
             'modulesEnabled' => $enabledModules->count(),
             'modulesTotal' => Module::count(),
         ];
 
         $isAdmin = auth()->user()->isAdmin();
+        $isSuperAdmin = auth()->user()->isSuperAdmin();
 
-        return view('dashboard', compact('enabledModules', 'disabledModules', 'recentActivity', 'stats', 'isAdmin'));
+        return view('dashboard', compact('enabledModules', 'disabledModules', 'recentActivity', 'stats', 'isAdmin', 'isSuperAdmin'));
     }
 }

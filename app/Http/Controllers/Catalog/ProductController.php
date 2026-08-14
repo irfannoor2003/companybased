@@ -7,8 +7,10 @@ use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Product;
 use App\Support\ExportsCsv;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -48,23 +50,33 @@ class ProductController extends Controller
     {
         $data = $this->validateData($request);
 
-        $product = Product::create([
-            'name' => $data['name'],
-            'slug' => unique_slug(Product::class, $data['name']),
-            'sku' => $data['sku'] ?? null,
-            'barcode' => $data['barcode'] ?? null,
-            'brand_id' => $data['brand_id'] ?? null,
-            'category_id' => $data['category_id'] ?? null,
-            'unit' => $data['unit'] ?? 'pcs',
-            'description' => $data['description'] ?? null,
-            'cost_price' => $data['cost_price'] ?? 0,
-            'retail_price' => $data['retail_price'] ?? 0,
-            'wholesale_price' => $data['wholesale_price'] ?? null,
-            'min_price' => $data['min_price'] ?? null,
-            'is_active' => $request->boolean('is_active', true),
-        ]);
+        $slug = unique_slug(Product::class, $data['name']);
 
-        return redirect()->route('catalog.products.edit', $product)
+        try {
+            $product = Product::create([
+                'name' => $data['name'],
+                'slug' => $slug,
+                'sku' => $data['sku'] ?? null,
+                'barcode' => $data['barcode'] ?? null,
+                'brand_id' => $data['brand_id'] ?? null,
+                'category_id' => $data['category_id'] ?? null,
+                'unit' => $data['unit'] ?? 'pcs',
+                'description' => $data['description'] ?? null,
+                'cost_price' => $data['cost_price'] ?? 0,
+                'retail_price' => $data['retail_price'] ?? 0,
+                'wholesale_price' => $data['wholesale_price'] ?? null,
+                'min_price' => $data['min_price'] ?? null,
+                'is_active' => $request->boolean('is_active', true),
+            ]);
+        } catch (QueryException $e) {
+            if ($e->errorInfo[1] == 1062) {
+                return back()->withInput()
+                    ->with('toasts', [['type' => 'danger', 'message' => 'A product with the name "' . $data['name'] . '" already exists. Please choose a different name.']]);
+            }
+            throw $e;
+        }
+
+        return redirect()->route('catalog.products.index')
             ->with('toasts', [['type' => 'success', 'message' => "Product \"{$product->name}\" created."]]);
     }
 

@@ -17,7 +17,7 @@
                 <div class="surface-card flex flex-col p-5">
                     <div class="flex items-start justify-between gap-3">
                         <div class="flex items-center gap-3">
-                            <div class="flex size-10 shrink-0 items-center justify-center rounded-lg {{ $role->name === 'Super Admin' ? 'bg-amber-100 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400' : 'bg-primary/10 text-primary' }}">
+                            <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                                 <x-icon name="shield" class="size-5" />
                             </div>
                             <div class="min-w-0">
@@ -33,7 +33,7 @@
                             </div>
                         </div>
 
-                        @if (auth()->user()->can('settings.roles.manage') && $role->name !== 'Super Admin')
+                        @if (auth()->user()->can('settings.roles.manage'))
                             <div class="flex items-center gap-1">
                                 <a href="{{ route('settings.roles.edit', $role) }}" class="btn-ghost btn-icon btn-sm" title="Edit role & permissions">
                                     <x-icon name="edit" class="size-4" />
@@ -54,20 +54,14 @@
 
                     <p class="mt-3 flex-1 text-sm text-ink-soft">{{ $role->description }}</p>
 
-                    @if ($role->name === 'Super Admin')
-                        <div class="mt-4">
-                            <x-badge color="warning" dot>Unrestricted access</x-badge>
-                        </div>
-                    @else
-                        <div class="mt-4 flex flex-wrap gap-1">
-                            @foreach ($role->permissions->take(4) as $permission)
-                                <x-badge color="neutral">{{ $permission->name }}</x-badge>
-                            @endforeach
-                            @if ($role->permissions_count > 4)
-                                <x-badge color="neutral">+{{ $role->permissions_count - 4 }} more</x-badge>
-                            @endif
-                        </div>
-                    @endif
+                    <div class="mt-4 flex flex-wrap gap-1">
+                        @foreach ($role->permissions->take(4) as $permission)
+                            <x-badge color="neutral">{{ $permission->name }}</x-badge>
+                        @endforeach
+                        @if ($role->permissions_count > 4)
+                            <x-badge color="neutral">+{{ $role->permissions_count - 4 }} more</x-badge>
+                        @endif
+                    </div>
                 </div>
             @endforeach
         </div>

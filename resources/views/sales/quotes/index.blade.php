@@ -75,6 +75,11 @@
                                 <td class="text-right font-medium text-ink">{{ money($quote->total, $quote->currency) }}</td>
                                 <td class="text-right">
                                     <div class="flex items-center justify-end gap-1">
+                                        @if (auth()->user()->can('sales.quotes.view'))
+                                            <a href="{{ route('sales.quotes.show', $quote) }}" class="btn-ghost btn-icon btn-sm" title="View">
+                                                <x-icon name="eye" class="size-4" />
+                                            </a>
+                                        @endif
                                         <a href="{{ route('sales.quotes.edit', $quote) }}" class="btn-ghost btn-icon btn-sm" title="Edit">
                                             <x-icon name="edit" class="size-4" />
                                         </a>

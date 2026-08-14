@@ -31,6 +31,16 @@
                 </div>
             </x-card>
 
+            @if (isset($incomingQty) && $incomingQty > 0)
+                <x-card title="Incoming">
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm text-ink-faint">Expected on {{ isset($incomingEta) ? $incomingEta->format('Y-m-d') : '—' }}</span>
+                        <span class="text-base font-semibold text-primary">{{ number_format((float) $incomingQty, 3) }} units</span>
+                    </div>
+                    <p class="mt-2 text-xs text-ink-faint">On order, not yet received into stock.</p>
+                </x-card>
+            @endif
+
             <x-card title="Settings">
                 <dl class="space-y-3 text-sm">
                     <div class="flex justify-between">

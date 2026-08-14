@@ -59,8 +59,8 @@
                                     <p class="font-medium text-ink">{{ $s->company_name }}</p>
                                     <p class="text-xs text-ink-faint">{{ $s->email ?: $s->contact_name }}</p>
                                 </td>
-                                <td class="text-right text-ink-soft">{{ money($s->purchaseInvoices()->sum('total'), $s->currency) }}</td>
-                                <td class="text-right text-ink-soft">{{ money($s->payments()->sum('amount'), $s->currency) }}</td>
+                                <td class="text-right text-ink-soft">{{ money($row['billed'], $s->currency) }}</td>
+                                <td class="text-right text-ink-soft">{{ money($row['paid'], $s->currency) }}</td>
                                 <td class="text-right">
                                     @if ($row['overdue'] > 0)
                                         <span class="font-medium text-rose-600 dark:text-rose-400">{{ money($row['overdue'], $s->currency) }}</span>

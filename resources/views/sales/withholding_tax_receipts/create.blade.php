@@ -26,7 +26,12 @@
                         @endforeach
                     </x-select>
                     <x-input name="receipt_date" label="Receipt date" type="date" value="{{ old('receipt_date', now()->toDateString()) }}" />
-                    <x-input name="currency" label="Currency" value="{{ old('currency', 'USD') }}" placeholder="USD, EUR…" />
+                    <x-select name="currency" label="Currency">
+                        <option value="">— Default —</option>
+                        @foreach (currency_options() as $code => $label)
+                            <option value="{{ $code }}" @selected(old('currency', 'currency', settings('company.currency', 'USD')) === $code)>{{ $label }}</option>
+                        @endforeach
+                    </x-select>
                     <x-input name="amount" label="Payment amount" type="number" step="0.01" min="0" value="{{ old('amount', 0) }}" />
                     <x-input name="tax_rate_percent" label="Withholding rate %" type="number" step="0.01" min="0" max="100" value="{{ old('tax_rate_percent', 0) }}" hint="Tax amount is calculated automatically." />
                 </div>

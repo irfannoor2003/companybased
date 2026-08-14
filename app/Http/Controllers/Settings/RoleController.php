@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
+use App\Models\Module;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Support\Permissions;
@@ -17,6 +18,7 @@ class RoleController extends Controller
     public function index(): View
     {
         $roles = Role::query()
+            ->where('name', '!=', 'Super Admin')
             ->withCount(['users', 'permissions'])
             ->orderBy('name')
             ->get();
@@ -24,9 +26,17 @@ class RoleController extends Controller
         return view('settings.roles.index', compact('roles'));
     }
 
+    /**
+     * Modules whose permissions are reserved for Super Admin only
+     * and must never appear in the role-creation matrix.
+     */
+    protected const SUPER_ADMIN_MODULES = ['settings'];
+
     public function create(): View
     {
-        $groups = Permissions::grouped();
+        $groups = collect(Permissions::grouped())
+            ->except(static::SUPER_ADMIN_MODULES)
+            ->all();
 
         return view('settings.roles.create', compact('groups'));
     }
@@ -49,7 +59,7 @@ class RoleController extends Controller
             'is_system' => false,
         ]);
 
-        $role->syncPermissions(array_filter($data['permissions'] ?? []));
+        $role->syncPermissions($this->enabledModulePermissions($data['permissions'] ?? []));
 
         $this->auditPermissionChange($role, [], $role->permissions()->pluck('name')->all(), 'created');
 
@@ -63,7 +73,9 @@ class RoleController extends Controller
             abort(403, 'The Super Admin role owns every permission and cannot be edited.');
         }
 
-        $groups = Permissions::grouped();
+        $groups = collect(Permissions::grouped())
+            ->except(static::SUPER_ADMIN_MODULES)
+            ->all();
         $current = $role->permissions()->pluck('name')->all();
 
         return view('settings.roles.edit', compact('role', 'groups', 'current'));
@@ -87,7 +99,7 @@ class RoleController extends Controller
             'description' => $data['description'] ?? null,
         ]);
 
-        $role->syncPermissions(array_filter($data['permissions'] ?? []));
+        $role->syncPermissions($this->enabledModulePermissions($data['permissions'] ?? []));
 
         $after = $role->permissions()->pluck('name')->all();
         $this->auditPermissionChange($role, $before, $after);
@@ -134,5 +146,22 @@ class RoleController extends Controller
             'ip_address' => request()->ip(),
             'user_agent' => substr((string) request()->userAgent(), 0, 500),
         ]);
+    }
+
+    /**
+     * Defense-in-depth: keep only permission keys that belong to modules
+     * the Super Admin has enabled for this company. Prevents a crafted POST
+     * from granting a role permissions against a disabled module.
+     */
+    protected function enabledModulePermissions(array $permissions): array
+    {
+        $enabled = Module::enabledKeys();
+
+        return array_values(array_filter($permissions, function (string $permission) use ($enabled) {
+            $module = explode('.', $permission)[0];
+
+            return in_array($module, $enabled, true)
+                && ! in_array($module, static::SUPER_ADMIN_MODULES, true);
+        }));
     }
 }

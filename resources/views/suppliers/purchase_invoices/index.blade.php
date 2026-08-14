@@ -81,8 +81,13 @@
                                         <span class="font-medium text-emerald-600 dark:text-emerald-400">{{ money($invoice->balance(), $invoice->currency) }}</span>
                                     @endif
                                 </td>
-                                <td class="text-right">
+                                    <td class="text-right">
                                     <div class="flex items-center justify-end gap-1">
+                                        @if (auth()->user()->can('suppliers.purchase_invoices.view'))
+                                            <a href="{{ route('suppliers.purchase_invoices.show', $invoice) }}" class="btn-ghost btn-icon btn-sm" title="View">
+                                                <x-icon name="eye" class="size-4" />
+                                            </a>
+                                        @endif
                                         <a href="{{ route('suppliers.purchase_invoices.edit', $invoice) }}" class="btn-ghost btn-icon btn-sm" title="Edit">
                                             <x-icon name="edit" class="size-4" />
                                         </a>

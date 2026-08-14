@@ -14,7 +14,7 @@ class Supplier extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'company_name', 'contact_name', 'email', 'phone', 'mobile',
+        'company_name', 'short_code', 'contact_name', 'email', 'phone', 'mobile',
         'address', 'city', 'country', 'tax_number', 'payment_terms',
         'currency', 'is_active', 'notes',
     ];
@@ -66,6 +66,7 @@ class Supplier extends Model
 
         return $query->where(function (Builder $q) use ($term) {
             $q->where('company_name', 'like', "%{$term}%")
+                ->orWhere('short_code', 'like', "%{$term}%")
                 ->orWhere('contact_name', 'like', "%{$term}%")
                 ->orWhere('email', 'like', "%{$term}%")
                 ->orWhere('phone', 'like', "%{$term}%")

@@ -7,12 +7,14 @@ use App\Models\DebitNote;
 use App\Models\Product;
 use App\Models\PurchaseInvoice;
 use App\Models\Supplier;
+use App\Support\DocumentData;
 use App\Support\DocumentItems;
 use App\Support\ExportsCsv;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DebitNoteController extends Controller
@@ -58,6 +60,7 @@ class DebitNoteController extends Controller
             'issue_date' => $data['issue_date'],
             'reason' => $data['reason'] ?? null,
             'currency' => $data['currency'] ?? null,
+            'exchange_rate' => exchange_rate_for($data['currency'] ?? null),
             'notes' => $data['notes'] ?? null,
         ]);
 
@@ -77,6 +80,29 @@ class DebitNoteController extends Controller
         return view('suppliers.debit_notes.edit', compact('debitNote', 'suppliers', 'products'));
     }
 
+    public function show(DebitNote $debitNote): View
+    {
+        $debitNote->load(['supplier', 'items.product', 'invoice']);
+
+        return view('documents.show', DocumentData::build($debitNote));
+    }
+
+    public function pdf(DebitNote $debitNote): StreamedResponse
+    {
+        $debitNote->load(['supplier', 'items.product', 'invoice']);
+
+        $html = view('pdf.document', DocumentData::build($debitNote))->render();
+
+        $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, 'debit-note-'.$debitNote->number.'.pdf', [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="debit-note-'.$debitNote->number.'.pdf"',
+        ]);
+    }
+
     public function update(Request $request, DebitNote $debitNote): RedirectResponse
     {
         $data = $this->validateData($request);
@@ -87,6 +113,7 @@ class DebitNoteController extends Controller
             'issue_date' => $data['issue_date'],
             'reason' => $data['reason'] ?? null,
             'currency' => $data['currency'] ?? null,
+            'exchange_rate' => exchange_rate_for($data['currency'] ?? null),
             'notes' => $data['notes'] ?? null,
         ]);
 

@@ -16,7 +16,7 @@ class PurchaseInvoice extends Model
 
     protected $fillable = [
         'number', 'order_id', 'supplier_id', 'issue_date', 'due_date',
-        'status', 'currency', 'subtotal', 'discount_amount', 'tax_amount', 'total',
+        'status', 'currency', 'exchange_rate', 'subtotal', 'discount_amount', 'tax_amount', 'total',
         'paid_amount', 'notes',
     ];
 
@@ -27,6 +27,7 @@ class PurchaseInvoice extends Model
         return [
             'issue_date' => 'date',
             'due_date' => 'date',
+            'exchange_rate' => 'decimal:6',
             'subtotal' => 'decimal:2',
             'discount_amount' => 'decimal:2',
             'tax_amount' => 'decimal:2',

@@ -67,6 +67,9 @@
                                 <td class="text-right font-medium text-ink">{{ money($receipt->tax_amount, $receipt->currency) }}</td>
                                 <td class="text-right">
                                     <div class="flex items-center justify-end gap-1">
+                                        <a href="{{ route('sales.withholding_tax_receipts.pdf', $receipt) }}" class="btn-ghost btn-icon btn-sm" title="Download PDF">
+                                            <x-icon name="download" class="size-4" />
+                                        </a>
                                         <a href="{{ route('sales.withholding_tax_receipts.edit', $receipt) }}" class="btn-ghost btn-icon btn-sm" title="Edit">
                                             <x-icon name="edit" class="size-4" />
                                         </a>

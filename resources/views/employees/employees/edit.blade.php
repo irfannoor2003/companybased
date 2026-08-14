@@ -17,7 +17,7 @@
                         <x-input name="first_name" label="First name" required value="{{ old('first_name', $employee->first_name) }}" :error="$errors->first('first_name')" />
                         <x-input name="last_name" label="Last name" required value="{{ old('last_name', $employee->last_name) }}" :error="$errors->first('last_name')" />
                         <x-input name="employee_code" label="Employee code" required placeholder="e.g. EMP-001" value="{{ old('employee_code', $employee->employee_code) }}" :error="$errors->first('employee_code')" />
-                        <x-input name="email" label="Email" type="email" placeholder="name@company.com" value="{{ old('email', $employee->email) }}" :error="$errors->first('email')" />
+                        <x-input name="email" label="Email" type="email" placeholder="employee@example.com" value="{{ old('email', $employee->email) }}" :error="$errors->first('email')" />
                         <x-input name="phone" label="Phone" placeholder="+1 555 000 0000" value="{{ old('phone', $employee->phone) }}" :error="$errors->first('phone')" />
                     </div>
                 </div>

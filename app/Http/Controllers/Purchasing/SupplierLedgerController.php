@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Purchasing;
 
 use App\Http\Controllers\Controller;
 use App\Models\DebitNote;
+use App\Models\PurchaseInvoice;
 use App\Models\Supplier;
 use App\Models\SupplierPayment;
 use App\Support\ExportsCsv;
@@ -19,21 +20,63 @@ class SupplierLedgerController extends Controller
     {
         $suppliers = Supplier::query()
             ->withCount(['purchaseInvoices', 'payments'])
+            ->with([
+                'purchaseInvoices' => fn ($q) => $q->whereIn('status', ['sent', 'partially_paid', 'overdue']),
+                'payments',
+                'debitNotes',
+            ])
             ->when($request->filled('search'), fn ($q) => $q->search($request->search))
             ->orderBy('company_name')
             ->get()
             ->map(fn (Supplier $supplier) => [
                 'supplier' => $supplier,
-                'balance' => $supplier->balance(),
-                'overdue' => (float) $supplier->purchaseInvoices()
-                    ->whereIn('status', ['sent', 'partially_paid', 'overdue'])
-                    ->whereDate('due_date', '<', now()->toDateString())
-                    ->sum('total'),
+                'balance' => $this->nativeBalance($supplier),
+                'amount_base' => $this->baseBalance($supplier),
+                'overdue' => $this->overdueTotal($supplier),
+                'billed' => $supplier->purchaseInvoices->sum('total'),
+                'paid' => $supplier->payments->sum('amount'),
             ]);
 
-        $grandTotal = round($suppliers->sum(fn ($row) => $row['balance']), 2);
+        $grandTotal = round($suppliers->sum(fn ($row) => $row['amount_base']), 2);
 
         return view('suppliers.supplier_ledger.index', compact('suppliers', 'grandTotal'));
+    }
+
+    private function nativeBalance(Supplier $supplier): float
+    {
+        $billed = (float) $supplier->purchaseInvoices->sum('total');
+        $paid = (float) $supplier->payments->sum('amount');
+        $credited = (float) $supplier->debitNotes->sum('applied_amount');
+
+        return round($billed - $paid - $credited, 2);
+    }
+
+    /**
+     * Outstanding payable expressed in the company's base currency. Mirrors
+     * Supplier::balance() but converts each document (invoice, payment, debit
+     * note) using its own snapshotted exchange_rate — never the live reference
+     * rate, so historical reports stay accurate after a rate edit.
+     */
+    private function baseBalance(Supplier $supplier): float
+    {
+        $billed = $supplier->purchaseInvoices
+            ->sum(fn (PurchaseInvoice $invoice) => to_base_currency($invoice->total, $invoice->exchange_rate));
+
+        $paid = $supplier->payments
+            ->sum(fn (SupplierPayment $payment) => to_base_currency($payment->amount, $payment->exchange_rate));
+
+        $credited = $supplier->debitNotes
+            ->sum(fn (DebitNote $note) => to_base_currency($note->applied_amount, $note->exchange_rate));
+
+        return round((float) $billed - (float) $paid - (float) $credited, 2);
+    }
+
+    private function overdueTotal(Supplier $supplier): float
+    {
+        return (float) $supplier->purchaseInvoices
+            ->filter(fn (PurchaseInvoice $i) => in_array($i->status, ['sent', 'partially_paid', 'overdue'])
+                && $i->due_date < now()->toDateString())
+            ->sum('total');
     }
 
     public function show(Supplier $supplier): View

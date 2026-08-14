@@ -20,21 +20,63 @@ class StatementController extends Controller
     {
         $customers = SalesCustomer::query()
             ->withCount(['invoices', 'payments'])
+            ->with([
+                'invoices' => fn ($q) => $q->whereIn('status', ['sent', 'partially_paid', 'overdue']),
+                'payments',
+                'creditNotes',
+            ])
             ->when($request->filled('search'), fn ($q) => $q->search($request->search))
             ->orderBy('company_name')
             ->get()
             ->map(fn (SalesCustomer $customer) => [
                 'customer' => $customer,
-                'balance' => $customer->balance(),
-                'overdue' => (float) $customer->invoices()
-                    ->whereIn('status', ['sent', 'partially_paid', 'overdue'])
-                    ->whereDate('due_date', '<', now()->toDateString())
-                    ->sum('total'),
+                'balance' => $this->nativeBalance($customer),
+                'amount_base' => $this->baseBalance($customer),
+                'overdue' => $this->overdueTotal($customer),
+                'billed' => $customer->invoices->sum('total'),
+                'paid' => $customer->payments->sum('amount'),
             ]);
 
-        $grandTotal = round($customers->sum(fn ($row) => $row['balance']), 2);
+        $grandTotal = round($customers->sum(fn ($row) => $row['amount_base']), 2);
 
         return view('sales.statements.index', compact('customers', 'grandTotal'));
+    }
+
+    private function nativeBalance(SalesCustomer $customer): float
+    {
+        $billed = (float) $customer->invoices->sum('total');
+        $paid = (float) $customer->payments->sum('amount');
+        $credited = (float) $customer->creditNotes->sum('applied_amount');
+
+        return round($billed - $paid - $credited, 2);
+    }
+
+    /**
+     * Outstanding balance expressed in the company's base currency. Mirrors
+     * SalesCustomer::balance() but converts each document (invoice, payment,
+     * credit note) using its own snapshotted exchange_rate — never the live
+     * reference rate, so historical reports stay accurate after a rate edit.
+     */
+    private function baseBalance(SalesCustomer $customer): float
+    {
+        $billed = $customer->invoices
+            ->sum(fn (SalesInvoice $invoice) => to_base_currency($invoice->total, $invoice->exchange_rate));
+
+        $paid = $customer->payments
+            ->sum(fn (SalesPayment $payment) => to_base_currency($payment->amount, $payment->exchange_rate));
+
+        $credited = $customer->creditNotes
+            ->sum(fn (SalesCreditNote $note) => to_base_currency($note->applied_amount, $note->exchange_rate));
+
+        return round((float) $billed - (float) $paid - (float) $credited, 2);
+    }
+
+    private function overdueTotal(SalesCustomer $customer): float
+    {
+        return (float) $customer->invoices
+            ->filter(fn (SalesInvoice $i) => in_array($i->status, ['sent', 'partially_paid', 'overdue'])
+                && $i->due_date < now()->toDateString())
+            ->sum('total');
     }
 
     public function show(SalesCustomer $customer): View

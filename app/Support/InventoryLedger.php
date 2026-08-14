@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\InventoryIncomingShipment;
 use App\Models\InventoryItem;
 use App\Models\InventoryMovement;
 use App\Models\InventoryProductionOrder;
@@ -22,6 +23,7 @@ final class InventoryLedger
     public const TYPES = [
         'initial', 'adjustment', 'transfer_in', 'transfer_out',
         'write_off', 'production_in', 'production_out', 'purchase_in',
+        'incoming_shipment',
     ];
 
     /**
@@ -159,6 +161,47 @@ final class InventoryLedger
                     'purchase_in',
                     $order,
                     $order->number,
+                );
+            }
+        });
+    }
+
+    /**
+     * Approve an incoming shipment: post each item's reviewed (received)
+     * quantity into the destination warehouse as tracked stock, recording an
+     * auditable movement per line. Products without an underlying inventory
+     * item are skipped (they aren't stock-tracked), matching purchase receipts.
+     */
+    public static function applyIncomingShipment(InventoryIncomingShipment $shipment): void
+    {
+        if (! $shipment->warehouse_id) {
+            return;
+        }
+
+        $items = InventoryItem::query()
+            ->whereIn('product_id', $shipment->items->pluck('product_id')->all())
+            ->get()
+            ->keyBy('product_id');
+
+        DB::transaction(function () use ($shipment, $items) {
+            foreach ($shipment->items as $line) {
+                $received = (float) $line->received_quantity;
+
+                if ($received <= 0) {
+                    continue;
+                }
+
+                if (! isset($items[$line->product_id])) {
+                    continue;
+                }
+
+                static::adjust(
+                    $items[$line->product_id]->id,
+                    $shipment->warehouse_id,
+                    $received,
+                    'incoming_shipment',
+                    $shipment,
+                    'Received via shipment '.$shipment->number,
                 );
             }
         });

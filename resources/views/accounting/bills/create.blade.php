@@ -108,7 +108,7 @@
                     return this.lines.reduce((s, l) => s + (parseFloat(l.amount) || 0), 0);
                 },
                 money(v) {
-                    return new Intl.NumberFormat('en', { style: 'currency', currency: 'USD' }).format(v || 0);
+                    return new Intl.NumberFormat('en', { style: 'currency', currency: '{{ settings('company.currency', 'USD') }}' }).format(v || 0);
                 },
             };
         }

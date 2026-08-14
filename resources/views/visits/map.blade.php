@@ -35,7 +35,7 @@
                 <script>
                     const markers = @js($markers);
 
-                    const map = L.map('visit-map').setView([5.6037, -0.1870], 8);
+                    const map = L.map('visit-map').setView([{{ settings('company.latitude', '0') }}, {{ settings('company.longitude', '0') }}], 8);
                     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                         maxZoom: 19,
                         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',

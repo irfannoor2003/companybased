@@ -70,7 +70,7 @@ class JournalController extends Controller
 
         if (! $entry->isBalanced()) {
             return redirect()->route('accounting.journal.edit', $entry)
-                ->with('toasts', [['type' => 'danger', 'message' => 'Entry saved as draft. Debits must equal credits before posting.']]);
+                ->with('toasts', [['type' => 'error', 'message' => 'Entry saved as draft. Debits must equal credits before posting.']]);
         }
 
         return redirect()->route('accounting.journal.show', $entry)
@@ -97,7 +97,7 @@ class JournalController extends Controller
     public function update(Request $request, JournalEntry $entry): RedirectResponse
     {
         if ($entry->status !== 'draft') {
-            return back()->with('toasts', [['type' => 'danger', 'message' => 'Only draft entries can be edited.']]);
+            return back()->with('toasts', [['type' => 'error', 'message' => 'Only draft entries can be edited.']]);
         }
 
         $data = $request->validate([
@@ -121,7 +121,7 @@ class JournalController extends Controller
 
         $toast = $entry->isBalanced()
             ? ['type' => 'success', 'message' => "Journal entry {$entry->number} updated."]
-            : ['type' => 'danger', 'message' => 'Entry saved. It is not balanced — debits must equal credits to post.'];
+            : ['type' => 'error', 'message' => 'Entry saved. It is not balanced — debits must equal credits to post.'];
 
         return back()->with('toasts', [$toast]);
     }
@@ -131,7 +131,7 @@ class JournalController extends Controller
         try {
             GeneralLedger::post($entry);
         } catch (\RuntimeException $e) {
-            return back()->with('toasts', [['type' => 'danger', 'message' => $e->getMessage()]]);
+            return back()->with('toasts', [['type' => 'error', 'message' => $e->getMessage()]]);
         }
 
         return redirect()->route('accounting.journal.show', $entry)
@@ -143,7 +143,7 @@ class JournalController extends Controller
         try {
             GeneralLedger::void($entry);
         } catch (\RuntimeException $e) {
-            return back()->with('toasts', [['type' => 'danger', 'message' => $e->getMessage()]]);
+            return back()->with('toasts', [['type' => 'error', 'message' => $e->getMessage()]]);
         }
 
         return back()->with('toasts', [['type' => 'success', 'message' => "Journal entry {$entry->number} voided."]]);

@@ -62,6 +62,7 @@
 
             <x-card title="Contact">
                 <dl class="space-y-2 text-sm">
+                    <div class="flex justify-between gap-3"><dt class="text-ink-faint">Short code</dt><dd class="text-ink">{{ $customer->short_code ?: '—' }}</dd></div>
                     <div class="flex justify-between gap-3"><dt class="text-ink-faint">Contact</dt><dd class="text-ink">{{ $customer->contact_name ?: '—' }}</dd></div>
                     <div class="flex justify-between gap-3"><dt class="text-ink-faint">Email</dt><dd class="text-ink">{{ $customer->email ?: '—' }}</dd></div>
                     <div class="flex justify-between gap-3"><dt class="text-ink-faint">Phone</dt><dd class="text-ink">{{ $customer->phone ?: ($customer->mobile ?: '—') }}</dd></div>

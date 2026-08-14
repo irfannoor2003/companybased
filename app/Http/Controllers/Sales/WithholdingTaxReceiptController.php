@@ -7,6 +7,7 @@ use App\Models\SalesCustomer;
 use App\Models\SalesInvoice;
 use App\Models\WithholdingTaxReceipt;
 use App\Support\ExportsCsv;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -52,6 +53,7 @@ class WithholdingTaxReceiptController extends Controller
             'tax_rate_percent' => $data['tax_rate_percent'],
             'tax_amount' => round((float) $data['amount'] * ((float) $data['tax_rate_percent'] / 100), 2),
             'currency' => $data['currency'] ?? null,
+            'exchange_rate' => exchange_rate_for($data['currency'] ?? null),
             'notes' => $data['notes'] ?? null,
         ]);
 
@@ -78,6 +80,7 @@ class WithholdingTaxReceiptController extends Controller
             'tax_rate_percent' => $data['tax_rate_percent'],
             'tax_amount' => round((float) $data['amount'] * ((float) $data['tax_rate_percent'] / 100), 2),
             'currency' => $data['currency'] ?? null,
+            'exchange_rate' => exchange_rate_for($data['currency'] ?? null),
             'notes' => $data['notes'] ?? null,
         ]);
 
@@ -91,6 +94,22 @@ class WithholdingTaxReceiptController extends Controller
 
         return redirect()->route('sales.withholding_tax_receipts.index')
             ->with('toasts', [['type' => 'success', 'message' => "Withholding tax receipt {$number} deleted."]]);
+    }
+
+    public function pdf(WithholdingTaxReceipt $withholdingTaxReceipt): StreamedResponse
+    {
+        $withholdingTaxReceipt->load(['customer', 'invoice']);
+
+        $html = view('sales.withholding_tax_receipts.pdf', compact('withholdingTaxReceipt'))->render();
+
+        $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, 'wht-'.$withholdingTaxReceipt->number.'.pdf', [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="wht-'.$withholdingTaxReceipt->number.'.pdf"',
+        ]);
     }
 
     public function export(Request $request): StreamedResponse

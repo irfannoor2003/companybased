@@ -17,6 +17,7 @@ class UserController extends Controller
     {
         $users = User::query()
             ->with(['roles'])
+            ->whereDoesntHave('roles', fn ($q) => $q->where('name', 'Super Admin'))
             ->when($request->filled('search'), fn ($q) => $q
                 ->where(fn ($q) => $q
                     ->where('name', 'like', "%{$request->search}%")
@@ -30,14 +31,14 @@ class UserController extends Controller
             ->paginate(15)
             ->withQueryString();
 
-        $roles = Role::orderBy('name')->get();
+        $roles = Role::where('name', '!=', 'Super Admin')->orderBy('name')->get();
 
         return view('settings.users.index', compact('users', 'roles'));
     }
 
     public function create(): View
     {
-        $roles = Role::orderBy('name')->get();
+        $roles = Role::where('name', '!=', 'Super Admin')->orderBy('name')->get();
 
         return view('settings.users.create', compact('roles'));
     }
@@ -51,7 +52,7 @@ class UserController extends Controller
             'phone' => ['nullable', 'string', 'max:60'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
             'roles' => ['required', 'array', 'min:1'],
-            'roles.*' => ['integer', Rule::exists('roles', 'id')],
+            'roles.*' => ['integer', Rule::exists('roles', 'id')->where(fn ($q) => $q->where('name', '!=', 'Super Admin'))],
             'is_active' => ['boolean'],
         ]);
 
@@ -73,7 +74,7 @@ class UserController extends Controller
 
     public function edit(User $user): View
     {
-        $roles = Role::orderBy('name')->get();
+        $roles = Role::where('name', '!=', 'Super Admin')->orderBy('name')->get();
 
         return view('settings.users.edit', compact('user', 'roles'));
     }
@@ -87,7 +88,7 @@ class UserController extends Controller
             'phone' => ['nullable', 'string', 'max:60'],
             'password' => ['nullable', 'string', 'min:8', 'confirmed'],
             'roles' => ['required', 'array', 'min:1'],
-            'roles.*' => ['integer', Rule::exists('roles', 'id')],
+            'roles.*' => ['integer', Rule::exists('roles', 'id')->where(fn ($q) => $q->where('name', '!=', 'Super Admin'))],
             'is_active' => ['boolean'],
             'access_until' => ['nullable', 'date', 'after:now'],
         ]);

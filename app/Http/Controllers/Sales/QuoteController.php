@@ -8,12 +8,14 @@ use App\Models\Product;
 use App\Models\SalesCustomer;
 use App\Models\SalesOrder;
 use App\Models\SalesQuote;
+use App\Support\DocumentData;
 use App\Support\DocumentItems;
 use App\Support\ExportsCsv;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class QuoteController extends Controller
@@ -66,6 +68,7 @@ class QuoteController extends Controller
             'valid_until' => $data['valid_until'] ?? null,
             'status' => $data['status'],
             'currency' => $data['currency'] ?? null,
+            'exchange_rate' => exchange_rate_for($data['currency'] ?? null),
             'notes' => $data['notes'] ?? null,
         ]);
 
@@ -84,6 +87,29 @@ class QuoteController extends Controller
         $products = Product::query()->where('is_active', true)->orderBy('name')->get();
 
         return view('sales.quotes.edit', compact('quote', 'customers', 'priceLists', 'products'));
+    }
+
+    public function show(SalesQuote $quote): View
+    {
+        $quote->load(['customer', 'items.product']);
+
+        return view('documents.show', DocumentData::build($quote));
+    }
+
+    public function pdf(SalesQuote $quote): StreamedResponse
+    {
+        $quote->load(['customer', 'items.product']);
+
+        $html = view('pdf.document', DocumentData::build($quote))->render();
+
+        $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, 'quote-'.$quote->number.'.pdf', [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="quote-'.$quote->number.'.pdf"',
+        ]);
     }
 
     public function update(Request $request, SalesQuote $quote): RedirectResponse
@@ -110,6 +136,7 @@ class QuoteController extends Controller
             'valid_until' => $data['valid_until'] ?? null,
             'status' => $data['status'],
             'currency' => $data['currency'] ?? null,
+            'exchange_rate' => exchange_rate_for($data['currency'] ?? null),
             'notes' => $data['notes'] ?? null,
         ]);
 
@@ -163,6 +190,7 @@ class QuoteController extends Controller
             'issue_date' => now()->toDateString(),
             'status' => 'draft',
             'currency' => $quote->currency,
+            'exchange_rate' => $quote->exchange_rate ?? exchange_rate_for($quote->currency),
             'subtotal' => $quote->subtotal,
             'discount_amount' => 0,
             'tax_amount' => $quote->tax_amount,

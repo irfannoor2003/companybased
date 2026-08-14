@@ -2,6 +2,7 @@
     <x-slot name="header">
         <x-page-header title="Withholding tax receipt {{ $withholdingTaxReceipt->number }}" description="{{ $withholdingTaxReceipt->customer?->company_name }}" icon="tax">
             <x-slot name="actions">
+                <x-button :href="route('sales.withholding_tax_receipts.pdf', $withholdingTaxReceipt)" variant="secondary" icon="download" target="_blank" rel="noopener">Export PDF</x-button>
                 <x-button href="{{ route('sales.withholding_tax_receipts.index') }}" variant="secondary" icon="arrow-left">Back</x-button>
             </x-slot>
         </x-page-header>
@@ -26,7 +27,12 @@
                         @endforeach
                     </x-select>
                     <x-input name="receipt_date" label="Receipt date" type="date" value="{{ old('receipt_date', $withholdingTaxReceipt->receipt_date?->format('Y-m-d')) }}" />
-                    <x-input name="currency" label="Currency" value="{{ old('currency', $withholdingTaxReceipt->currency) }}" placeholder="USD, EUR…" />
+                    <x-select name="currency" label="Currency">
+                        <option value="">— Default —</option>
+                        @foreach (currency_options() as $code => $label)
+                            <option value="{{ $code }}" @selected(old('currency', 'currency', $withholdingTaxReceipt->currency) === $code)>{{ $label }}</option>
+                        @endforeach
+                    </x-select>
                     <x-input name="amount" label="Payment amount" type="number" step="0.01" min="0" value="{{ old('amount', $withholdingTaxReceipt->amount) }}" />
                     <x-input name="tax_rate_percent" label="Withholding rate %" type="number" step="0.01" min="0" max="100" value="{{ old('tax_rate_percent', $withholdingTaxReceipt->tax_rate_percent) }}" hint="Tax amount is calculated automatically." />
                 </div>

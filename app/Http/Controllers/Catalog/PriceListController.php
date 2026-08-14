@@ -6,9 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\PriceList;
 use App\Models\Product;
 use App\Support\ExportsCsv;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -43,26 +45,34 @@ class PriceListController extends Controller
     {
         $data = $this->validateData($request);
 
-        $priceList = DB::transaction(function () use ($data, $request) {
-            if ($request->boolean('is_default')) {
-                PriceList::query()->update(['is_default' => false]);
+        try {
+            $priceList = DB::transaction(function () use ($data, $request) {
+                if ($request->boolean('is_default')) {
+                    PriceList::query()->update(['is_default' => false]);
+                }
+
+                $priceList = PriceList::create([
+                    'name' => $data['name'],
+                    'slug' => unique_slug(PriceList::class, $data['name']),
+                    'type' => $data['type'],
+                    'currency' => $data['currency'] ?? null,
+                    'markup_percent' => $data['markup_percent'] ?? 0,
+                    'is_default' => $request->boolean('is_default'),
+                    'is_active' => $request->boolean('is_active', true),
+                    'description' => $data['description'] ?? null,
+                ]);
+
+                $this->syncItems($priceList, $data['items'] ?? []);
+
+                return $priceList;
+            });
+        } catch (QueryException $e) {
+            if ($e->errorInfo[1] == 1062) {
+                return back()->withInput()
+                    ->with('toasts', [['type' => 'danger', 'message' => 'A price list with the name "' . $data['name'] . '" already exists. Please choose a different name.']]);
             }
-
-            $priceList = PriceList::create([
-                'name' => $data['name'],
-                'slug' => unique_slug(PriceList::class, $data['name']),
-                'type' => $data['type'],
-                'currency' => $data['currency'] ?? null,
-                'markup_percent' => $data['markup_percent'] ?? 0,
-                'is_default' => $request->boolean('is_default'),
-                'is_active' => $request->boolean('is_active', true),
-                'description' => $data['description'] ?? null,
-            ]);
-
-            $this->syncItems($priceList, $data['items'] ?? []);
-
-            return $priceList;
-        });
+            throw $e;
+        }
 
         return redirect()->route('catalog.price_lists.edit', $priceList)
             ->with('toasts', [['type' => 'success', 'message' => "Price list \"{$priceList->name}\" created."]]);

@@ -79,7 +79,7 @@
                         <div class="mt-4 space-y-3 border-t border-line px-5 py-4">
                             <div class="flex justify-between text-sm text-ink-soft">
                                 <span>Subtotal</span>
-                                <span id="cart-subtotal" class="font-medium text-ink">GHS 0.00</span>
+                                <span id="cart-subtotal" class="font-medium text-ink">{{ settings('company.currency', 'USD') }} 0.00</span>
                             </div>
                             <div class="grid grid-cols-2 gap-3">
                                 <x-input name="discount" label="Discount" type="number" step="0.01" min="0" size="sm" placeholder="0.00" value="{{ old('discount', 0) }}" />
@@ -87,7 +87,7 @@
                             </div>
                             <div class="flex justify-between text-sm font-semibold text-ink">
                                 <span>Total</span>
-                                <span id="cart-total">GHS 0.00</span>
+                                <span id="cart-total">{{ settings('company.currency', 'USD') }} 0.00</span>
                             </div>
                             <x-select name="payment_method_id" label="Payment method" size="sm">
                                 <option value="">—</option>
@@ -98,7 +98,7 @@
                             <x-input name="amount_paid" label="Amount paid" type="number" step="0.01" min="0" size="sm" placeholder="0.00" value="{{ old('amount_paid') }}" />
                             <div class="flex justify-between text-sm text-ink-soft">
                                 <span>Change due</span>
-                                <span id="cart-change" class="font-medium text-ink">GHS 0.00</span>
+                                <span id="cart-change" class="font-medium text-ink">{{ settings('company.currency', 'USD') }} 0.00</span>
                             </div>
                             <x-button type="submit" class="w-full" icon="check" size="lg">Charge</x-button>
                         </div>
@@ -111,9 +111,10 @@
     <script>
         (function () {
             const items = new Map();
+            const currency = '{{ settings("company.currency", "USD") }}';
 
             function money(n) {
-                return 'GHS ' + Number(n).toFixed(2);
+                return currency + ' ' + Number(n).toFixed(2);
             }
 
             function recalc() {

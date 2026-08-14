@@ -9,13 +9,14 @@
 
     <div class="mt-6 max-w-5xl">
         <x-card title="Customer details">
-            <form method="POST" action="{{ route('sales.customers.store') }}" class="space-y-5">
+            <form method="POST" action="{{ route('sales.customers.store') }}" class="space-y-5" x-data="shortCodeSuggest('{{ route('sales.customers.short-code-suggest') }}')" @submit="markTouched()">
                 @csrf
 
                 <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                    <x-input name="company_name" label="Company name" required value="{{ old('company_name') }}" placeholder="e.g. Acme Traders LLC" class="sm:col-span-2" />
+                    <x-input name="company_name" label="Company name" required value="{{ old('company_name') }}" placeholder="e.g. Acme Traders LLC" class="sm:col-span-2" x-on:input.debounce.400ms="suggestShortCode()" />
+                    <x-input name="short_code" label="Short code" value="{{ old('short_code') }}" placeholder="e.g. ACME, CUST-001" hint="Unique identifier used in document numbers or references." x-on:input="markTouched()" />
                     <x-input name="contact_name" label="Contact person" value="{{ old('contact_name') }}" placeholder="e.g. Jane Doe" />
-                    <x-input name="email" label="Email" type="email" value="{{ old('email') }}" placeholder="billing@acme.test" />
+                    <x-input name="email" label="Email" type="email" value="{{ old('email') }}" placeholder="customer@example.com" />
                     <x-input name="phone" label="Phone" value="{{ old('phone') }}" />
                     <x-input name="mobile" label="Mobile" value="{{ old('mobile') }}" />
                     <x-input name="tax_number" label="Tax number" value="{{ old('tax_number') }}" />
@@ -26,7 +27,12 @@
                         @endforeach
                     </x-select>
                     <x-input name="credit_limit" label="Credit limit" type="number" step="0.01" min="0" value="{{ old('credit_limit', 0) }}" hint="0 = no credit." />
-                    <x-input name="currency" label="Currency" value="{{ old('currency', 'USD') }}" placeholder="USD, EUR…" />
+                    <x-select name="currency" label="Currency">
+                        <option value="">— Default —</option>
+                        @foreach (currency_options() as $code => $label)
+                            <option value="{{ $code }}" @selected(old('currency', settings('company.currency', 'USD')) === $code)>{{ $label }}</option>
+                        @endforeach
+                    </x-select>
                 </div>
 
                 <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">

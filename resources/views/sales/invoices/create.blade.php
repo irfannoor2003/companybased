@@ -12,11 +12,11 @@
             <form method="POST" action="{{ route('sales.invoices.store') }}" class="space-y-5">
                 @csrf
 
-                <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                    <x-select name="customer_id" label="Customer" required>
+                <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3" x-data="currencyFromEntity()" x-init="initCurrencySelect()">
+                    <x-select name="customer_id" label="Customer" required @change="$event.target.value && syncCurrency($event.target)">
                         <option value="">— Select customer —</option>
                         @foreach ($customers as $customer)
-                            <option value="{{ $customer->id }}" @selected(old('customer_id', $fromOrder?->customer_id) == $customer->id)>{{ $customer->company_name }}</option>
+                            <option value="{{ $customer->id }}" data-currency="{{ $customer->currency ?? '' }}" @selected(old('customer_id', $fromOrder?->customer_id) == $customer->id)>{{ $customer->company_name }}</option>
                         @endforeach
                     </x-select>
                     @if ($fromOrder)
@@ -42,7 +42,12 @@
                     </x-select>
                     <x-input name="issue_date" label="Issue date" type="date" value="{{ old('issue_date', now()->toDateString()) }}" />
                     <x-input name="due_date" label="Due date" type="date" value="{{ old('due_date') }}" />
-                    <x-input name="currency" label="Currency" value="{{ old('currency', 'USD') }}" placeholder="USD, EUR…" />
+                    <x-select name="currency" label="Currency" x-ref="currency">
+                        <option value="">— Default —</option>
+                        @foreach (currency_options() as $code => $label)
+                            <option value="{{ $code }}" @selected(old('currency', $fromOrder?->currency ?? settings('company.currency', 'USD')) === $code)>{{ $label }}</option>
+                        @endforeach
+                    </x-select>
                 </div>
 
                 @php
@@ -56,7 +61,7 @@
                     ])->all() : [];
                 @endphp
 
-                <x-sales.line-items-editor :products="$products" :initial-items="$initialItems" :currency="old('currency', 'USD')" />
+                <x-sales.line-items-editor :products="$products" :initial-items="$initialItems" :currency="old('currency', $fromOrder?->currency ?? settings('company.currency', 'USD'))" />
 
                 <x-textarea name="notes" label="Notes" rows="3">{{ old('notes') }}</x-textarea>
 

@@ -20,10 +20,10 @@
                     @csrf
                     @method('PUT')
 
-                    <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                        <x-select name="customer_id" label="Customer" required>
+                    <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3" x-data="currencyFromEntity()" x-init="initCurrencySelect()">
+                        <x-select name="customer_id" label="Customer" required @change="$event.target.value && syncCurrency($event.target)">
                             @foreach ($customers as $customer)
-                                <option value="{{ $customer->id }}" @selected(old('customer_id', $order->customer_id) == $customer->id)>{{ $customer->company_name }}</option>
+                                <option value="{{ $customer->id }}" data-currency="{{ $customer->currency ?? '' }}" @selected(old('customer_id', $order->customer_id) == $customer->id)>{{ $customer->company_name }}</option>
                             @endforeach
                         </x-select>
                         <x-select name="status" label="Status">
@@ -31,7 +31,12 @@
                                 <option value="{{ $status }}" @selected(old('status', $order->status) === $status)>{{ ucfirst($status) }}</option>
                             @endforeach
                         </x-select>
-                        <x-input name="currency" label="Currency" value="{{ old('currency', $order->currency) }}" placeholder="USD, EUR…" />
+                        <x-select name="currency" label="Currency">
+                        <option value="">— Default —</option>
+                        @foreach (currency_options() as $code => $label)
+                            <option value="{{ $code }}" @selected(old('currency', 'currency', $order->currency) === $code)>{{ $label }}</option>
+                        @endforeach
+                    </x-select>
                         <x-input name="issue_date" label="Issue date" type="date" value="{{ old('issue_date', $order->issue_date?->format('Y-m-d')) }}" />
                         <x-input name="expected_delivery_date" label="Expected delivery" type="date" value="{{ old('expected_delivery_date', $order->expected_delivery_date?->format('Y-m-d')) }}" />
                     </div>

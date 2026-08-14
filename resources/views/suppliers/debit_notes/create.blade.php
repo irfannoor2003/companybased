@@ -27,7 +27,12 @@
                     </x-select>
                     <x-input name="issue_date" label="Issue date" type="date" value="{{ old('issue_date', now()->toDateString()) }}" />
                     <x-input name="reason" label="Reason" value="{{ old('reason') }}" placeholder="e.g. Damaged goods, overcharge…" />
-                    <x-input name="currency" label="Currency" value="{{ old('currency', 'USD') }}" placeholder="USD, EUR…" />
+                    <x-select name="currency" label="Currency">
+                        <option value="">— Default —</option>
+                        @foreach (currency_options() as $code => $label)
+                            <option value="{{ $code }}" @selected(old('currency', 'currency', settings('company.currency', 'USD')) === $code)>{{ $label }}</option>
+                        @endforeach
+                    </x-select>
                 </div>
 
                 @php
@@ -41,7 +46,7 @@
                     ])->all() : [];
                 @endphp
 
-                <x-suppliers.line-items-editor :products="$products" :initial-items="$initialItems" :currency="old('currency', 'USD')" />
+                <x-suppliers.line-items-editor :products="$products" :initial-items="$initialItems" :currency="old('currency', settings('company.currency', 'USD'))" />
 
                 <x-textarea name="notes" label="Notes" rows="3">{{ old('notes') }}</x-textarea>
 

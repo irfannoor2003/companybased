@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Catalog;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Support\ExportsCsv;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -41,13 +43,21 @@ class CategoryController extends Controller
     {
         $data = $this->validateData($request);
 
-        $category = Category::create([
-            'name' => $data['name'],
-            'slug' => unique_slug(Category::class, $data['name']),
-            'parent_id' => $data['parent_id'] ?? null,
-            'description' => $data['description'] ?? null,
-            'is_active' => $request->boolean('is_active', true),
-        ]);
+        try {
+            $category = Category::create([
+                'name' => $data['name'],
+                'slug' => unique_slug(Category::class, $data['name']),
+                'parent_id' => $data['parent_id'] ?? null,
+                'description' => $data['description'] ?? null,
+                'is_active' => $request->boolean('is_active', true),
+            ]);
+        } catch (QueryException $e) {
+            if ($e->errorInfo[1] == 1062) {
+                return back()->withInput()
+                    ->with('toasts', [['type' => 'danger', 'message' => 'A category with the name "' . $data['name'] . '" already exists. Please choose a different name.']]);
+            }
+            throw $e;
+        }
 
         return redirect()->route('catalog.categories.edit', $category)
             ->with('toasts', [['type' => 'success', 'message' => "Category \"{$category->name}\" created."]]);

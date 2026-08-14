@@ -19,6 +19,11 @@ class SupplierController extends Controller
     {
         $suppliers = Supplier::query()
             ->withCount(['purchaseOrders', 'purchaseInvoices'])
+            ->with([
+                'purchaseInvoices' => fn ($q) => $q->whereIn('status', ['sent', 'partially_paid', 'overdue'])->select('id', 'supplier_id', 'total', 'status'),
+                'payments' => fn ($q) => $q->select('id', 'supplier_id', 'amount'),
+                'debitNotes' => fn ($q) => $q->select('id', 'supplier_id', 'applied_amount'),
+            ])
             ->when($request->filled('search'), fn ($q) => $q->search($request->search))
             ->when($request->filled('status'), fn ($q) => $q->when($request->status === 'active', fn ($q) => $q->where('is_active', true))
                 ->when($request->status === 'inactive', fn ($q) => $q->where('is_active', false)))
@@ -40,6 +45,7 @@ class SupplierController extends Controller
 
         $supplier = Supplier::create([
             'company_name' => $data['company_name'],
+            'short_code' => $data['short_code'] ?? null,
             'contact_name' => $data['contact_name'] ?? null,
             'email' => $data['email'] ?? null,
             'phone' => $data['phone'] ?? null,
@@ -80,6 +86,7 @@ class SupplierController extends Controller
 
         $supplier->update([
             'company_name' => $data['company_name'],
+            'short_code' => $data['short_code'] ?? null,
             'contact_name' => $data['contact_name'] ?? null,
             'email' => $data['email'] ?? null,
             'phone' => $data['phone'] ?? null,
@@ -113,9 +120,10 @@ class SupplierController extends Controller
             ->orderBy('company_name')
             ->get();
 
-        return $this->streamCsv('suppliers-'.now()->format('Y-m-d').'.csv', ['ID', 'Company', 'Contact', 'Email', 'Phone', 'City', 'Country', 'Tax no.', 'Payment terms', 'Balance', 'Status'], $suppliers->map(fn (Supplier $s) => [
+        return $this->streamCsv('suppliers-'.now()->format('Y-m-d').'.csv', ['ID', 'Company', 'Short code', 'Contact', 'Email', 'Phone', 'City', 'Country', 'Tax no.', 'Payment terms', 'Balance', 'Status'], $suppliers->map(fn (Supplier $s) => [
             $s->id,
             $s->company_name,
+            $s->short_code,
             $s->contact_name,
             $s->email,
             $s->phone,
@@ -128,10 +136,28 @@ class SupplierController extends Controller
         ]));
     }
 
+    public function suggestShortCode(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $prefix = strtoupper(substr(preg_replace('/[^a-zA-Z]/', '', $request->input('name', '')), 0, 8)) ?: 'VEND';
+
+        $existing = Supplier::query()
+            ->where('short_code', 'like', $prefix.'-%')
+            ->pluck('short_code');
+
+        $max = 0;
+        foreach ($existing as $code) {
+            $n = (int) substr($code, strlen($prefix) + 1);
+            $max = max($max, $n);
+        }
+
+        return response()->json(['code' => $prefix.'-'.str_pad((string) ($max + 1), 3, '0', STR_PAD_LEFT)]);
+    }
+
     private function validateData(Request $request, ?int $ignoreId = null): array
     {
         return $request->validate([
             'company_name' => ['required', 'string', 'max:255'],
+            'short_code' => ['nullable', 'string', 'max:40', Rule::unique('suppliers', 'short_code')->ignore($ignoreId)],
             'contact_name' => ['nullable', 'string', 'max:255'],
             'email' => ['nullable', 'email', 'max:255', Rule::unique('suppliers', 'email')->ignore($ignoreId)],
             'phone' => ['nullable', 'string', 'max:60'],

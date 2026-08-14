@@ -12,14 +12,22 @@
             <form method="POST" action="{{ route('inventory.items.store') }}" class="space-y-5">
                 @csrf
 
-                <x-select name="product_id" label="Product" required>
-                    <option value="">— Select product —</option>
-                    @foreach ($products as $product)
-                        <option value="{{ $product->id }}" @selected(old('product_id') == $product->id)>
-                            {{ $product->name }}{{ $product->sku ? ' ('.$product->sku.')' : '' }}
-                        </option>
-                    @endforeach
-                </x-select>
+                @if ($products->isEmpty())
+                    <div class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                        Every active product is already being tracked. Create a new product in
+                        <a href="{{ route('catalog.products.create') }}" class="font-semibold underline">Catalog → Products</a>
+                        first, or delete the current item for a product to re-add it.
+                    </div>
+                @else
+                    <x-select name="product_id" label="Product" required>
+                        <option value="">— Select product —</option>
+                        @foreach ($products as $product)
+                            <option value="{{ $product->id }}" @selected(old('product_id') == $product->id)>
+                                {{ $product->name }}{{ $product->sku ? ' ('.$product->sku.')' : '' }}
+                            </option>
+                        @endforeach
+                    </x-select>
+                @endif
 
                 <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
                     <x-input name="reorder_level" label="Reorder level" type="number" step="0.001" min="0" value="{{ old('reorder_level', 0) }}" hint="When on-hand drops to this, the item is flagged." />

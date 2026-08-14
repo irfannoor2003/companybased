@@ -1,5 +1,5 @@
 <x-settings-layout page-title="Company Profile">
-    <div class="space-y-6">
+    <div class="mt-6 space-y-6">
         {{-- Company profile --}}
         <x-card title="Company details" description="This information appears on documents, emails and reports.">
             <form method="POST" action="{{ route('settings.company.update') }}" class="space-y-5">
@@ -15,6 +15,7 @@
                     <x-input name="registration_number" label="Registration number" value="{{ old('registration_number', settings('company.registration_number')) }}" />
                     <x-input name="tax_number" label="Tax / VAT number" value="{{ old('tax_number', settings('company.tax_number')) }}" />
                     <x-input name="currency" label="Base currency" value="{{ old('currency', settings('company.currency', 'USD')) }}" maxlength="3" hint="ISO 4217 code, e.g. USD, EUR, PKR" />
+                    <x-input name="base_currency" label="Reporting currency" value="{{ old('base_currency', settings('base_currency', settings('company.currency', 'USD'))) }}" maxlength="3" hint="Currency used for company-wide rollups. Super-admin only." />
                 </div>
 
                 <div>
@@ -84,7 +85,7 @@
 
                     <div>
                         <span class="label">Logo</span>
-                        <div class="flex items-center gap-3">
+                        <div class="flex items-center gap-3" x-data="{ removing: false }">
                             @if (settings('branding.logo'))
                                 <img src="{{ Storage::url(settings('branding.logo')) }}" alt="Logo" class="h-10 w-10 rounded-lg object-contain border border-line p-1">
                             @else
@@ -98,12 +99,16 @@
                                 <input type="file" name="logo" accept="image/*" class="hidden">
                             </label>
                             @if (settings('branding.logo'))
-                                <form method="POST" action="{{ route('settings.branding.remove') }}">
-                                    @csrf
-                                    @method('DELETE')
-                                    <input type="hidden" name="asset" value="logo">
-                                    <button type="submit" class="btn-ghost btn-sm text-rose-500">Remove</button>
-                                </form>
+                                <button type="button" class="btn-ghost btn-sm text-rose-500"
+                                    x-on:click="
+                                        removing = true;
+                                        fetch('{{ route('settings.branding.remove') }}', {
+                                            method: 'DELETE',
+                                            headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content, 'Accept': 'application/json' }
+                                        }).then(() => location.reload());
+                                    "
+                                    :disabled="removing"
+                                >Remove</button>
                             @endif
                         </div>
                         @error('logo')<p class="mt-1.5 text-xs text-rose-600">{{ $message }}</p>@enderror
@@ -111,7 +116,7 @@
 
                     <div class="sm:col-span-2">
                         <span class="label">Favicon</span>
-                        <div class="flex items-center gap-3">
+                        <div class="flex items-center gap-3" x-data="{ removing: false }">
                             @if (settings('branding.favicon'))
                                 <img src="{{ Storage::url(settings('branding.favicon')) }}" alt="Favicon" class="h-8 w-8 rounded border border-line p-0.5">
                             @else
@@ -125,12 +130,16 @@
                                 <input type="file" name="favicon" accept=".png,.ico,.svg" class="hidden">
                             </label>
                             @if (settings('branding.favicon'))
-                                <form method="POST" action="{{ route('settings.branding.remove') }}">
-                                    @csrf
-                                    @method('DELETE')
-                                    <input type="hidden" name="asset" value="favicon">
-                                    <button type="submit" class="btn-ghost btn-sm text-rose-500">Remove</button>
-                                </form>
+                                <button type="button" class="btn-ghost btn-sm text-rose-500"
+                                    x-on:click="
+                                        removing = true;
+                                        fetch('{{ route('settings.branding.remove') }}', {
+                                            method: 'DELETE',
+                                            headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content, 'Accept': 'application/json' }
+                                        }).then(() => location.reload());
+                                    "
+                                    :disabled="removing"
+                                >Remove</button>
                             @endif
                         </div>
                         @error('favicon')<p class="mt-1.5 text-xs text-rose-600">{{ $message }}</p>@enderror

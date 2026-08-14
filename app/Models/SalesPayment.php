@@ -15,8 +15,8 @@ class SalesPayment extends Model
     protected $table = 'sales_payments';
 
     protected $fillable = [
-        'invoice_id', 'customer_id', 'amount', 'payment_date', 'method',
-        'reference', 'currency', 'notes',
+        'number', 'invoice_id', 'customer_id', 'amount', 'payment_date', 'method',
+        'reference', 'currency', 'exchange_rate', 'notes',
     ];
 
     protected $auditModule = 'sales';
@@ -26,6 +26,7 @@ class SalesPayment extends Model
         return [
             'amount' => 'decimal:2',
             'payment_date' => 'date',
+            'exchange_rate' => 'decimal:6',
         ];
     }
 

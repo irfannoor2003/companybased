@@ -45,8 +45,11 @@ class ItemController extends Controller
 
     public function create(): View
     {
-        $tracked = InventoryItem::query()->pluck('product_id')->all();
-        $products = Product::query()->whereNotIn('id', $tracked)->where('is_active', true)->orderBy('name')->get();
+        $products = Product::query()
+            ->where('is_active', true)
+            ->whereDoesntHave('inventoryItem')
+            ->orderBy('name')
+            ->get();
 
         return view('inventory.items.create', compact('products'));
     }
@@ -69,10 +72,13 @@ class ItemController extends Controller
 
     public function show(InventoryItem $item): View
     {
-        $item->load(['product', 'stock.warehouse', 'movements.reference']);
-        $stockByWarehouse = $item->stock;
+        $item->load(['product', 'stock.warehouse', 'movements.reference', 'pendingIncoming.shipment']);
 
-        return view('inventory.items.show', compact('item', 'stockByWarehouse'));
+        $incoming = $item->pendingIncoming;
+        $incomingQty = $incoming->sum('expected_quantity');
+        $incomingEta = $incoming->min(fn ($line) => $line->shipment?->expected_arrival_at);
+
+        return view('inventory.items.show', compact('item', 'incomingQty', 'incomingEta'));
     }
 
     public function edit(InventoryItem $item): View
@@ -84,7 +90,7 @@ class ItemController extends Controller
 
     public function update(Request $request, InventoryItem $item): RedirectResponse
     {
-        $data = $this->validateData($request);
+        $data = $this->validateData($request, $item->id);
 
         $item->update([
             'reorder_level' => $data['reorder_level'] ?? 0,
@@ -165,7 +171,7 @@ class ItemController extends Controller
     private function validateData(Request $request, ?int $ignoreId = null): array
     {
         return $request->validate([
-            'product_id' => ['required', 'integer', Rule::exists('products', 'id'), Rule::unique('inventory_items', 'product_id')->ignore($ignoreId)],
+            'product_id' => [$ignoreId === null ? 'required' : 'nullable', 'integer', Rule::exists('products', 'id'), Rule::unique('inventory_items', 'product_id')->ignore($ignoreId)->whereNull('deleted_at')],
             'reorder_level' => ['nullable', 'numeric', 'min:0'],
             'reorder_quantity' => ['nullable', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string', 'max:5000'],

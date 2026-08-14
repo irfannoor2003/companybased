@@ -18,7 +18,7 @@ class SalesOrder extends Model
 
     protected $fillable = [
         'number', 'tracking_code', 'quote_id', 'customer_id', 'issue_date', 'expected_delivery_date',
-        'status', 'currency', 'subtotal', 'discount_amount', 'tax_amount', 'total',
+        'status', 'currency', 'exchange_rate', 'subtotal', 'discount_amount', 'tax_amount', 'total',
         'shipping_address', 'notes',
     ];
 
@@ -29,6 +29,7 @@ class SalesOrder extends Model
         return [
             'issue_date' => 'date',
             'expected_delivery_date' => 'date',
+            'exchange_rate' => 'decimal:6',
             'subtotal' => 'decimal:2',
             'discount_amount' => 'decimal:2',
             'tax_amount' => 'decimal:2',

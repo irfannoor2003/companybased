@@ -18,10 +18,10 @@
                     @csrf
                     @method('PUT')
 
-                    <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                        <x-select name="supplier_id" label="Supplier" required :disabled="$locked">
+                    <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3" x-data="currencyFromEntity()" x-init="initCurrencySelect()">
+                        <x-select name="supplier_id" label="Supplier" required :disabled="$locked" @change="$event.target.value && syncCurrency($event.target)">
                             @foreach ($suppliers as $supplier)
-                                <option value="{{ $supplier->id }}" @selected(old('supplier_id', $order->supplier_id) == $supplier->id)>{{ $supplier->company_name }}</option>
+                                <option value="{{ $supplier->id }}" data-currency="{{ $supplier->currency ?? '' }}" @selected(old('supplier_id', $order->supplier_id) == $supplier->id)>{{ $supplier->company_name }}</option>
                             @endforeach
                         </x-select>
                         <x-select name="warehouse_id" label="Receive into warehouse" :disabled="$locked" hint="Stock is added here when the order is received.">
@@ -37,7 +37,12 @@
                         </x-select>
                         <x-input name="order_date" label="Order date" type="date" value="{{ old('order_date', $order->order_date?->format('Y-m-d')) }}" :disabled="$locked" />
                         <x-input name="expected_delivery_date" label="Expected delivery" type="date" value="{{ old('expected_delivery_date', $order->expected_delivery_date?->format('Y-m-d')) }}" :disabled="$locked" />
-                        <x-input name="currency" label="Currency" value="{{ old('currency', $order->currency) }}" :disabled="$locked" placeholder="USD, EUR…" />
+                        <x-select name="currency" label="Currency">
+                        <option value="">— Default —</option>
+                        @foreach (currency_options() as $code => $label)
+                            <option value="{{ $code }}" @selected(old('currency', 'currency', $order->currency) === $code)>{{ $label }}</option>
+                        @endforeach
+                    </x-select>
                     </div>
 
                     <x-input name="shipping_address" label="Shipping address" value="{{ old('shipping_address', $order->shipping_address) }}" :disabled="$locked" />

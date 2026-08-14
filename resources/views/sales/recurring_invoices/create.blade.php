@@ -27,10 +27,15 @@
                     </x-select>
                     <x-input name="next_run_date" label="Next run date" type="date" value="{{ old('next_run_date', now()->toDateString()) }}" />
                     <x-input name="day_of_cycle" label="Day of cycle" type="number" min="1" max="31" value="{{ old('day_of_cycle', 1) }}" hint="1-31. Clamped to month length." />
-                    <x-input name="currency" label="Currency" value="{{ old('currency', 'USD') }}" placeholder="USD, EUR…" />
+                    <x-select name="currency" label="Currency">
+                        <option value="">— Default —</option>
+                        @foreach (currency_options() as $code => $label)
+                            <option value="{{ $code }}" @selected(old('currency', 'currency', settings('company.currency', 'USD')) === $code)>{{ $label }}</option>
+                        @endforeach
+                    </x-select>
                 </div>
 
-                <x-sales.line-items-editor :products="$products" :initial-items="[]" :currency="old('currency', 'USD')" />
+                <x-sales.line-items-editor :products="$products" :initial-items="[]" :currency="old('currency', settings('company.currency', 'USD'))" />
 
                 <x-textarea name="notes" label="Notes" rows="3">{{ old('notes') }}</x-textarea>
 

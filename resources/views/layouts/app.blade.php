@@ -31,8 +31,11 @@
         <script>
             (function () {
                 var stored = localStorage.getItem('cb-theme');
+                var serverDefault = '{{ $appBrand['darkMode'] }}';
                 var pref = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-                var theme = stored === 'dark' || stored === 'light' ? stored : pref;
+                var theme = stored === 'dark' || stored === 'light'
+                    ? stored
+                    : (serverDefault === 'dark' || serverDefault === 'light' ? serverDefault : pref);
                 if (theme === 'dark') document.documentElement.classList.add('dark');
                 window.__cbTheme = theme;
             })();
@@ -47,7 +50,7 @@
         >
             @include('layouts.partials.sidebar')
 
-            <div class="flex min-w-0 flex-1 flex-col" :class="collapsed && !hover ? 'lg:pl-16' : 'lg:pl-64'">
+            <div class="flex min-w-0 flex-1 flex-col" :class="collapsed ? 'lg:pl-16' : 'lg:pl-64'">
                 @include('layouts.partials.topbar')
 
                 <main class="flex-1 overflow-y-auto">
@@ -60,7 +63,7 @@
                             <x-alert type="success" class="mb-4" dismissible>{{ session('status') }}</x-alert>
                         @endif
 
-                        @if ($errors->any() && isset($showErrors))
+                        @if ($errors->any())
                             <x-alert type="danger" class="mb-4" dismissible>
                                 <ul class="list-inside list-disc space-y-0.5">
                                     @foreach ($errors->all() as $error)

@@ -19,9 +19,9 @@ class RolesSeeder extends Seeder
         [
             'name' => 'Super Admin',
             'label' => 'Super Admin',
-            'description' => 'Highest privilege. Manages company branding, modules, admins, backups and the audit log.',
+            'description' => 'System setup only. Configures company profile, branding, modules, users, roles, currencies and backups. No access to operational data.',
             'is_system' => true,
-            'permissions' => 'all',
+            'permissions' => 'setup',
         ],
         [
             'name' => 'Admin',
@@ -116,15 +116,62 @@ class RolesSeeder extends Seeder
         $all = Permissions::all();
         $readOnly = Permissions::readOnly();
 
-        // Per the master spec, Admin manages users/roles/permissions, document
-        // templates, theme/branding (color scheme + logo placement) and the rest
-        // of Settings. Super Admin–only instance actions excluded below: changing
-        // the company profile, toggling modules, and backup/restore.
-        $superAdminOnly = [
+        // Super Admin: setup-only permissions (company, branding, modules, users, roles, currencies, audit, backup).
+        // No access to any operational module (sales, purchases, inventory, banking, accounting, etc.).
+        $setup = [
+            'dashboard.overview.view',
+            // Company profile
+            'settings.company.view',
             'settings.company.manage',
+            // Branding (logo, favicon, colors, theme)
+            'settings.branding.view',
+            'settings.branding.manage',
+            // Modules (enable/disable)
+            'settings.modules.view',
             'settings.modules.manage',
-            'settings.backup.manage',
+            // Users & roles
+            'settings.users.view',
+            'settings.users.manage',
+            'settings.roles.view',
+            'settings.roles.manage',
+            'settings.permissions.view',
+            'settings.permissions.manage',
+            // Currencies & base currency
+            'settings.currencies.view',
+            'settings.currencies.manage',
+            'settings.base_currency.view',
+            'settings.base_currency.manage',
+            // Notifications
+            'settings.notifications.view',
+            'settings.notifications.manage',
+            // Audit log
+            'settings.audit.view',
+            'settings.audit.export',
+            // Backup & restore
             'settings.backup.view',
+            'settings.backup.manage',
+            // Mail server
+            'settings.mail.view',
+            'settings.mail.manage',
+        ];
+
+        // Per the master spec, Super Admin owns instance-level config: changing
+        // the company profile (name, logo, favicon, base currency) and toggling
+        // modules — Admin must never even see the Company Profile tab or reach
+        // these routes, so both view and manage are excluded for Admin.
+        $superAdminOnly = [
+            'settings.company.view',
+            'settings.company.manage',
+            'settings.modules.view',
+            'settings.modules.manage',
+            'settings.backup.view',
+            'settings.backup.manage',
+            'settings.audit.view',
+            'settings.audit.export',
+            'settings.base_currency.view',
+            'settings.base_currency.manage',
+            'settings.mail.view',
+            'settings.mail.manage',
         ];
         $admin = array_values(array_diff($all, $superAdminOnly));
         $auditor = array_values(array_unique(array_merge($readOnly, [
@@ -146,6 +193,8 @@ class RolesSeeder extends Seeder
         $accounting[] = 'sales.invoices.view';
         $accounting[] = 'sales.invoices.record_payment';
         $accounting[] = 'sales.statements.view';
+        $accounting[] = 'sales.sales_payments.view';
+        $accounting[] = 'sales.sales_payments.create';
         $accounting[] = 'suppliers.purchase_invoices.view';
         $accounting[] = 'suppliers.purchase_invoices.record_payment';
         $accounting[] = 'suppliers.supplier_payments.view';
@@ -163,6 +212,7 @@ class RolesSeeder extends Seeder
 
             $permissions = match ($definition['permissions']) {
                 'all' => $all,
+                'setup' => $setup,
                 'admin' => $admin,
                 'read_only' => $readOnly,
                 'read_only_plus_audit' => $auditor,

@@ -20,10 +20,10 @@
                     @csrf
                     @method('PUT')
 
-                    <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                        <x-select name="supplier_id" label="Supplier" required :disabled="$quote->isConverted()">
+                    <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3" x-data="currencyFromEntity()" x-init="initCurrencySelect()">
+                        <x-select name="supplier_id" label="Supplier" required :disabled="$quote->isConverted()" @change="$event.target.value && syncCurrency($event.target)">
                             @foreach ($suppliers as $supplier)
-                                <option value="{{ $supplier->id }}" @selected(old('supplier_id', $quote->supplier_id) == $supplier->id)>{{ $supplier->company_name }}</option>
+                                <option value="{{ $supplier->id }}" data-currency="{{ $supplier->currency ?? '' }}" @selected(old('supplier_id', $quote->supplier_id) == $supplier->id)>{{ $supplier->company_name }}</option>
                             @endforeach
                         </x-select>
                         <x-select name="status" label="Status" :disabled="$quote->isConverted()">
@@ -33,7 +33,12 @@
                         </x-select>
                         <x-input name="issue_date" label="Issue date" type="date" value="{{ old('issue_date', $quote->issue_date?->format('Y-m-d')) }}" :disabled="$quote->isConverted()" />
                         <x-input name="valid_until" label="Valid until" type="date" value="{{ old('valid_until', $quote->valid_until?->format('Y-m-d')) }}" :disabled="$quote->isConverted()" />
-                        <x-input name="currency" label="Currency" value="{{ old('currency', $quote->currency) }}" :disabled="$quote->isConverted()" placeholder="USD, EUR…" />
+                        <x-select name="currency" label="Currency">
+                        <option value="">— Default —</option>
+                        @foreach (currency_options() as $code => $label)
+                            <option value="{{ $code }}" @selected(old('currency', 'currency', $quote->currency) === $code)>{{ $label }}</option>
+                        @endforeach
+                    </x-select>
                     </div>
 
                     @php

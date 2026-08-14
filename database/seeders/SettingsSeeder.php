@@ -19,6 +19,7 @@ class SettingsSeeder extends Seeder
             'company.registration_number' => null,
             'company.tax_number' => null,
             'company.currency' => 'USD',
+            'base_currency' => 'USD',
             'company.fiscal_year_start' => '2026-01-01',
             'company.timezone' => 'UTC',
             'company.date_format' => 'M d, Y',

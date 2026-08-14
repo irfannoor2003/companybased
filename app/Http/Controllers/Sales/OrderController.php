@@ -7,12 +7,14 @@ use App\Models\SalesCustomer;
 use App\Models\SalesOrder;
 use App\Models\SalesStatusEvent;
 use App\Services\TrackingService;
+use App\Support\DocumentData;
 use App\Support\DocumentItems;
 use App\Support\ExportsCsv;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class OrderController extends Controller
@@ -55,6 +57,7 @@ class OrderController extends Controller
             'expected_delivery_date' => $data['expected_delivery_date'] ?? null,
             'status' => $data['status'],
             'currency' => $data['currency'] ?? null,
+            'exchange_rate' => exchange_rate_for($data['currency'] ?? null),
             'shipping_address' => $data['shipping_address'] ?? null,
             'notes' => $data['notes'] ?? null,
         ]);
@@ -75,6 +78,29 @@ class OrderController extends Controller
         return view('sales.orders.edit', compact('order', 'customers', 'products'));
     }
 
+    public function show(SalesOrder $order): View
+    {
+        $order->load(['customer', 'items.product']);
+
+        return view('documents.show', DocumentData::build($order));
+    }
+
+    public function pdf(SalesOrder $order): StreamedResponse
+    {
+        $order->load(['customer', 'items.product']);
+
+        $html = view('pdf.document', DocumentData::build($order))->render();
+
+        $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, 'order-'.$order->number.'.pdf', [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="order-'.$order->number.'.pdf"',
+        ]);
+    }
+
     public function update(Request $request, SalesOrder $order): RedirectResponse
     {
         $data = $this->validateData($request);
@@ -85,6 +111,7 @@ class OrderController extends Controller
             'expected_delivery_date' => $data['expected_delivery_date'] ?? null,
             'status' => $data['status'],
             'currency' => $data['currency'] ?? null,
+            'exchange_rate' => exchange_rate_for($data['currency'] ?? null),
             'shipping_address' => $data['shipping_address'] ?? null,
             'notes' => $data['notes'] ?? null,
         ]);

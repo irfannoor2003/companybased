@@ -12,12 +12,12 @@
 
                 <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <x-input name="drawing_date" label="Date" type="date" required value="{{ old('drawing_date', now()->format('Y-m-d')) }}" :error="$errors->first('drawing_date')" />
-                    <x-input name="recipient" label="Recipient" required placeholder="e.g. Kwame Mensah" value="{{ old('recipient') }}" :error="$errors->first('recipient')" />
+                    <x-input name="recipient" label="Recipient" required placeholder="e.g. John Doe" value="{{ old('recipient') }}" :error="$errors->first('recipient')" />
                 </div>
 
                 <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <x-input name="amount" label="Amount" type="number" step="0.01" min="0" required placeholder="0.00" value="{{ old('amount') }}" :error="$errors->first('amount')" />
-                    <x-input name="currency" label="Currency" placeholder="GHS, USD, EUR" value="{{ old('currency', 'GHS') }}" :error="$errors->first('currency')" />
+                    <x-input name="currency" label="Currency" placeholder="{{ settings('company.currency', 'USD') }}" value="{{ old('currency', settings('company.currency', 'USD')) }}" :error="$errors->first('currency')" />
                 </div>
 
                 <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">

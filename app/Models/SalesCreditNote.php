@@ -17,7 +17,7 @@ class SalesCreditNote extends Model
 
     protected $fillable = [
         'number', 'invoice_id', 'customer_id', 'issue_date', 'reason',
-        'currency', 'subtotal', 'tax_amount', 'total', 'applied_amount', 'notes',
+        'currency', 'exchange_rate', 'subtotal', 'tax_amount', 'total', 'applied_amount', 'notes',
     ];
 
     protected $auditModule = 'sales';
@@ -26,6 +26,7 @@ class SalesCreditNote extends Model
     {
         return [
             'issue_date' => 'date',
+            'exchange_rate' => 'decimal:6',
             'subtotal' => 'decimal:2',
             'tax_amount' => 'decimal:2',
             'total' => 'decimal:2',

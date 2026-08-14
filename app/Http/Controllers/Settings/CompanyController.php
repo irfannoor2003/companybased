@@ -30,6 +30,7 @@ class CompanyController extends Controller
             'registration_number' => ['nullable', 'string', 'max:100'],
             'tax_number' => ['nullable', 'string', 'max:100'],
             'currency' => ['required', 'string', 'size:3'],
+            'base_currency' => ['nullable', 'string', 'size:3'],
             'fiscal_year_start' => ['nullable', 'date'],
             'timezone' => ['required', 'timezone'],
             'date_format' => ['required', 'string', 'max:30'],
@@ -45,6 +46,7 @@ class CompanyController extends Controller
             'company.registration_number' => $data['registration_number'] ?? null,
             'company.tax_number' => $data['tax_number'] ?? null,
             'company.currency' => $data['currency'],
+            'base_currency' => $data['base_currency'] ?? $data['currency'],
             'company.fiscal_year_start' => $data['fiscal_year_start'] ?? null,
             'company.timezone' => $data['timezone'],
             'company.date_format' => $data['date_format'],
@@ -61,7 +63,7 @@ class CompanyController extends Controller
             'primary_color' => ['required', 'regex:/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/'],
             'accent_color' => ['nullable', 'regex:/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/'],
             'logo' => ['nullable', 'image', 'mimes:png,jpg,jpeg,svg,webp', 'max:2048'],
-            'favicon' => ['nullable', 'image', 'mimes:png,ico,svg', 'max:512'],
+            'favicon' => ['nullable', 'mimes:png,ico,svg', 'max:512'],
             'dark_mode' => ['required', 'in:system,light,dark'],
         ]);
 
@@ -105,7 +107,7 @@ class CompanyController extends Controller
         return back()->with('toasts', [['type' => 'success', 'message' => 'Notification settings updated.']]);
     }
 
-    public function removeBranding(Request $request): RedirectResponse
+    public function removeBranding(Request $request): \Symfony\Component\HttpFoundation\Response
     {
         $this->authorizePermission('settings.branding.manage');
 
@@ -118,6 +120,10 @@ class CompanyController extends Controller
         if ($current = settings("branding.{$key}")) {
             Storage::delete($current);
             Setting::set("branding.{$key}", null);
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Asset removed.']);
         }
 
         return back()->with('toasts', [['type' => 'success', 'message' => 'Asset removed.']]);

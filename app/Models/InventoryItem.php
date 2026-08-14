@@ -44,6 +44,17 @@ class InventoryItem extends Model
         return $this->hasMany(InventoryMovement::class, 'item_id');
     }
 
+    /**
+     * Incoming (unapproved) shipment lines expected for this item's product,
+     * so item detail pages can show "Incoming: X units, expected [date]".
+     */
+    public function pendingIncoming(): HasMany
+    {
+        return $this
+            ->hasMany(InventoryIncomingShipmentItem::class, 'product_id', 'product_id')
+            ->whereHas('shipment', fn (Builder $q) => $q->pendingIncoming());
+    }
+
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('is_active', true);

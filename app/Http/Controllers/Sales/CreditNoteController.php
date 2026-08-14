@@ -7,12 +7,14 @@ use App\Models\Product;
 use App\Models\SalesCreditNote;
 use App\Models\SalesCustomer;
 use App\Models\SalesInvoice;
+use App\Support\DocumentData;
 use App\Support\DocumentItems;
 use App\Support\ExportsCsv;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CreditNoteController extends Controller
@@ -58,6 +60,7 @@ class CreditNoteController extends Controller
             'issue_date' => $data['issue_date'],
             'reason' => $data['reason'] ?? null,
             'currency' => $data['currency'] ?? null,
+            'exchange_rate' => exchange_rate_for($data['currency'] ?? null),
             'notes' => $data['notes'] ?? null,
         ]);
 
@@ -77,6 +80,29 @@ class CreditNoteController extends Controller
         return view('sales.credit_notes.edit', compact('creditNote', 'customers', 'products'));
     }
 
+    public function show(SalesCreditNote $creditNote): View
+    {
+        $creditNote->load(['customer', 'items.product', 'invoice']);
+
+        return view('documents.show', DocumentData::build($creditNote));
+    }
+
+    public function pdf(SalesCreditNote $creditNote): StreamedResponse
+    {
+        $creditNote->load(['customer', 'items.product', 'invoice']);
+
+        $html = view('pdf.document', DocumentData::build($creditNote))->render();
+
+        $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, 'credit-note-'.$creditNote->number.'.pdf', [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="credit-note-'.$creditNote->number.'.pdf"',
+        ]);
+    }
+
     public function update(Request $request, SalesCreditNote $creditNote): RedirectResponse
     {
         $data = $this->validateData($request);
@@ -87,6 +113,7 @@ class CreditNoteController extends Controller
             'issue_date' => $data['issue_date'],
             'reason' => $data['reason'] ?? null,
             'currency' => $data['currency'] ?? null,
+            'exchange_rate' => exchange_rate_for($data['currency'] ?? null),
             'notes' => $data['notes'] ?? null,
         ]);
 

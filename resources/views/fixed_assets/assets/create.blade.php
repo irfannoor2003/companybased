@@ -41,7 +41,7 @@
                 </div>
 
                 <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <x-input name="location" label="Location" placeholder="e.g. Accra office" value="{{ old('location') }}" :error="$errors->first('location')" />
+                    <x-input name="location" label="Location" placeholder="e.g. Main office" value="{{ old('location') }}" :error="$errors->first('location')" />
                     <x-input name="department" label="Department" placeholder="e.g. Operations" value="{{ old('department') }}" :error="$errors->first('department')" />
                 </div>
 

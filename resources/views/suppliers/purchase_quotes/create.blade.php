@@ -12,11 +12,11 @@
             <form method="POST" action="{{ route('suppliers.purchase_quotes.store') }}" class="space-y-5">
                 @csrf
 
-                <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                    <x-select name="supplier_id" label="Supplier" required>
+                <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3" x-data="currencyFromEntity()" x-init="initCurrencySelect()">
+                    <x-select name="supplier_id" label="Supplier" required @change="$event.target.value && syncCurrency($event.target)">
                         <option value="">— Select supplier —</option>
                         @foreach ($suppliers as $supplier)
-                            <option value="{{ $supplier->id }}" @selected(old('supplier_id') == $supplier->id)>{{ $supplier->company_name }}</option>
+                            <option value="{{ $supplier->id }}" data-currency="{{ $supplier->currency ?? '' }}" @selected(old('supplier_id') == $supplier->id)>{{ $supplier->company_name }}</option>
                         @endforeach
                     </x-select>
                     <x-select name="status" label="Status">
@@ -24,12 +24,17 @@
                             <option value="{{ $status }}" @selected(old('status', 'draft') === $status)>{{ ucfirst($status) }}</option>
                         @endforeach
                     </x-select>
-                    <x-input name="currency" label="Currency" value="{{ old('currency', 'USD') }}" placeholder="USD, EUR…" />
+                    <x-select name="currency" label="Currency">
+                        <option value="">— Default —</option>
+                        @foreach (currency_options() as $code => $label)
+                            <option value="{{ $code }}" @selected(old('currency', 'currency', settings('company.currency', 'USD')) === $code)>{{ $label }}</option>
+                        @endforeach
+                    </x-select>
                     <x-input name="issue_date" label="Issue date" type="date" value="{{ old('issue_date', now()->toDateString()) }}" />
                     <x-input name="valid_until" label="Valid until" type="date" value="{{ old('valid_until') }}" />
                 </div>
 
-                <x-suppliers.line-items-editor :products="$products" :initial-items="[]" :currency="old('currency', 'USD')" />
+                <x-suppliers.line-items-editor :products="$products" :initial-items="[]" :currency="old('currency', settings('company.currency', 'USD'))" />
 
                 <x-textarea name="notes" label="Notes" rows="3">{{ old('notes') }}</x-textarea>
 

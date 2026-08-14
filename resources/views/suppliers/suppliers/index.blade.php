@@ -42,37 +42,45 @@
         @else
             <div class="table-wrap !border-0 !rounded-none">
                 <table class="table-base">
-                    <thead>
+                <thead>
+                    <tr>
+                        <th>Supplier</th>
+                        <th>Short code</th>
+                        <th>Contact</th>
+                        <th>Location</th>
+                        <th class="text-right">Balance</th>
+                        <th>Status</th>
+                        <th class="text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach ($suppliers as $supplier)
                         <tr>
-                            <th>Supplier</th>
-                            <th>Contact</th>
-                            <th>Location</th>
-                            <th class="text-right">Balance</th>
-                            <th>Status</th>
-                            <th class="text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach ($suppliers as $supplier)
-                            <tr>
-                                <td>
-                                    <a href="{{ route('suppliers.suppliers.show', $supplier) }}" class="flex items-center gap-3">
-                                        <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                                            <x-icon name="company" class="size-4" />
-                                        </div>
-                                        <div class="min-w-0">
-                                            <p class="font-medium text-ink">{{ $supplier->company_name }}</p>
-                                            <p class="text-xs text-ink-faint">{{ $supplier->email ?: 'No email' }}</p>
-                                        </div>
-                                    </a>
-                                </td>
-                                <td class="text-ink-soft">{{ $supplier->contact_name ?: '—' }}</td>
+                            <td>
+                                <a href="{{ route('suppliers.suppliers.show', $supplier) }}" class="flex items-center gap-3">
+                                    <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                                        <x-icon name="company" class="size-4" />
+                                    </div>
+                                    <div class="min-w-0">
+                                        <p class="font-medium text-ink">{{ $supplier->company_name }}</p>
+                                        <p class="text-xs text-ink-faint">{{ $supplier->email ?: 'No email' }}</p>
+                                    </div>
+                                </a>
+                            </td>
+                            <td class="text-ink-soft font-mono">{{ $supplier->short_code ?: '—' }}</td>
+                            <td class="text-ink-soft">{{ $supplier->contact_name ?: '—' }}</td>
                                 <td class="text-ink-soft">{{ $supplier->city ?: ($supplier->country ?: '—') }}</td>
                                 <td class="text-right">
-                                    @if ($supplier->balance() > 0)
-                                        <span class="font-medium text-rose-600 dark:text-rose-400">{{ money($supplier->balance(), $supplier->currency) }}</span>
+                                    @php
+                                        $billed = (float) $supplier->purchaseInvoices->sum('total');
+                                        $paid = (float) $supplier->payments->sum('amount');
+                                        $credited = (float) $supplier->debitNotes->sum('applied_amount');
+                                        $balance = round($billed - $paid - $credited, 2);
+                                    @endphp
+                                    @if ($balance > 0)
+                                        <span class="font-medium text-rose-600 dark:text-rose-400">{{ money($balance, $supplier->currency) }}</span>
                                     @else
-                                        <span class="font-medium text-emerald-600 dark:text-emerald-400">{{ money($supplier->balance(), $supplier->currency) }}</span>
+                                        <span class="font-medium text-emerald-600 dark:text-emerald-400">{{ money($balance, $supplier->currency) }}</span>
                                     @endif
                                 </td>
                                 <td>

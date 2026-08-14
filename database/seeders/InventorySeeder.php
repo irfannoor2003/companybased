@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\InventoryBillOfMaterial;
+use App\Models\InventoryIncomingShipment;
 use App\Models\InventoryItem;
 use App\Models\InventoryProductionOrder;
 use App\Models\InventoryTransfer;
@@ -129,5 +130,23 @@ class InventorySeeder extends Seeder
         }
         InventoryLedger::applyProduction($order->fresh());
         $order->update(['status' => 'completed']);
+
+        // One in-transit incoming shipment of 100 units of the first tracked
+        // item, expected in 3 days, not yet approved (so the item detail page
+        // shows "Incoming: 100 units").
+        $shipment = InventoryIncomingShipment::create([
+            'supplier_id' => null,
+            'warehouse_id' => $main->id,
+            'number' => next_document_number('incoming_shipment', 'INC'),
+            'expected_arrival_at' => now()->addDays(3)->toDateString(),
+            'status' => 'in_transit',
+            'notes' => 'Seeded incoming shipment.',
+        ]);
+        $shipment->items()->create([
+            'product_id' => $items[0]->product_id,
+            'expected_quantity' => 100,
+            'received_quantity' => 0,
+            'unit_cost' => 12.50,
+        ]);
     }
 }

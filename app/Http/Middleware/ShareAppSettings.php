@@ -15,6 +15,9 @@ class ShareAppSettings
     public function handle(Request $request, Closure $next): Response
     {
         if (! app()->runningInConsole()) {
+            $timezone = settings('company.timezone', 'UTC');
+            date_default_timezone_set($timezone);
+
             $primary = (string) settings('branding.primary_color', '#4f46e5');
 
             view()->composer('*', function ($view) use ($primary) {
@@ -26,6 +29,7 @@ class ShareAppSettings
                     'logo' => settings('branding.logo'),
                     'favicon' => settings('branding.favicon'),
                     'companyName' => company_name(),
+                    'darkMode' => settings('branding.dark_mode', 'system'),
                 ]);
             });
 

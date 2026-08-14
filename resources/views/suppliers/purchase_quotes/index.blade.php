@@ -83,6 +83,11 @@
                                                 </button>
                                             </form>
                                         @endif
+                                        @if (auth()->user()->can('suppliers.purchase_quotes.view'))
+                                            <a href="{{ route('suppliers.purchase_quotes.show', $quote) }}" class="btn-ghost btn-icon btn-sm" title="View">
+                                                <x-icon name="eye" class="size-4" />
+                                            </a>
+                                        @endif
                                         <a href="{{ route('suppliers.purchase_quotes.edit', $quote) }}" class="btn-ghost btn-icon btn-sm" title="Edit">
                                             <x-icon name="edit" class="size-4" />
                                         </a>

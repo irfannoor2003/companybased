@@ -67,7 +67,7 @@
                                     </td>
                                     <td>
                                         <div class="flex flex-wrap gap-1">
-                                            @foreach ($user->roles as $role)
+                                            @foreach ($user->roles->where('name', '!=', 'Super Admin') as $role)
                                                 <x-badge color="primary">{{ $role->name }}</x-badge>
                                             @endforeach
                                         </div>

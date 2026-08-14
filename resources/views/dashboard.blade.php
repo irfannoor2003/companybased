@@ -13,7 +13,47 @@
         </x-page-header>
     </x-slot>
 
-    <div class="space-y-6">
+    <div class="mt-6 space-y-6" x-data="{ loaded: false }" x-init="loaded = true">
+        {{-- Skeleton: stat cards --}}
+        <div x-show="!loaded" class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            @foreach (range(1, 4) as $i)
+                <div class="rounded-xl border border-line bg-surface p-5">
+                    <div class="h-3 w-20 animate-pulse rounded bg-surface-muted"></div>
+                    <div class="mt-3 h-7 w-16 animate-pulse rounded bg-surface-muted"></div>
+                </div>
+            @endforeach
+        </div>
+        {{-- Skeleton: activity + modules --}}
+        <div x-show="!loaded" class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <div class="lg:col-span-2 rounded-xl border border-line bg-surface p-5">
+                <div class="h-4 w-32 animate-pulse rounded bg-surface-muted"></div>
+                <div class="mt-4 space-y-4">
+                    @foreach (range(1, 4) as $i)
+                        <div class="flex items-start gap-3">
+                            <div class="mt-0.5 size-4 shrink-0 animate-pulse rounded-full bg-surface-muted"></div>
+                            <div class="flex-1 space-y-2">
+                                <div class="h-3 w-3/4 animate-pulse rounded bg-surface-muted"></div>
+                                <div class="h-2 w-1/3 animate-pulse rounded bg-surface-muted"></div>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+            <div class="rounded-xl border border-line bg-surface p-5">
+                <div class="h-4 w-32 animate-pulse rounded bg-surface-muted"></div>
+                <div class="mt-4 space-y-3">
+                    @foreach (range(1, 5) as $i)
+                        <div class="flex items-center gap-3 rounded-lg px-2 py-1.5">
+                            <div class="size-8 animate-pulse rounded-lg bg-surface-muted"></div>
+                            <div class="h-3 flex-1 animate-pulse rounded bg-surface-muted"></div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        </div>
+
+        {{-- Real content --}}
+        <div x-show="loaded" x-cloak>
         {{-- Stat cards --}}
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <x-stat-card label="Total users" :value="$stats['users']" icon="users" tone="primary" />
@@ -24,8 +64,9 @@
                 hint="{{ $disabledModules ? 'Review in Settings' : 'All modules active' }}" />
         </div>
 
-        <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
             {{-- Activity feed --}}
+            @if ($isSuperAdmin)
             <x-card title="Recent activity" description="Latest changes across the company." class="lg:col-span-2">
                 @if ($recentActivity->isEmpty())
                     <x-empty-state icon="activity" title="No activity yet" description="Actions you take across modules will show up here." />
@@ -61,9 +102,10 @@
                     </div>
                 @endif
             </x-card>
+            @endif
 
             {{-- Module status --}}
-            <x-card title="Enabled modules" description="This company's active modules.">
+            <x-card title="Enabled modules" description="This company's active modules." class="{{ $isSuperAdmin ? '' : 'lg:col-span-3' }}">
                 <ul class="space-y-2.5">
                     @foreach ($enabledModules as $module)
                         <li class="flex items-center gap-3 rounded-lg px-2 py-1.5 transition-colors hover:bg-surface-muted">
@@ -80,7 +122,7 @@
                     @endforeach
                 </ul>
 
-                @if ($isAdmin)
+                @if (auth()->user()->can('settings.modules.view'))
                     <div class="mt-4 border-t border-line pt-4">
                         <a href="{{ route('settings.modules') }}" class="link inline-flex items-center gap-1 text-sm">
                             Manage modules
@@ -90,5 +132,6 @@
                 @endif
             </x-card>
         </div>
+        </div> {{-- end real content --}}
     </div>
 </x-app-layout>

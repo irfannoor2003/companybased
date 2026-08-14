@@ -11,6 +11,7 @@
         @php
             $def = config('permissions.modules.'.$moduleKey, []);
         @endphp
+        @continue(! in_array($moduleKey, $enabledModuleKeys ?? [], true))
         <div class="surface mb-4 overflow-hidden" x-data="{ open: true }">
             <button type="button" @click="open = !open" class="flex w-full items-center gap-3 px-5 py-4 text-left">
                 <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">

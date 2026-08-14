@@ -31,12 +31,15 @@ class CashFlowController extends Controller
         $now = now();
         $monthStart = $now->copy()->startOfMonth()->toDateString();
         $monthEnd = $now->copy()->endOfMonth()->toDateString();
-        $inflowsMonth = (float) $this->inflowRows($monthStart, $monthEnd)->sum('amount');
-        $outflowsMonth = (float) $this->outflowRows($monthStart, $monthEnd)->sum('amount');
+        $sixtyDaysAgo = $now->subDays(60)->toDateString();
 
-        $activity = collect()
-            ->concat($this->inflowRows(now()->subDays(60)->toDateString(), now()->toDateString()))
-            ->concat($this->outflowRows(now()->subDays(60)->toDateString(), now()->toDateString()))
+        $allInflows = $this->inflowRows($sixtyDaysAgo, $monthEnd);
+        $allOutflows = $this->outflowRows($sixtyDaysAgo, $monthEnd);
+
+        $inflowsMonth = (float) $allInflows->filter(fn ($r) => $r['date'] >= $monthStart && $r['date'] <= $monthEnd)->sum('amount_base');
+        $outflowsMonth = (float) $allOutflows->filter(fn ($r) => $r['date'] >= $monthStart && $r['date'] <= $monthEnd)->sum('amount_base');
+
+        $activity = $allInflows->concat($allOutflows)
             ->sortByDesc('date')
             ->take(12)
             ->values();
@@ -71,7 +74,7 @@ class CashFlowController extends Controller
             foreach ($items as $item) {
                 $days = (int) $today->diffInDays($item['due_date']);
                 $key = $days <= 30 ? '0-30' : ($days <= 60 ? '31-60' : ($days <= 90 ? '61-90' : '90+'));
-                $buckets[$key] += (float) $item['balance'];
+                $buckets[$key] += (float) $item['amount_base'];
             }
 
             return collect($buckets)->map(fn ($v) => round($v, 2));
@@ -81,13 +84,13 @@ class CashFlowController extends Controller
             ->whereIn('status', ['sent', 'partially_paid', 'overdue'])
             ->with('customer')
             ->get()
-            ->map(fn (SalesInvoice $i) => ['due_date' => $i->due_date, 'balance' => $i->balance(), 'customer' => $i->customer?->name, 'number' => $i->number]);
+            ->map(fn (SalesInvoice $i) => ['due_date' => $i->due_date, 'balance' => $i->balance(), 'amount_base' => to_base_currency($i->balance(), $i->exchange_rate), 'customer' => $i->customer?->name, 'number' => $i->number]);
 
         $payablesDue = PurchaseInvoice::query()
             ->whereIn('status', ['sent', 'partially_paid', 'overdue'])
             ->with('supplier')
             ->get()
-            ->map(fn (PurchaseInvoice $i) => ['due_date' => $i->due_date, 'balance' => $i->balance(), 'supplier' => $i->supplier?->company_name, 'number' => $i->number]);
+            ->map(fn (PurchaseInvoice $i) => ['due_date' => $i->due_date, 'balance' => $i->balance(), 'amount_base' => to_base_currency($i->balance(), $i->exchange_rate), 'supplier' => $i->supplier?->company_name, 'number' => $i->number]);
 
         $inflowBuckets = $bucket($receivablesDue);
         $outflowBuckets = $bucket($payablesDue);
@@ -101,8 +104,8 @@ class CashFlowController extends Controller
         [$from, $to] = $this->period($request, 'reports');
 
         $opening = round($this->bankBalanceBefore($from), 2);
-        $inflows = round((float) $this->inflowRows($from, $to)->sum('amount'), 2);
-        $outflows = round((float) $this->outflowRows($from, $to)->sum('amount'), 2);
+        $inflows = round((float) $this->inflowRows($from, $to)->sum('amount_base'), 2);
+        $outflows = round((float) $this->outflowRows($from, $to)->sum('amount_base'), 2);
         $net = round($inflows - $outflows, 2);
         $closing = round($opening + $net, 2);
 
@@ -170,28 +173,35 @@ class CashFlowController extends Controller
     {
         [$from, $to] = $this->period($request, 'reports');
 
+        $inflowTotal = round((float) $this->inflowRows($from, $to)->sum('amount_base'), 2);
+        $outflowTotal = round((float) $this->outflowRows($from, $to)->sum('amount_base'), 2);
+
         return $this->streamCsv('cash-flow-statement-'.$from.'-to-'.$to.'.csv', ['Line', 'Amount'], [
             ['Opening cash & bank', $this->bankBalanceBefore($from)],
-            ['Total inflows', (float) $this->inflowRows($from, $to)->sum('amount')],
-            ['Total outflows', (float) $this->outflowRows($from, $to)->sum('amount')],
-            ['Net change', round((float) $this->inflowRows($from, $to)->sum('amount') - (float) $this->outflowRows($from, $to)->sum('amount'), 2)],
-            ['Closing cash & bank', round($this->bankBalanceBefore($from) + (float) $this->inflowRows($from, $to)->sum('amount') - (float) $this->outflowRows($from, $to)->sum('amount'), 2)],
+            ['Total inflows', $inflowTotal],
+            ['Total outflows', $outflowTotal],
+            ['Net change', round($inflowTotal - $outflowTotal, 2)],
+            ['Closing cash & bank', round($this->bankBalanceBefore($from) + $inflowTotal - $outflowTotal, 2)],
         ]);
     }
 
     private function cashAndBank(): float
     {
-        return round(BankAccount::query()->get()->sum(fn (BankAccount $a) => $a->balance()), 2);
+        $accounts = BankAccount::query()->select('id', 'opening_balance')->with([
+            'transactions' => fn ($q) => $q->select('id', 'bank_account_id', 'type', 'amount'),
+        ])->get();
+
+        return round($accounts->sum(fn (BankAccount $a) => $a->balance()), 2);
     }
 
     private function receivables(): float
     {
-        return round((float) SalesInvoice::query()->whereIn('status', ['sent', 'partially_paid', 'overdue'])->get()->sum(fn (SalesInvoice $i) => $i->balance()), 2);
+        return round((float) SalesInvoice::query()->whereIn('status', ['sent', 'partially_paid', 'overdue'])->get()->sum(fn (SalesInvoice $i) => to_base_currency($i->balance(), $i->exchange_rate)), 2);
     }
 
     private function payables(): float
     {
-        return round((float) PurchaseInvoice::query()->whereIn('status', ['sent', 'partially_paid', 'overdue'])->get()->sum(fn (PurchaseInvoice $i) => $i->balance()), 2);
+        return round((float) PurchaseInvoice::query()->whereIn('status', ['sent', 'partially_paid', 'overdue'])->get()->sum(fn (PurchaseInvoice $i) => to_base_currency($i->balance(), $i->exchange_rate)), 2);
     }
 
     private function bankBalanceBefore(string $date): float
@@ -214,6 +224,7 @@ class CashFlowController extends Controller
                     'ref' => $p->reference ?: $p->invoice?->number,
                     'desc' => $p->customer?->name,
                     'amount' => (float) $p->amount,
+                    'amount_base' => to_base_currency($p->amount, $p->exchange_rate),
                     'kind' => 'payment',
                 ]);
             });
@@ -226,6 +237,7 @@ class CashFlowController extends Controller
                     'ref' => $t->number,
                     'desc' => $t->description ?: $t->counterparty,
                     'amount' => (float) $t->amount,
+                    'amount_base' => (float) $t->amount,
                     'kind' => 'bank',
                 ]);
             });
@@ -248,6 +260,7 @@ class CashFlowController extends Controller
                     'ref' => $p->reference ?: $p->invoice?->number,
                     'desc' => $p->supplier?->company_name,
                     'amount' => (float) $p->amount,
+                    'amount_base' => to_base_currency($p->amount, $p->exchange_rate),
                     'kind' => 'payment',
                 ]);
             });
@@ -260,6 +273,7 @@ class CashFlowController extends Controller
                     'ref' => $t->number,
                     'desc' => $t->description ?: $t->counterparty,
                     'amount' => (float) $t->amount,
+                    'amount_base' => (float) $t->amount,
                     'kind' => 'bank',
                 ]);
             });

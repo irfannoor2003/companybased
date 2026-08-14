@@ -27,7 +27,12 @@
                     </x-select>
                     <x-input name="issue_date" label="Issue date" type="date" value="{{ old('issue_date', $debitNote->issue_date?->format('Y-m-d')) }}" />
                     <x-input name="reason" label="Reason" value="{{ old('reason', $debitNote->reason) }}" />
-                    <x-input name="currency" label="Currency" value="{{ old('currency', $debitNote->currency) }}" placeholder="USD, EUR…" />
+                    <x-select name="currency" label="Currency">
+                        <option value="">— Default —</option>
+                        @foreach (currency_options() as $code => $label)
+                            <option value="{{ $code }}" @selected(old('currency', 'currency', $debitNote->currency) === $code)>{{ $label }}</option>
+                        @endforeach
+                    </x-select>
                 </div>
 
                 @php

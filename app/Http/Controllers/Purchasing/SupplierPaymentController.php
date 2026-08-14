@@ -8,6 +8,7 @@ use App\Models\PurchaseStatusEvent;
 use App\Models\Supplier;
 use App\Models\SupplierPayment;
 use App\Support\ExportsCsv;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -54,6 +55,16 @@ class SupplierPaymentController extends Controller
     {
         $data = $this->validateData($request);
 
+        if (! empty($data['invoice_id'])) {
+            $invoice = PurchaseInvoice::findOrFail($data['invoice_id']);
+            $remaining = $invoice->balance();
+
+            if ((float) $data['amount'] > $remaining) {
+                return back()->withInput()
+                    ->with('toasts', [['type' => 'danger', 'message' => 'Payment amount ('.money($data['amount'], $invoice->currency).') exceeds the outstanding balance of '.money($remaining, $invoice->currency).'.']]);
+            }
+        }
+
         $payment = SupplierPayment::create([
             'number' => next_document_number('supplier_payment', 'SP'),
             'invoice_id' => $data['invoice_id'] ?? null,
@@ -63,6 +74,7 @@ class SupplierPaymentController extends Controller
             'method' => $data['method'],
             'reference' => $data['reference'] ?? null,
             'currency' => $data['currency'] ?? null,
+            'exchange_rate' => exchange_rate_for($data['currency'] ?? null),
             'notes' => $data['notes'] ?? null,
         ]);
 
@@ -91,6 +103,17 @@ class SupplierPaymentController extends Controller
         $data = $this->validateData($request);
 
         $oldAmount = (float) $payment->amount;
+        $newAmount = (float) $data['amount'];
+
+        if (! empty($data['invoice_id']) && $newAmount !== $oldAmount) {
+            $invoice = PurchaseInvoice::findOrFail($data['invoice_id']);
+            $remaining = $invoice->balance() + $oldAmount;
+
+            if ($newAmount > $remaining) {
+                return back()->withInput()
+                    ->with('toasts', [['type' => 'danger', 'message' => 'Payment amount ('.money($newAmount, $invoice->currency).') exceeds the outstanding balance of '.money($remaining, $invoice->currency).'.']]);
+            }
+        }
 
         $payment->update([
             'invoice_id' => $data['invoice_id'] ?? null,
@@ -100,14 +123,15 @@ class SupplierPaymentController extends Controller
             'method' => $data['method'],
             'reference' => $data['reference'] ?? null,
             'currency' => $data['currency'] ?? null,
+            'exchange_rate' => exchange_rate_for($data['currency'] ?? null),
             'notes' => $data['notes'] ?? null,
         ]);
 
-        if ($oldAmount !== (float) $data['amount']) {
+        if ($oldAmount !== $newAmount) {
             if ($payment->invoice_id) {
                 $invoice = $payment->invoice()->first();
                 if ($invoice) {
-                    $invoice->update(['paid_amount' => max(0, round($invoice->paid_amount - $oldAmount + (float) $data['amount'], 2))]);
+                    $invoice->update(['paid_amount' => max(0, round($invoice->paid_amount - $oldAmount + $newAmount, 2))]);
                     $this->recalculateStatus($invoice);
                 }
             }
@@ -132,6 +156,22 @@ class SupplierPaymentController extends Controller
 
         return redirect()->route('suppliers.supplier_payments.index')
             ->with('toasts', [['type' => 'success', 'message' => "Payment {$number} deleted."]]);
+    }
+
+    public function pdf(SupplierPayment $payment): StreamedResponse
+    {
+        $payment->load(['supplier', 'invoice']);
+
+        $html = view('suppliers.supplier_payments.pdf', compact('payment'))->render();
+
+        $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, 'payment-'.$payment->number.'.pdf', [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="payment-'.$payment->number.'.pdf"',
+        ]);
     }
 
     public function export(Request $request): StreamedResponse

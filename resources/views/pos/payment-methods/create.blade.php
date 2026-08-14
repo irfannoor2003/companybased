@@ -11,8 +11,8 @@
                 @csrf
 
                 <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <x-input name="code" label="Code" required placeholder="e.g. MTN_MOMO" value="{{ old('code') }}" :error="$errors->first('code')" />
-                    <x-input name="name" label="Name" required placeholder="e.g. MTN Mobile Money" value="{{ old('name') }}" :error="$errors->first('name')" />
+                    <x-input name="code" label="Code" required placeholder="e.g. CASH" value="{{ old('code') }}" :error="$errors->first('code')" />
+                    <x-input name="name" label="Name" required placeholder="e.g. Cash" value="{{ old('name') }}" :error="$errors->first('name')" />
                 </div>
 
                 <div class="flex flex-wrap gap-6">

@@ -2,6 +2,9 @@
     <x-slot name="header">
         <x-page-header title="Invoice {{ $invoice->number }}" description="{{ $invoice->customer?->company_name }}" icon="invoice">
             <x-slot name="actions">
+                @if (auth()->user()->can('sales.invoices.view'))
+                    <x-button :href="route('sales.invoices.show', $invoice)" variant="secondary" icon="eye" target="_blank" rel="noopener">View / Print</x-button>
+                @endif
                 @if (auth()->user()->can('sales.credit_notes.create') && $invoice->balance() > 0)
                     <x-button href="{{ route('sales.credit_notes.create', ['invoice' => $invoice->id]) }}" variant="secondary" icon="credit">Credit note</x-button>
                 @endif
@@ -17,18 +20,23 @@
                     @csrf
                     @method('PUT')
 
-                    <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                        <x-select name="customer_id" label="Customer" required>
-                            @foreach ($customers as $customer)
-                                <option value="{{ $customer->id }}" @selected(old('customer_id', $invoice->customer_id) == $customer->id)>{{ $customer->company_name }}</option>
-                            @endforeach
+                <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3" x-data="currencyFromEntity()" x-init="initCurrencySelect()">
+                    <x-select name="customer_id" label="Customer" required @change="$event.target.value && syncCurrency($event.target)">
+                        @foreach ($customers as $customer)
+                            <option value="{{ $customer->id }}" data-currency="{{ $customer->currency ?? '' }}" @selected(old('customer_id', $invoice->customer_id) == $customer->id)>{{ $customer->company_name }}</option>
+                        @endforeach
                         </x-select>
                         <x-select name="status" label="Status">
                             @foreach (\App\Models\SalesInvoice::statusOptions() as $status)
                                 <option value="{{ $status }}" @selected(old('status', $invoice->status) === $status)>{{ ucfirst(str_replace('_', ' ', $status)) }}</option>
                             @endforeach
                         </x-select>
-                        <x-input name="currency" label="Currency" value="{{ old('currency', $invoice->currency) }}" placeholder="USD, EUR…" />
+                        <x-select name="currency" label="Currency" x-ref="currency">
+                        <option value="">— Default —</option>
+                        @foreach (currency_options() as $code => $label)
+                            <option value="{{ $code }}" @selected(old('currency', $invoice->currency) === $code)>{{ $label }}</option>
+                        @endforeach
+                    </x-select>
                         <x-input name="issue_date" label="Issue date" type="date" value="{{ old('issue_date', $invoice->issue_date?->format('Y-m-d')) }}" />
                         <x-input name="due_date" label="Due date" type="date" value="{{ old('due_date', $invoice->due_date?->format('Y-m-d')) }}" />
                     </div>

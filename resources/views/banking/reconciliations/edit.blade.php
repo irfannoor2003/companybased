@@ -28,7 +28,7 @@
             book() { return this.opening + this.clearedSum(); },
             diff() { return this.statementEnding - this.book(); },
             money(v) {
-                return new Intl.NumberFormat('en', { style: 'currency', currency: {{ \Illuminate\Support\Js::from($reconciliation->account?->currency ?? 'USD') }} }).format(v);
+                return new Intl.NumberFormat('en', { style: 'currency', currency: {{ \Illuminate\Support\Js::from($reconciliation->account?->currency ?? settings('company.currency', 'USD')) }} }).format(v);
             },
         }"
     >

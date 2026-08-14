@@ -37,7 +37,7 @@ if (! function_exists('money')) {
      */
     function money(int|string|float|null $amount, ?string $currency = null): string
     {
-        $currency = $currency ?: (string) (settings('company.currency') ?: 'USD');
+        $currency = $currency ?: (string) (settings('base_currency') ?: settings('company.currency') ?: 'USD');
         $amount = (float) ((string) ($amount ?? 0));
 
         if (class_exists(\NumberFormatter::class)) {
@@ -48,6 +48,81 @@ if (! function_exists('money')) {
         }
 
         return number_format($amount, 2).' '.$currency;
+    }
+}
+
+if (! function_exists('base_currency')) {
+    /**
+     * The company-wide reporting currency used for rollups and aggregation.
+     */
+    function base_currency(): string
+    {
+        return strtoupper((string) (settings('base_currency') ?: settings('company.currency') ?: 'USD'));
+    }
+}
+
+if (! function_exists('exchange_rate_for')) {
+    /**
+     * Latest reference rate converting the given currency to the company's base
+     * currency. Returns 1.0 when the currency equals the base currency or no
+     * rate has been configured. Used only when snapshotting a rate onto a new
+     * document — never for recalculating an existing document.
+     */
+    function exchange_rate_for(?string $currency, ?string $effectiveDate = null): float
+    {
+        $currency = strtoupper((string) ($currency ?: base_currency()));
+
+        if ($currency === base_currency()) {
+            return 1.0;
+        }
+
+        $rate = \App\Models\ExchangeRate::latestFor($currency, $effectiveDate)?->rate_to_base;
+
+        return $rate !== null ? (float) $rate : 1.0;
+    }
+}
+
+if (! function_exists('to_base_currency')) {
+    /**
+     * Convert an amount from a document's currency to the company's base
+     * currency using the rate snapshot stored on that document. Pure arithmetic
+     * for aggregation — never used to re-display a single document in its own
+     * currency (money() already handles that).
+     */
+    function to_base_currency(int|string|float|null $amount, int|string|float $exchangeRate = 1.0): float
+    {
+        return round((float) ((string) ($amount ?? 0)) * (float) $exchangeRate, 2);
+    }
+}
+
+if (! function_exists('currency_options')) {
+    /**
+     * Returns an array of common ISO 4217 currency codes keyed by code.
+     * Used for <select> dropdowns across the app.
+     */
+    function currency_options(): array
+    {
+        return [
+            'USD' => 'USD — US Dollar',
+            'EUR' => 'EUR — Euro',
+            'GBP' => 'GBP — British Pound',
+            'JPY' => 'JPY — Japanese Yen',
+            'CAD' => 'CAD — Canadian Dollar',
+            'AUD' => 'AUD — Australian Dollar',
+            'CHF' => 'CHF — Swiss Franc',
+            'CNY' => 'CNY — Chinese Yuan',
+            'INR' => 'INR — Indian Rupee',
+            'PKR' => 'PKR — Pakistani Rupee',
+            'AED' => 'AED — UAE Dirham',
+            'SAR' => 'SAR — Saudi Riyal',
+            'MYR' => 'MYR — Malaysian Ringgit',
+            'SGD' => 'SGD — Singapore Dollar',
+            'HKD' => 'HKD — Hong Kong Dollar',
+            'BRL' => 'BRL — Brazilian Real',
+            'MXN' => 'MXN — Mexican Peso',
+            'KWD' => 'KWD — Kuwaiti Dinar',
+            'QAR' => 'QAR — Qatari Riyal',
+        ];
     }
 }
 
@@ -80,7 +155,7 @@ if (! function_exists('unique_slug')) {
         $slug = $base;
         $suffix = 1;
 
-        $query = $model::query()->where($column, $slug);
+        $query = $model::withTrashed()->where($column, $slug);
 
         if ($ignoreId !== null) {
             $query->whereKeyNot($ignoreId);
@@ -88,7 +163,7 @@ if (! function_exists('unique_slug')) {
 
         while ($query->exists()) {
             $slug = $base.'-'.(++$suffix);
-            $query = $model::query()->where($column, $slug);
+            $query = $model::withTrashed()->where($column, $slug);
             if ($ignoreId !== null) {
                 $query->whereKeyNot($ignoreId);
             }

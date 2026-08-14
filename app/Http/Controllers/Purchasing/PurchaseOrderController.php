@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseStatusEvent;
 use App\Models\Supplier;
+use App\Support\DocumentData;
 use App\Support\DocumentItems;
 use App\Support\ExportsCsv;
 use App\Support\InventoryLedger;
@@ -16,6 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Illuminate\Support\Facades\DB;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PurchaseOrderController extends Controller
@@ -60,6 +62,7 @@ class PurchaseOrderController extends Controller
             'expected_delivery_date' => $data['expected_delivery_date'] ?? null,
             'status' => $data['status'],
             'currency' => $data['currency'] ?? null,
+            'exchange_rate' => exchange_rate_for($data['currency'] ?? null),
             'shipping_address' => $data['shipping_address'] ?? null,
             'notes' => $data['notes'] ?? null,
         ]);
@@ -81,6 +84,29 @@ class PurchaseOrderController extends Controller
         return view('suppliers.purchase_orders.edit', compact('order', 'suppliers', 'warehouses', 'products'));
     }
 
+    public function show(PurchaseOrder $order): View
+    {
+        $order->load(['supplier', 'items.product']);
+
+        return view('documents.show', DocumentData::build($order));
+    }
+
+    public function pdf(PurchaseOrder $order): StreamedResponse
+    {
+        $order->load(['supplier', 'items.product']);
+
+        $html = view('pdf.document', DocumentData::build($order))->render();
+
+        $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, 'purchase-order-'.$order->number.'.pdf', [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="purchase-order-'.$order->number.'.pdf"',
+        ]);
+    }
+
     public function update(Request $request, PurchaseOrder $order): RedirectResponse
     {
         if ($order->status === 'received' || $order->status === 'completed') {
@@ -96,6 +122,7 @@ class PurchaseOrderController extends Controller
             'expected_delivery_date' => $data['expected_delivery_date'] ?? null,
             'status' => $data['status'],
             'currency' => $data['currency'] ?? null,
+            'exchange_rate' => exchange_rate_for($data['currency'] ?? null),
             'shipping_address' => $data['shipping_address'] ?? null,
             'notes' => $data['notes'] ?? null,
         ]);

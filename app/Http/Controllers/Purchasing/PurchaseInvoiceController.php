@@ -16,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class PurchaseInvoiceController extends Controller
 {
@@ -62,6 +63,7 @@ class PurchaseInvoiceController extends Controller
             'due_date' => $data['due_date'] ?? null,
             'status' => $data['status'],
             'currency' => $data['currency'] ?? null,
+            'exchange_rate' => exchange_rate_for($data['currency'] ?? null),
             'notes' => $data['notes'] ?? null,
         ]);
 
@@ -83,6 +85,29 @@ class PurchaseInvoiceController extends Controller
         return view('suppliers.purchase_invoices.edit', compact('invoice', 'suppliers', 'products'));
     }
 
+    public function show(PurchaseInvoice $invoice): View
+    {
+        $invoice->load(['supplier', 'items.product', 'payments', 'statusEvents.user', 'debitNotes']);
+
+        return view('suppliers.purchase_invoices.show', compact('invoice'));
+    }
+
+    public function pdf(PurchaseInvoice $invoice): StreamedResponse
+    {
+        $invoice->load(['supplier', 'items.product', 'payments', 'debitNotes']);
+
+        $html = view('suppliers.purchase_invoices.pdf', compact('invoice'))->render();
+
+        $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, 'purchase-invoice-'.$invoice->number.'.pdf', [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="purchase-invoice-'.$invoice->number.'.pdf"',
+        ]);
+    }
+
     public function update(Request $request, PurchaseInvoice $invoice): RedirectResponse
     {
         $data = $this->validateData($request);
@@ -94,6 +119,7 @@ class PurchaseInvoiceController extends Controller
             'due_date' => $data['due_date'] ?? null,
             'status' => $data['status'],
             'currency' => $data['currency'] ?? null,
+            'exchange_rate' => exchange_rate_for($data['currency'] ?? null),
             'notes' => $data['notes'] ?? null,
         ]);
 
@@ -164,6 +190,7 @@ class PurchaseInvoiceController extends Controller
             'method' => $data['method'],
             'reference' => $data['reference'] ?? null,
             'currency' => $invoice->currency,
+            'exchange_rate' => $invoice->exchange_rate ?? exchange_rate_for($invoice->currency),
             'notes' => $data['notes'] ?? null,
         ]);
 

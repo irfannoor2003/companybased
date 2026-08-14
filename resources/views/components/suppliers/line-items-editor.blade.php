@@ -1,7 +1,7 @@
 @props([
     'products' => [],
     'initialItems' => [],
-    'currency' => 'USD',
+    'currency' => null,
 ])
 
 @php
@@ -15,7 +15,7 @@
     ])->all();
 
     $fmt = function ($v) use ($currency) {
-        $code = $currency ?: 'USD';
+        $code = $currency ?: settings('company.currency', 'USD');
 
         return (new NumberFormatter('en', NumberFormatter::CURRENCY))->formatCurrency((float) $v, $code);
     };
@@ -58,7 +58,7 @@
         },
         money(v) {
             try {
-                return new Intl.NumberFormat('en', { style: 'currency', currency: this.currency || 'USD' }).format(v);
+                return new Intl.NumberFormat('en', { style: 'currency', currency: this.currency || '{{ settings('company.currency', 'USD') }}' }).format(v);
             } catch {
                 return Number(v).toFixed(2) + ' ' + this.currency;
             }

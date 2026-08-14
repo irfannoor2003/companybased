@@ -15,6 +15,7 @@
 
                 <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
                     <x-input name="company_name" label="Company name" required value="{{ old('company_name', $customer->company_name) }}" class="sm:col-span-2" />
+                    <x-input name="short_code" label="Short code" value="{{ old('short_code', $customer->short_code) }}" placeholder="e.g. ACME, CUST-001" hint="Unique identifier used in document numbers or references." />
                     <x-input name="contact_name" label="Contact person" value="{{ old('contact_name', $customer->contact_name) }}" />
                     <x-input name="email" label="Email" type="email" value="{{ old('email', $customer->email) }}" />
                     <x-input name="phone" label="Phone" value="{{ old('phone', $customer->phone) }}" />
@@ -27,7 +28,12 @@
                         @endforeach
                     </x-select>
                     <x-input name="credit_limit" label="Credit limit" type="number" step="0.01" min="0" value="{{ old('credit_limit', $customer->credit_limit) }}" hint="0 = no credit." />
-                    <x-input name="currency" label="Currency" value="{{ old('currency', $customer->currency) }}" placeholder="USD, EUR…" />
+                    <x-select name="currency" label="Currency">
+                        <option value="">— Default —</option>
+                        @foreach (currency_options() as $code => $label)
+                            <option value="{{ $code }}" @selected(old('currency', $customer->currency) === $code)>{{ $label }}</option>
+                        @endforeach
+                    </x-select>
                 </div>
 
                 <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">

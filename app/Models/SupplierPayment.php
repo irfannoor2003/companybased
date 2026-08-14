@@ -14,7 +14,7 @@ class SupplierPayment extends Model
 
     protected $fillable = [
         'number', 'invoice_id', 'supplier_id', 'amount', 'payment_date',
-        'method', 'reference', 'currency', 'notes',
+        'method', 'reference', 'currency', 'exchange_rate', 'notes',
     ];
 
     protected $auditModule = 'suppliers';
@@ -24,6 +24,7 @@ class SupplierPayment extends Model
         return [
             'amount' => 'decimal:2',
             'payment_date' => 'date',
+            'exchange_rate' => 'decimal:6',
         ];
     }
 

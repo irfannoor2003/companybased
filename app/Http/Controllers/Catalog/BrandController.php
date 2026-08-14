@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Catalog;
 use App\Http\Controllers\Controller;
 use App\Models\Brand;
 use App\Support\ExportsCsv;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -38,12 +40,20 @@ class BrandController extends Controller
     {
         $data = $this->validateData($request);
 
-        $brand = Brand::create([
-            'name' => $data['name'],
-            'slug' => unique_slug(Brand::class, $data['name']),
-            'description' => $data['description'] ?? null,
-            'is_active' => $request->boolean('is_active', true),
-        ]);
+        try {
+            $brand = Brand::create([
+                'name' => $data['name'],
+                'slug' => unique_slug(Brand::class, $data['name']),
+                'description' => $data['description'] ?? null,
+                'is_active' => $request->boolean('is_active', true),
+            ]);
+        } catch (QueryException $e) {
+            if ($e->errorInfo[1] == 1062) {
+                return back()->withInput()
+                    ->with('toasts', [['type' => 'danger', 'message' => 'A brand with the name "' . $data['name'] . '" already exists. Please choose a different name.']]);
+            }
+            throw $e;
+        }
 
         return redirect()->route('catalog.brands.edit', $brand)
             ->with('toasts', [['type' => 'success', 'message' => "Brand \"{$brand->name}\" created."]]);

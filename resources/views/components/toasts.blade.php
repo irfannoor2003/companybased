@@ -9,23 +9,26 @@
             x-transition:enter="transition ease-out duration-200"
             x-transition:enter-start="opacity-0 translate-y-3"
             x-transition:enter-end="opacity-100 translate-y-0"
+            x-transition:leave="transition ease-in duration-150"
+            x-transition:leave-start="opacity-100 translate-y-0"
+            x-transition:leave-end="opacity-0 translate-y-3"
             class="pointer-events-auto flex w-full items-start gap-3 rounded-xl border bg-surface p-3.5 shadow-lift"
             :class="{
                 'border-emerald-200 dark:border-emerald-500/30': toast.type === 'success',
-                'border-rose-200 dark:border-rose-500/30': toast.type === 'error',
+                'border-rose-200 dark:border-rose-500/30': toast.type === 'error' || toast.type === 'danger',
                 'border-sky-200 dark:border-sky-500/30': toast.type === 'info',
             }"
         >
             <span class="mt-0.5 shrink-0" :class="{
                 'text-emerald-500': toast.type === 'success',
-                'text-rose-500': toast.type === 'error',
+                'text-rose-500': toast.type === 'error' || toast.type === 'danger',
                 'text-sky-500': toast.type === 'info',
             }">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="size-5">
                     <template x-if="toast.type === 'success'">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                     </template>
-                    <template x-if="toast.type === 'error'">
+                    <template x-if="toast.type === 'error' || toast.type === 'danger'">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
                     </template>
                     <template x-if="toast.type === 'info'">

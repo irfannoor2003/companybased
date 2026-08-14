@@ -28,7 +28,12 @@
                         </x-select>
                         <x-input name="next_run_date" label="Next run date" type="date" value="{{ old('next_run_date', $recurringInvoice->next_run_date?->format('Y-m-d')) }}" />
                         <x-input name="day_of_cycle" label="Day of cycle" type="number" min="1" max="31" value="{{ old('day_of_cycle', $recurringInvoice->day_of_cycle) }}" />
-                        <x-input name="currency" label="Currency" value="{{ old('currency', $recurringInvoice->currency) }}" placeholder="USD, EUR…" />
+                        <x-select name="currency" label="Currency">
+                        <option value="">— Default —</option>
+                        @foreach (currency_options() as $code => $label)
+                            <option value="{{ $code }}" @selected(old('currency', 'currency', $recurringInvoice->currency) === $code)>{{ $label }}</option>
+                        @endforeach
+                    </x-select>
                     </div>
 
                     @php

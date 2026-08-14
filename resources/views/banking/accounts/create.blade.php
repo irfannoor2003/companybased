@@ -22,7 +22,12 @@
                             <option value="{{ $type }}" @selected(old('account_type', 'checking') === $type)>{{ ucfirst($type) }}</option>
                         @endforeach
                     </x-select>
-                    <x-input name="currency" label="Currency" value="{{ old('currency', 'USD') }}" placeholder="USD, EUR…" />
+                    <x-select name="currency" label="Currency">
+                        <option value="">— Default —</option>
+                        @foreach (currency_options() as $code => $label)
+                            <option value="{{ $code }}" @selected(old('currency', 'currency', settings('company.currency', 'USD')) === $code)>{{ $label }}</option>
+                        @endforeach
+                    </x-select>
                 </div>
 
                 <x-input name="opening_balance" label="Opening balance" type="number" step="0.01" value="{{ old('opening_balance', 0) }}" hint="Balance held when this account was opened." />

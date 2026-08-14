@@ -1,47 +1,26 @@
 <?php
 
-use App\Http\Controllers\Catalog\BrandController;
-use App\Http\Controllers\Banking\BankAccountController;
-use App\Http\Controllers\Banking\BankTransactionController;
-use App\Http\Controllers\Banking\BankTransferController;
-use App\Http\Controllers\Banking\ReconciliationController;
-use App\Http\Controllers\CashFlowController;
 use App\Http\Controllers\Accounting\AccountController;
 use App\Http\Controllers\Accounting\BillController;
 use App\Http\Controllers\Accounting\BudgetController;
 use App\Http\Controllers\Accounting\ExpenseClaimController;
 use App\Http\Controllers\Accounting\JournalController;
 use App\Http\Controllers\Accounting\TaxReturnController;
+use App\Http\Controllers\Banking\BankAccountController;
+use App\Http\Controllers\Banking\BankTransactionController;
+use App\Http\Controllers\Banking\BankTransferController;
+use App\Http\Controllers\Banking\ReconciliationController;
+use App\Http\Controllers\Capital\ContributionController;
+use App\Http\Controllers\Capital\DrawingController;
+use App\Http\Controllers\Capital\EquityController;
+use App\Http\Controllers\Capital\StatementController as CapitalStatementController;
+use App\Http\Controllers\CashFlowController;
+use App\Http\Controllers\Catalog\BrandController;
 use App\Http\Controllers\Catalog\CategoryController;
 use App\Http\Controllers\Catalog\PriceListController;
 use App\Http\Controllers\Catalog\ProductController;
-use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\Inventory\BillOfMaterialController;
-use App\Http\Controllers\Inventory\ItemController;
-use App\Http\Controllers\Inventory\ProductionOrderController;
-use App\Http\Controllers\Inventory\TransferController;
-use App\Http\Controllers\Inventory\WarehouseController;
-use App\Http\Controllers\Inventory\WriteOffController;
-use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\Purchasing\DebitNoteController;
-use App\Http\Controllers\Purchasing\PurchaseInvoiceController;
-use App\Http\Controllers\Purchasing\PurchaseOrderController;
-use App\Http\Controllers\Purchasing\PurchaseQuoteController;
-use App\Http\Controllers\Purchasing\SupplierController;
-use App\Http\Controllers\Purchasing\SupplierLedgerController;
-use App\Http\Controllers\Purchasing\SupplierPaymentController;
-use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\CustomReportController;
-use App\Http\Controllers\Sales\CreditNoteController;
-use App\Http\Controllers\Sales\CustomerController;
-use App\Http\Controllers\Sales\DeliveryNoteController;
-use App\Http\Controllers\Sales\InvoiceController;
-use App\Http\Controllers\Sales\OrderController;
-use App\Http\Controllers\Sales\QuoteController;
-use App\Http\Controllers\Sales\RecurringInvoiceController;
-use App\Http\Controllers\Sales\StatementController;
-use App\Http\Controllers\Sales\TrackingController;
-use App\Http\Controllers\Sales\WithholdingTaxReceiptController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Employees\AttendanceController;
 use App\Http\Controllers\Employees\AttendanceReportController;
 use App\Http\Controllers\Employees\AttendanceRulesController;
@@ -51,18 +30,18 @@ use App\Http\Controllers\Employees\EmployeeDocumentController;
 use App\Http\Controllers\Employees\MyAttendanceController;
 use App\Http\Controllers\Employees\PayrollRunController;
 use App\Http\Controllers\Employees\SalaryStructureController;
-use App\Http\Controllers\Settings\AuditLogController;
-use App\Http\Controllers\Visits\VisitMapController;
-use App\Http\Controllers\Visits\VisitPitStopController;
-use App\Http\Controllers\Visits\VisitsController;
-use App\Http\Controllers\Capital\ContributionController;
-use App\Http\Controllers\Capital\DrawingController;
-use App\Http\Controllers\Capital\EquityController;
-use App\Http\Controllers\Capital\StatementController as CapitalStatementController;
 use App\Http\Controllers\FixedAsset\AssetController;
 use App\Http\Controllers\FixedAsset\DepreciationController;
 use App\Http\Controllers\FixedAsset\DisposalController;
 use App\Http\Controllers\FixedAsset\ReportController as AssetReportController;
+use App\Http\Controllers\HomeController;
+use App\Http\Controllers\Inventory\BillOfMaterialController;
+use App\Http\Controllers\Inventory\IncomingShipmentController;
+use App\Http\Controllers\Inventory\ItemController;
+use App\Http\Controllers\Inventory\ProductionOrderController;
+use App\Http\Controllers\Inventory\TransferController;
+use App\Http\Controllers\Inventory\WarehouseController;
+use App\Http\Controllers\Inventory\WriteOffController;
 use App\Http\Controllers\Investment\DividendController;
 use App\Http\Controllers\Investment\PortfolioController;
 use App\Http\Controllers\Investment\ReportController as InvestmentReportController;
@@ -73,21 +52,48 @@ use App\Http\Controllers\Pos\ReceiptController;
 use App\Http\Controllers\Pos\ReconciliationController as PosReconciliationController;
 use App\Http\Controllers\Pos\SaleScreenController;
 use App\Http\Controllers\Pos\ShiftController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\Public\TrackController;
+use App\Http\Controllers\Purchasing\DebitNoteController;
+use App\Http\Controllers\Purchasing\PurchaseInvoiceController;
+use App\Http\Controllers\Purchasing\PurchaseOrderController;
+use App\Http\Controllers\Purchasing\PurchaseQuoteController;
+use App\Http\Controllers\Purchasing\SupplierController;
+use App\Http\Controllers\Purchasing\SupplierLedgerController;
+use App\Http\Controllers\Purchasing\SupplierPaymentController;
+use App\Http\Controllers\ReportsController;
+use App\Http\Controllers\Sales\CreditNoteController;
+use App\Http\Controllers\Sales\CustomerController;
+use App\Http\Controllers\Sales\DeliveryNoteController;
+use App\Http\Controllers\Sales\InvoiceController;
+use App\Http\Controllers\Sales\OrderController;
+use App\Http\Controllers\Sales\PaymentController;
+use App\Http\Controllers\Sales\QuoteController;
+use App\Http\Controllers\Sales\RecurringInvoiceController;
+use App\Http\Controllers\Sales\StatementController;
+use App\Http\Controllers\Sales\TrackingController;
+use App\Http\Controllers\Sales\WithholdingTaxReceiptController;
+use App\Http\Controllers\Settings\AuditLogController;
 use App\Http\Controllers\Settings\BackupController;
 use App\Http\Controllers\Settings\CompanyController;
+use App\Http\Controllers\Settings\CurrencyController;
+use App\Http\Controllers\Settings\MailSettingsController;
 use App\Http\Controllers\Settings\ModuleController;
 use App\Http\Controllers\Settings\NotificationRuleController;
 use App\Http\Controllers\Settings\RoleController;
 use App\Http\Controllers\Settings\UserController;
+use App\Http\Controllers\Visits\VisitMapController;
+use App\Http\Controllers\Visits\VisitPitStopController;
+use App\Http\Controllers\Visits\VisitsController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', \App\Http\Controllers\HomeController::class);
+Route::get('/', HomeController::class);
 
 Route::get('/employees/attendance/qr/{code}', [AttendanceController::class, 'qr'])
     ->middleware(['module:employees', 'throttle:20,1'])
     ->name('employees.attendance.qr');
 
-Route::get('/track/{code}', [\App\Http\Controllers\Public\TrackController::class, 'show'])
+Route::get('/track/{code}', [TrackController::class, 'show'])
     ->middleware('throttle:60,1')
     ->name('public.tracking');
 
@@ -175,6 +181,8 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:sales.customers.create')->name('customers.create');
         Route::get('/customers/export', [CustomerController::class, 'export'])
             ->middleware('permission:sales.customers.export')->name('customers.export');
+        Route::get('/customers/short-code-suggest', [CustomerController::class, 'suggestShortCode'])
+            ->middleware('permission:sales.customers.create')->name('customers.short-code-suggest');
         Route::get('/customers/{customer}', [CustomerController::class, 'show'])
             ->middleware('permission:sales.customers.view')->name('customers.show');
         Route::get('/customers/{customer}/edit', [CustomerController::class, 'edit'])
@@ -208,6 +216,10 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:sales.quotes.convert')->name('quotes.convert');
         Route::patch('/quotes/{quote}/status', [QuoteController::class, 'updateStatus'])
             ->middleware('permission:sales.quotes.edit')->name('quotes.status');
+        Route::get('/quotes/{quote}', [QuoteController::class, 'show'])
+            ->middleware('permission:sales.quotes.view')->name('quotes.show');
+        Route::get('/quotes/{quote}/pdf', [QuoteController::class, 'pdf'])
+            ->middleware('permission:sales.quotes.view')->name('quotes.pdf');
 
         Route::get('/orders', [OrderController::class, 'index'])
             ->middleware('permission:sales.orders.view')->name('orders.index');
@@ -227,6 +239,10 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:sales.orders.confirm')->name('orders.confirm');
         Route::patch('/orders/{order}/status', [OrderController::class, 'updateStatus'])
             ->middleware('permission:sales.orders.update_status')->name('orders.status');
+        Route::get('/orders/{order}', [OrderController::class, 'show'])
+            ->middleware('permission:sales.orders.view')->name('orders.show');
+        Route::get('/orders/{order}/pdf', [OrderController::class, 'pdf'])
+            ->middleware('permission:sales.orders.view')->name('orders.pdf');
 
         Route::get('/invoices', [InvoiceController::class, 'index'])
             ->middleware('permission:sales.invoices.view')->name('invoices.index');
@@ -234,6 +250,10 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:sales.invoices.create')->name('invoices.create');
         Route::get('/invoices/{invoice}/edit', [InvoiceController::class, 'edit'])
             ->middleware('permission:sales.invoices.edit')->name('invoices.edit');
+        Route::get('/invoices/{invoice}', [InvoiceController::class, 'show'])
+            ->middleware('permission:sales.invoices.view')->name('invoices.show');
+        Route::get('/invoices/{invoice}/pdf', [InvoiceController::class, 'pdf'])
+            ->middleware('permission:sales.invoices.view')->name('invoices.pdf');
         Route::get('/invoices/export', [InvoiceController::class, 'export'])
             ->middleware('permission:sales.invoices.export')->name('invoices.export');
         Route::post('/invoices', [InvoiceController::class, 'store'])
@@ -244,6 +264,23 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:sales.invoices.delete')->name('invoices.destroy');
         Route::post('/invoices/{invoice}/payments', [InvoiceController::class, 'recordPayment'])
             ->middleware('permission:sales.invoices.record_payment')->name('invoices.payments.store');
+
+        Route::get('/payment-in', [PaymentController::class, 'index'])
+            ->middleware('permission:sales.sales_payments.view')->name('sales_payments.index');
+        Route::get('/payment-in/create', [PaymentController::class, 'create'])
+            ->middleware('permission:sales.sales_payments.create')->name('sales_payments.create');
+        Route::get('/payment-in/{payment}/edit', [PaymentController::class, 'edit'])
+            ->middleware('permission:sales.sales_payments.edit')->name('sales_payments.edit');
+        Route::get('/payment-in/{payment}/pdf', [PaymentController::class, 'pdf'])
+            ->middleware('permission:sales.sales_payments.view')->name('sales_payments.pdf');
+        Route::get('/payment-in/export', [PaymentController::class, 'export'])
+            ->middleware('permission:sales.sales_payments.export')->name('sales_payments.export');
+        Route::post('/payment-in', [PaymentController::class, 'store'])
+            ->middleware('permission:sales.sales_payments.create')->name('sales_payments.store');
+        Route::put('/payment-in/{payment}', [PaymentController::class, 'update'])
+            ->middleware('permission:sales.sales_payments.edit')->name('sales_payments.update');
+        Route::delete('/payment-in/{payment}', [PaymentController::class, 'destroy'])
+            ->middleware('permission:sales.sales_payments.delete')->name('sales_payments.destroy');
 
         Route::get('/credit-notes', [CreditNoteController::class, 'index'])
             ->middleware('permission:sales.credit_notes.view')->name('credit_notes.index');
@@ -259,6 +296,10 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:sales.credit_notes.edit')->name('credit_notes.update');
         Route::delete('/credit-notes/{creditNote}', [CreditNoteController::class, 'destroy'])
             ->middleware('permission:sales.credit_notes.delete')->name('credit_notes.destroy');
+        Route::get('/credit-notes/{creditNote}', [CreditNoteController::class, 'show'])
+            ->middleware('permission:sales.credit_notes.view')->name('credit_notes.show');
+        Route::get('/credit-notes/{creditNote}/pdf', [CreditNoteController::class, 'pdf'])
+            ->middleware('permission:sales.credit_notes.view')->name('credit_notes.pdf');
 
         Route::get('/delivery-notes', [DeliveryNoteController::class, 'index'])
             ->middleware('permission:sales.delivery_notes.view')->name('delivery_notes.index');
@@ -276,6 +317,10 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:sales.delivery_notes.delete')->name('delivery_notes.destroy');
         Route::patch('/delivery-notes/{deliveryNote}/status', [DeliveryNoteController::class, 'updateStatus'])
             ->middleware('permission:sales.delivery_notes.update_status')->name('delivery_notes.status');
+        Route::get('/delivery-notes/{deliveryNote}', [DeliveryNoteController::class, 'show'])
+            ->middleware('permission:sales.delivery_notes.view')->name('delivery_notes.show');
+        Route::get('/delivery-notes/{deliveryNote}/pdf', [DeliveryNoteController::class, 'pdf'])
+            ->middleware('permission:sales.delivery_notes.view')->name('delivery_notes.pdf');
 
         Route::get('/recurring-invoices', [RecurringInvoiceController::class, 'index'])
             ->middleware('permission:sales.recurring_invoices.view')->name('recurring_invoices.index');
@@ -305,6 +350,8 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:sales.withholding_tax_receipts.create')->name('withholding_tax_receipts.create');
         Route::get('/withholding-tax-receipts/{withholdingTaxReceipt}/edit', [WithholdingTaxReceiptController::class, 'edit'])
             ->middleware('permission:sales.withholding_tax_receipts.edit')->name('withholding_tax_receipts.edit');
+        Route::get('/withholding-tax-receipts/{withholdingTaxReceipt}/pdf', [WithholdingTaxReceiptController::class, 'pdf'])
+            ->middleware('permission:sales.withholding_tax_receipts.view')->name('withholding_tax_receipts.pdf');
         Route::get('/withholding-tax-receipts/export', [WithholdingTaxReceiptController::class, 'export'])
             ->middleware('permission:sales.withholding_tax_receipts.export')->name('withholding_tax_receipts.export');
         Route::post('/withholding-tax-receipts', [WithholdingTaxReceiptController::class, 'store'])
@@ -424,6 +471,28 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:inventory.production_orders.update_status')->name('production_orders.status');
         Route::delete('/production-orders/{order}', [ProductionOrderController::class, 'destroy'])
             ->middleware('permission:inventory.production_orders.delete')->name('production_orders.destroy');
+
+        // Incoming Shipments
+        Route::get('/incoming-shipments', [IncomingShipmentController::class, 'index'])
+            ->middleware('permission:inventory.incoming_shipments.view')->name('incoming_shipments.index');
+        Route::get('/incoming-shipments/create', [IncomingShipmentController::class, 'create'])
+            ->middleware('permission:inventory.incoming_shipments.create')->name('incoming_shipments.create');
+        Route::get('/incoming-shipments/{shipment}', [IncomingShipmentController::class, 'show'])
+            ->middleware('permission:inventory.incoming_shipments.view')->name('incoming_shipments.show');
+        Route::get('/incoming-shipments/{shipment}/edit', [IncomingShipmentController::class, 'edit'])
+            ->middleware('permission:inventory.incoming_shipments.edit')->name('incoming_shipments.edit');
+        Route::get('/incoming-shipments/export', [IncomingShipmentController::class, 'export'])
+            ->middleware('permission:inventory.incoming_shipments.export')->name('incoming_shipments.export');
+        Route::post('/incoming-shipments', [IncomingShipmentController::class, 'store'])
+            ->middleware('permission:inventory.incoming_shipments.create')->name('incoming_shipments.store');
+        Route::put('/incoming-shipments/{shipment}', [IncomingShipmentController::class, 'update'])
+            ->middleware('permission:inventory.incoming_shipments.edit')->name('incoming_shipments.update');
+        Route::delete('/incoming-shipments/{shipment}', [IncomingShipmentController::class, 'destroy'])
+            ->middleware('permission:inventory.incoming_shipments.delete')->name('incoming_shipments.destroy');
+        Route::patch('/incoming-shipments/{shipment}/status', [IncomingShipmentController::class, 'updateStatus'])
+            ->middleware('permission:inventory.incoming_shipments.receive')->name('incoming_shipments.status');
+        Route::post('/incoming-shipments/{shipment}/approve', [IncomingShipmentController::class, 'approve'])
+            ->middleware('permission:inventory.incoming_shipments.approve')->name('incoming_shipments.approve');
     });
 
     Route::prefix('suppliers')->name('suppliers.')->middleware('module:suppliers')->group(function () {
@@ -433,6 +502,8 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:suppliers.suppliers.create')->name('suppliers.create');
         Route::get('/export', [SupplierController::class, 'export'])
             ->middleware('permission:suppliers.suppliers.export')->name('suppliers.export');
+        Route::get('/short-code-suggest', [SupplierController::class, 'suggestShortCode'])
+            ->middleware('permission:suppliers.suppliers.create')->name('suppliers.short-code-suggest');
         Route::get('/{supplier}/edit', [SupplierController::class, 'edit'])
             ->middleware('permission:suppliers.suppliers.edit')->name('suppliers.edit');
         Route::post('/', [SupplierController::class, 'store'])
@@ -460,6 +531,10 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:suppliers.purchase_quotes.convert')->name('purchase_quotes.convert');
         Route::patch('/purchase-quotes/{quote}/status', [PurchaseQuoteController::class, 'updateStatus'])
             ->middleware('permission:suppliers.purchase_quotes.edit')->name('purchase_quotes.status');
+        Route::get('/purchase-quotes/{quote}', [PurchaseQuoteController::class, 'show'])
+            ->middleware('permission:suppliers.purchase_quotes.view')->name('purchase_quotes.show');
+        Route::get('/purchase-quotes/{quote}/pdf', [PurchaseQuoteController::class, 'pdf'])
+            ->middleware('permission:suppliers.purchase_quotes.view')->name('purchase_quotes.pdf');
 
         Route::get('/purchase-orders', [PurchaseOrderController::class, 'index'])
             ->middleware('permission:suppliers.purchase_orders.view')->name('purchase_orders.index');
@@ -479,6 +554,10 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:suppliers.purchase_orders.confirm')->name('purchase_orders.confirm');
         Route::patch('/purchase-orders/{order}/status', [PurchaseOrderController::class, 'updateStatus'])
             ->middleware('permission:suppliers.purchase_orders.update_status')->name('purchase_orders.status');
+        Route::get('/purchase-orders/{order}', [PurchaseOrderController::class, 'show'])
+            ->middleware('permission:suppliers.purchase_orders.view')->name('purchase_orders.show');
+        Route::get('/purchase-orders/{order}/pdf', [PurchaseOrderController::class, 'pdf'])
+            ->middleware('permission:suppliers.purchase_orders.view')->name('purchase_orders.pdf');
 
         Route::get('/purchase-invoices', [PurchaseInvoiceController::class, 'index'])
             ->middleware('permission:suppliers.purchase_invoices.view')->name('purchase_invoices.index');
@@ -486,6 +565,10 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:suppliers.purchase_invoices.create')->name('purchase_invoices.create');
         Route::get('/purchase-invoices/{invoice}/edit', [PurchaseInvoiceController::class, 'edit'])
             ->middleware('permission:suppliers.purchase_invoices.edit')->name('purchase_invoices.edit');
+        Route::get('/purchase-invoices/{invoice}', [PurchaseInvoiceController::class, 'show'])
+            ->middleware('permission:suppliers.purchase_invoices.view')->name('purchase_invoices.show');
+        Route::get('/purchase-invoices/{invoice}/pdf', [PurchaseInvoiceController::class, 'pdf'])
+            ->middleware('permission:suppliers.purchase_invoices.view')->name('purchase_invoices.pdf');
         Route::get('/purchase-invoices/export', [PurchaseInvoiceController::class, 'export'])
             ->middleware('permission:suppliers.purchase_invoices.export')->name('purchase_invoices.export');
         Route::post('/purchase-invoices', [PurchaseInvoiceController::class, 'store'])
@@ -511,6 +594,10 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:suppliers.debit_notes.edit')->name('debit_notes.update');
         Route::delete('/debit-notes/{debitNote}', [DebitNoteController::class, 'destroy'])
             ->middleware('permission:suppliers.debit_notes.delete')->name('debit_notes.destroy');
+        Route::get('/debit-notes/{debitNote}', [DebitNoteController::class, 'show'])
+            ->middleware('permission:suppliers.debit_notes.view')->name('debit_notes.show');
+        Route::get('/debit-notes/{debitNote}/pdf', [DebitNoteController::class, 'pdf'])
+            ->middleware('permission:suppliers.debit_notes.view')->name('debit_notes.pdf');
 
         Route::get('/supplier-payments', [SupplierPaymentController::class, 'index'])
             ->middleware('permission:suppliers.supplier_payments.view')->name('supplier_payments.index');
@@ -518,6 +605,8 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:suppliers.supplier_payments.create')->name('supplier_payments.create');
         Route::get('/supplier-payments/{payment}/edit', [SupplierPaymentController::class, 'edit'])
             ->middleware('permission:suppliers.supplier_payments.edit')->name('supplier_payments.edit');
+        Route::get('/supplier-payments/{payment}/pdf', [SupplierPaymentController::class, 'pdf'])
+            ->middleware('permission:suppliers.supplier_payments.view')->name('supplier_payments.pdf');
         Route::get('/supplier-payments/export', [SupplierPaymentController::class, 'export'])
             ->middleware('permission:suppliers.supplier_payments.export')->name('supplier_payments.export');
         Route::post('/supplier-payments', [SupplierPaymentController::class, 'store'])
@@ -1101,6 +1190,10 @@ Route::middleware('auth')->group(function () {
         Route::put('/modules/{module}', [ModuleController::class, 'update'])
             ->middleware('permission:settings.modules.manage')->name('modules.update');
 
+        Route::get('/currencies', [CurrencyController::class, 'index'])
+            ->middleware('permission:settings.currencies.view')->name('currencies');
+        Route::put('/currencies', [CurrencyController::class, 'update'])
+            ->middleware('permission:settings.currencies.manage')->name('currencies.update');
         Route::middleware('permission:settings.users.view')->group(function () {
             Route::get('/users', [UserController::class, 'index'])->name('users.index');
             Route::get('/users/create', [UserController::class, 'create'])->name('users.create');
@@ -1138,6 +1231,13 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:settings.backup.manage')->name('backups.download');
         Route::delete('/backups/{file}', [BackupController::class, 'destroy'])
             ->middleware('permission:settings.backup.manage')->name('backups.destroy');
+
+        Route::get('/mail', [MailSettingsController::class, 'edit'])
+            ->middleware('permission:settings.mail.view')->name('mail');
+        Route::put('/mail', [MailSettingsController::class, 'update'])
+            ->middleware('permission:settings.mail.manage')->name('mail.update');
+        Route::post('/mail/test', [MailSettingsController::class, 'test'])
+            ->middleware('permission:settings.mail.manage')->name('mail.test');
     });
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');

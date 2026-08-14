@@ -2,6 +2,7 @@
     <x-slot name="header">
         <x-page-header title="Payment {{ $payment->number }}" description="{{ $payment->supplier?->company_name }}" icon="money">
             <x-slot name="actions">
+                <x-button :href="route('suppliers.supplier_payments.pdf', $payment)" variant="secondary" icon="download" target="_blank" rel="noopener">Export PDF</x-button>
                 <x-button href="{{ route('suppliers.supplier_payments.index') }}" variant="secondary" icon="arrow-left">Back</x-button>
             </x-slot>
         </x-page-header>
@@ -9,14 +10,14 @@
 
     <div class="mt-6 max-w-4xl">
         <x-card title="Payment details">
-            <form method="POST" action="{{ route('suppliers.supplier_payments.update', $payment) }}" class="space-y-5">
-                @csrf
-                @method('PUT')
+             <form method="POST" action="{{ route('suppliers.supplier_payments.update', $payment) }}" class="space-y-5" x-data="currencyFromEntity()" x-init="initCurrencySelect()">
+                 @csrf
+                 @method('PUT')
 
-                <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                    <x-select name="supplier_id" label="Supplier" required>
+                 <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                     <x-select name="supplier_id" label="Supplier" required @change="$event.target.value && syncCurrency($event.target)">
                         @foreach ($suppliers as $supplier)
-                            <option value="{{ $supplier->id }}" @selected(old('supplier_id', $payment->supplier_id) == $supplier->id)>{{ $supplier->company_name }}</option>
+                            <option value="{{ $supplier->id }}" data-currency="{{ $supplier->currency ?? '' }}" @selected(old('supplier_id', $payment->supplier_id) == $supplier->id)>{{ $supplier->company_name }}</option>
                         @endforeach
                     </x-select>
                     <x-select name="invoice_id" label="Against invoice">
@@ -33,7 +34,12 @@
                         @endforeach
                     </x-select>
                     <x-input name="reference" label="Reference" value="{{ old('reference', $payment->reference) }}" placeholder="e.g. bank ref, cheque no." />
-                    <x-input name="currency" label="Currency" value="{{ old('currency', $payment->currency) }}" placeholder="USD, EUR…" />
+                    <x-select name="currency" label="Currency">
+                        <option value="">— Default —</option>
+                        @foreach (currency_options() as $code => $label)
+                            <option value="{{ $code }}" @selected(old('currency', $payment->currency) === $code)>{{ $label }}</option>
+                        @endforeach
+                    </x-select>
                 </div>
 
                 <x-textarea name="notes" label="Notes" rows="3">{{ old('notes', $payment->notes) }}</x-textarea>

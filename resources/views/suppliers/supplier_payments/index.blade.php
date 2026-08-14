@@ -75,6 +75,9 @@
                                 <td class="text-right font-medium text-ink">{{ money($payment->amount, $payment->currency) }}</td>
                                 <td class="text-right">
                                     <div class="flex items-center justify-end gap-1">
+                                        <a href="{{ route('suppliers.supplier_payments.pdf', $payment) }}" class="btn-ghost btn-icon btn-sm" title="Download PDF">
+                                            <x-icon name="download" class="size-4" />
+                                        </a>
                                         <a href="{{ route('suppliers.supplier_payments.edit', $payment) }}" class="btn-ghost btn-icon btn-sm" title="Edit">
                                             <x-icon name="edit" class="size-4" />
                                         </a>
