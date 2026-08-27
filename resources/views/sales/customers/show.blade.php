@@ -2,6 +2,9 @@
     <x-slot name="header">
         <x-page-header title="{{ $customer->company_name }}" description="{{ $customer->contact_name ?: 'Customer' }}" icon="users">
             <x-slot name="actions">
+                @if (auth()->user()->can('sales.customers.email'))
+                    <x-button href="{{ route('sales.customers.email', $customer) }}" variant="secondary" icon="mail">Send Email</x-button>
+                @endif
                 @if (auth()->user()->can('sales.statements.view'))
                     <x-button href="{{ route('sales.customers.statement', $customer) }}" variant="secondary" icon="report">Statement</x-button>
                 @endif

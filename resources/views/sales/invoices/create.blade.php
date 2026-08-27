@@ -2,7 +2,10 @@
     <x-slot name="header">
         <x-page-header title="New invoice" description="Create an invoice for a customer." icon="invoice">
             <x-slot name="actions">
-                <x-button href="{{ route('sales.invoices.index') }}" variant="secondary" icon="arrow-left">Back</x-button>
+                <div class="flex items-center gap-2">
+                    <x-document-preview type="Invoice" number="Draft" currency="{{ old('currency', $fromOrder?->currency ?? settings('company.currency', 'USD')) }}" />
+                    <x-button href="{{ route('sales.invoices.index') }}" variant="secondary" icon="arrow-left">Back</x-button>
+                </div>
             </x-slot>
         </x-page-header>
     </x-slot>
@@ -61,7 +64,7 @@
                     ])->all() : [];
                 @endphp
 
-                <x-sales.line-items-editor :products="$products" :initial-items="$initialItems" :currency="old('currency', $fromOrder?->currency ?? settings('company.currency', 'USD'))" />
+                <x-sales.line-items-editor :products="$products" :initial-items="$initialItems" :currency="old('currency', $fromOrder?->currency ?? settings('company.currency', 'USD'))" :max-discount="$maxDiscount" />
 
                 <x-textarea name="notes" label="Notes" rows="3">{{ old('notes') }}</x-textarea>
 

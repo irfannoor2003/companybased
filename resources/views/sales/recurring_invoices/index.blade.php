@@ -74,6 +74,11 @@
                                 <td><x-sales.status-badge :status="$recurring->is_active ? 'active' : 'inactive'" /></td>
                                 <td class="text-right">
                                     <div class="flex items-center justify-end gap-1">
+                                        @if (auth()->user()->can('sales.recurring_invoices.view'))
+                                            <a href="{{ route('sales.recurring_invoices.show', $recurring) }}" class="btn-ghost btn-icon btn-sm" title="View">
+                                                <x-icon name="eye" class="size-4" />
+                                            </a>
+                                        @endif
                                         <a href="{{ route('sales.recurring_invoices.edit', $recurring) }}" class="btn-ghost btn-icon btn-sm" title="Edit">
                                             <x-icon name="edit" class="size-4" />
                                         </a>

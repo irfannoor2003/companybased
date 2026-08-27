@@ -72,7 +72,7 @@ class PurchaseInvoiceController extends Controller
 
         $this->recalculateStatus($invoice);
 
-        return redirect()->route('suppliers.purchase_invoices.edit', $invoice)
+        return redirect()->route('suppliers.purchase_invoices.index')
             ->with('toasts', [['type' => 'success', 'message' => "Purchase invoice {$invoice->number} created."]]);
     }
 
@@ -100,12 +100,7 @@ class PurchaseInvoiceController extends Controller
 
         $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
 
-        return response()->streamDownload(function () use ($pdf) {
-            echo $pdf->output();
-        }, 'purchase-invoice-'.$invoice->number.'.pdf', [
-            'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'attachment; filename="purchase-invoice-'.$invoice->number.'.pdf"',
-        ]);
+        return $pdf->stream('purchase-invoice-'.$invoice->number.'.pdf');
     }
 
     public function update(Request $request, PurchaseInvoice $invoice): RedirectResponse
@@ -182,7 +177,7 @@ class PurchaseInvoiceController extends Controller
         }
 
         SupplierPayment::create([
-            'number' => next_document_number('supplier_payment', 'SP'),
+            'number' => next_document_number('supplier_payment', 'SP', SupplierPayment::class),
             'invoice_id' => $invoice->id,
             'supplier_id' => $invoice->supplier_id,
             'amount' => $data['amount'],

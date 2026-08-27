@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\SalesCustomer;
 use App\Models\SalesRecurringInvoice;
+use App\Support\DocumentData;
 use App\Support\DocumentItems;
 use App\Support\ExportsCsv;
 use Illuminate\Http\RedirectResponse;
@@ -61,7 +62,7 @@ class RecurringInvoiceController extends Controller
         $totals = DocumentItems::sync($recurring, $request->input('items', []));
         $recurring->update(['subtotal' => $totals['subtotal'], 'tax_amount' => $totals['tax'], 'total' => $totals['total']]);
 
-        return redirect()->route('sales.recurring_invoices.edit', $recurring)
+        return redirect()->route('sales.recurring_invoices.index')
             ->with('toasts', [['type' => 'success', 'message' => "Recurring invoice \"{$recurring->name}\" created."]]);
     }
 
@@ -72,6 +73,13 @@ class RecurringInvoiceController extends Controller
         $products = Product::query()->where('is_active', true)->orderBy('name')->get();
 
         return view('sales.recurring_invoices.edit', compact('recurringInvoice', 'customers', 'products'));
+    }
+
+    public function show(SalesRecurringInvoice $recurringInvoice): View
+    {
+        $recurringInvoice->load(['customer', 'items.product']);
+
+        return view('documents.show', DocumentData::build($recurringInvoice));
     }
 
     public function update(Request $request, SalesRecurringInvoice $recurringInvoice): RedirectResponse

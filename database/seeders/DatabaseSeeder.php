@@ -27,6 +27,8 @@ class DatabaseSeeder extends Seeder
             InvestmentsSeeder::class,
             PosSeeder::class,
             TrackingAndNotificationsSeeder::class,
+            TemplatesSeeder::class,
+            DiscountRulesSeeder::class,
         ]);
     }
 }

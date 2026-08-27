@@ -66,7 +66,7 @@ class SupplierPaymentController extends Controller
         }
 
         $payment = SupplierPayment::create([
-            'number' => next_document_number('supplier_payment', 'SP'),
+            'number' => next_document_number('supplier_payment', 'SP', SupplierPayment::class),
             'invoice_id' => $data['invoice_id'] ?? null,
             'supplier_id' => $data['supplier_id'],
             'amount' => $data['amount'],
@@ -82,7 +82,7 @@ class SupplierPaymentController extends Controller
             $this->applyToInvoice($payment, $data['amount']);
         }
 
-        return redirect()->route('suppliers.supplier_payments.edit', $payment)
+        return redirect()->route('suppliers.supplier_payments.index')
             ->with('toasts', [['type' => 'success', 'message' => "Payment {$payment->number} recorded."]]);
     }
 
@@ -137,7 +137,15 @@ class SupplierPaymentController extends Controller
             }
         }
 
-        return back()->with('toasts', [['type' => 'success', 'message' => "Payment {$payment->number} updated."]]);
+        $redirectTo = $request->input('redirect_to');
+        if (! is_string($redirectTo) || ! str_starts_with($redirectTo, url('/'))) {
+            $redirectTo = $payment->invoice_id
+                ? route('suppliers.purchase_invoices.edit', $payment->invoice_id)
+                : route('suppliers.supplier_payments.index');
+        }
+
+        return redirect()->to($redirectTo)
+            ->with('toasts', [['type' => 'success', 'message' => "Payment {$payment->number} updated."]]);
     }
 
     public function destroy(SupplierPayment $payment): RedirectResponse
@@ -166,12 +174,7 @@ class SupplierPaymentController extends Controller
 
         $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
 
-        return response()->streamDownload(function () use ($pdf) {
-            echo $pdf->output();
-        }, 'payment-'.$payment->number.'.pdf', [
-            'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'attachment; filename="payment-'.$payment->number.'.pdf"',
-        ]);
+        return $pdf->stream('payment-'.$payment->number.'.pdf');
     }
 
     public function export(Request $request): StreamedResponse

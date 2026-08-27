@@ -49,7 +49,7 @@
             @if ($payment->reference)
                 <div class="meta-row"><dt>Reference</dt><dd>{{ $payment->reference }}</dd></div>
             @endif
-            <div class="meta-row"><dt>Against invoice</dt><dd>{{ $payment->invoice?->number ?: '—' }}</dd></div>
+            <div class="meta-row"><dt>Against invoice</dt><dd>{{ $payment->invoice?->number ?? 'null' }}</dd></div>
             <div class="meta-row"><dt>Currency</dt><dd>{{ $payment->currency ?: '—' }}</dd></div>
         </dl>
 

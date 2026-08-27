@@ -2,13 +2,16 @@
     <x-slot name="header">
         <x-page-header title="Quote {{ $quote->number }}" description="{{ $quote->customer?->company_name }}" icon="document">
             <x-slot name="actions">
-                @if (auth()->user()->can('sales.quotes.convert') && ! $quote->isConverted())
-                    <form method="POST" action="{{ route('sales.quotes.convert', $quote) }}" class="inline">
-                        @csrf
-                        <x-button type="submit" variant="secondary" icon="refresh">Convert to order</x-button>
-                    </form>
-                @endif
-                <x-button href="{{ route('sales.quotes.index') }}" variant="secondary" icon="arrow-left">Back</x-button>
+                <div class="flex items-center gap-2">
+                    <x-document-preview type="Quote" number="{{ $quote->number }}" customerName="{{ $quote->customer?->company_name }}" issueDate="{{ $quote->issue_date }}" currency="{{ $quote->currency }}" notes="{{ $quote->notes }}" />
+                    @if (auth()->user()->can('sales.quotes.convert') && ! $quote->isConverted())
+                        <form method="POST" action="{{ route('sales.quotes.convert', $quote) }}" class="inline">
+                            @csrf
+                            <x-button type="submit" variant="secondary" icon="refresh">Convert to order</x-button>
+                        </form>
+                    @endif
+                    <x-button href="{{ route('sales.quotes.index') }}" variant="secondary" icon="arrow-left">Back</x-button>
+                </div>
             </x-slot>
         </x-page-header>
     </x-slot>
@@ -63,9 +66,9 @@
                             <x-icon name="check-circle" class="size-5" />
                             This quote was converted to a sales order and can no longer be edited.
                         </div>
-                        <x-sales.line-items-editor :products="$products" :initial-items="$initialItems" :currency="$quote->currency" />
+                        <x-sales.line-items-editor :products="$products" :initial-items="$initialItems" :currency="$quote->currency" :max-discount="$maxDiscount" />
                     @else
-                        <x-sales.line-items-editor :products="$products" :initial-items="$initialItems" :currency="$quote->currency" />
+                        <x-sales.line-items-editor :products="$products" :initial-items="$initialItems" :currency="$quote->currency" :max-discount="$maxDiscount" />
                     @endif
 
                     <x-textarea name="notes" label="Notes" rows="3" :disabled="$quote->isConverted()">{{ old('notes', $quote->notes) }}</x-textarea>

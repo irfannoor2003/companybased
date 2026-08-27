@@ -46,7 +46,7 @@ class WarehouseController extends Controller
             'is_active' => $request->boolean('is_active', true),
         ]);
 
-        return redirect()->route('inventory.warehouses.edit', $warehouse)
+        return redirect()->route('inventory.warehouses.index')
             ->with('toasts', [['type' => 'success', 'message' => "Warehouse \"{$warehouse->name}\" created."]]);
     }
 

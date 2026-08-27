@@ -57,7 +57,7 @@ class BankTransferController extends Controller
             'status' => 'draft',
         ]);
 
-        return redirect()->route('banking.transfers.edit', $transfer)
+        return redirect()->route('banking.transfers.index')
             ->with('toasts', [['type' => 'success', 'message' => "Transfer {$transfer->number} created."]]);
     }
 

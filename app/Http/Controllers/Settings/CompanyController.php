@@ -34,6 +34,10 @@ class CompanyController extends Controller
             'fiscal_year_start' => ['nullable', 'date'],
             'timezone' => ['required', 'timezone'],
             'date_format' => ['required', 'string', 'max:30'],
+            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
+            'radius' => ['nullable', 'integer', 'min:50', 'max:10000'],
+            'qr_code_text' => ['nullable', 'string', 'max:255'],
         ]);
 
         Setting::setMany([
@@ -50,6 +54,10 @@ class CompanyController extends Controller
             'company.fiscal_year_start' => $data['fiscal_year_start'] ?? null,
             'company.timezone' => $data['timezone'],
             'company.date_format' => $data['date_format'],
+            'company.latitude' => $data['latitude'] ?? null,
+            'company.longitude' => $data['longitude'] ?? null,
+            'company.radius' => $data['radius'] ?? 500,
+            'company.qr_code_text' => $data['qr_code_text'] ?? null,
         ]);
 
         return back()->with('toasts', [['type' => 'success', 'message' => 'Company profile updated.']]);

@@ -2,7 +2,10 @@
     <x-slot name="header">
         <x-page-header title="New purchase order" description="Create a purchase order for a supplier." icon="orders">
             <x-slot name="actions">
-                <x-button href="{{ route('suppliers.purchase_orders.index') }}" variant="secondary" icon="arrow-left">Back</x-button>
+                <div class="flex items-center gap-2">
+                    <x-document-preview type="Purchase Order" number="Draft" currency="{{ old('currency', settings('company.currency', 'USD')) }}" />
+                    <x-button href="{{ route('suppliers.purchase_orders.index') }}" variant="secondary" icon="arrow-left">Back</x-button>
+                </div>
             </x-slot>
         </x-page-header>
     </x-slot>

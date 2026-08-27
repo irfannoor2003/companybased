@@ -67,6 +67,11 @@
                                 <td class="text-right font-medium text-ink">{{ money($receipt->tax_amount, $receipt->currency) }}</td>
                                 <td class="text-right">
                                     <div class="flex items-center justify-end gap-1">
+                                        @if (auth()->user()->can('sales.withholding_tax_receipts.view'))
+                                            <a href="{{ route('sales.withholding_tax_receipts.show', $receipt) }}" class="btn-ghost btn-icon btn-sm" title="View">
+                                                <x-icon name="eye" class="size-4" />
+                                            </a>
+                                        @endif
                                         <a href="{{ route('sales.withholding_tax_receipts.pdf', $receipt) }}" class="btn-ghost btn-icon btn-sm" title="Download PDF">
                                             <x-icon name="download" class="size-4" />
                                         </a>

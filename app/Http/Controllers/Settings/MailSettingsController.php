@@ -94,13 +94,21 @@ class MailSettingsController extends Controller
         $contents = file_get_contents($path);
 
         foreach ($values as $key => $value) {
-            $escaped = preg_quote($value, '/');
-            $pattern = "/^{$key}=.*/m";
+            $value = (string) $value;
+
+            // Dotenv requires values with spaces or special characters to be quoted.
+            if ($value === '' || preg_match('/[^A-Za-z0-9_.\-@:\/]/', $value)) {
+                $value = '"' . str_replace('"', '\\"', $value) . '"';
+            }
+
+            $pattern = '/^' . preg_quote($key, '/') . '=.*/m';
 
             if (preg_match($pattern, $contents)) {
-                $contents = preg_replace($pattern, "{$key}={$value}", $contents);
+                $contents = preg_replace_callback($pattern, function () use ($key, $value) {
+                    return $key . '=' . $value;
+                }, $contents);
             } else {
-                $contents .= "\n{$key}={$value}";
+                $contents .= "\n" . $key . '=' . $value;
             }
         }
 

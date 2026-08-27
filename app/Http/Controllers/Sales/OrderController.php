@@ -9,6 +9,7 @@ use App\Models\SalesStatusEvent;
 use App\Services\TrackingService;
 use App\Support\DocumentData;
 use App\Support\DocumentItems;
+use App\Support\DiscountLimit;
 use App\Support\ExportsCsv;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,6 +21,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class OrderController extends Controller
 {
     use ExportsCsv;
+    use DiscountLimit;
 
     public function index(Request $request): View
     {
@@ -42,17 +44,20 @@ class OrderController extends Controller
     {
         $customers = SalesCustomer::query()->orderBy('company_name')->get();
         $products = \App\Models\Product::query()->where('is_active', true)->orderBy('name')->get();
+        $maxDiscount = $this->getMaxDiscountForUser();
 
-        return view('sales.orders.create', compact('customers', 'products'));
+        return view('sales.orders.create', compact('customers', 'products', 'maxDiscount'));
     }
 
     public function store(Request $request): RedirectResponse
     {
         $data = $this->validateData($request);
+        $this->validateDiscountLimits($request->input('items', []));
 
         $order = SalesOrder::create([
             'number' => next_document_number('order', 'SO'),
             'customer_id' => $data['customer_id'],
+            'salesman_id' => auth()->id(),
             'issue_date' => $data['issue_date'],
             'expected_delivery_date' => $data['expected_delivery_date'] ?? null,
             'status' => $data['status'],
@@ -65,7 +70,7 @@ class OrderController extends Controller
         $totals = DocumentItems::sync($order, $request->input('items', []));
         $order->update(['subtotal' => $totals['subtotal'], 'tax_amount' => $totals['tax'], 'total' => $totals['total']]);
 
-        return redirect()->route('sales.orders.edit', $order)
+        return redirect()->route('sales.orders.index')
             ->with('toasts', [['type' => 'success', 'message' => "Order {$order->number} created."]]);
     }
 
@@ -74,8 +79,9 @@ class OrderController extends Controller
         $order->load(['customer', 'items.product', 'statusEvents.user', 'deliveryNotes']);
         $customers = SalesCustomer::query()->orderBy('company_name')->get();
         $products = \App\Models\Product::query()->where('is_active', true)->orderBy('name')->get();
+        $maxDiscount = $this->getMaxDiscountForUser();
 
-        return view('sales.orders.edit', compact('order', 'customers', 'products'));
+        return view('sales.orders.edit', compact('order', 'customers', 'products', 'maxDiscount'));
     }
 
     public function show(SalesOrder $order): View
@@ -93,17 +99,13 @@ class OrderController extends Controller
 
         $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
 
-        return response()->streamDownload(function () use ($pdf) {
-            echo $pdf->output();
-        }, 'order-'.$order->number.'.pdf', [
-            'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'attachment; filename="order-'.$order->number.'.pdf"',
-        ]);
+        return $pdf->stream('order-'.$order->number.'.pdf');
     }
 
     public function update(Request $request, SalesOrder $order): RedirectResponse
     {
         $data = $this->validateData($request);
+        $this->validateDiscountLimits($request->input('items', []));
 
         $order->update([
             'customer_id' => $data['customer_id'],

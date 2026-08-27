@@ -69,12 +69,15 @@
                                     <a href="{{ route('sales.sales_payments.edit', $payment) }}" class="font-medium text-ink hover:text-primary">{{ $payment->number }}</a>
                                 </td>
                                 <td class="text-ink-soft">{{ $payment->customer?->company_name }}</td>
-                                <td class="text-ink-soft">{{ $payment->invoice?->number ?: '—' }}</td>
+                                <td class="text-ink-soft">{{ $payment->invoice?->number ?? 'null' }}</td>
                                 <td class="text-ink-soft">{{ $payment->payment_date?->format('Y-m-d') }}</td>
                                 <td class="text-ink-soft">{{ ucwords(str_replace('_', ' ', $payment->method)) }}</td>
                                 <td class="text-right font-medium text-ink">{{ money($payment->amount, $payment->currency) }}</td>
                                 <td class="text-right">
                                     <div class="flex items-center justify-end gap-1">
+                                        <a href="{{ route('sales.sales_payments.pdf', $payment) }}" class="btn-ghost btn-icon btn-sm" title="View payment slip" target="_blank" rel="noopener">
+                                            <x-icon name="eye" class="size-4" />
+                                        </a>
                                         <a href="{{ route('sales.sales_payments.pdf', $payment) }}" class="btn-ghost btn-icon btn-sm" title="Download PDF">
                                             <x-icon name="download" class="size-4" />
                                         </a>

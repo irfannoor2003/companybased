@@ -69,7 +69,7 @@ class DeliveryNoteController extends Controller
 
         $this->syncItems($note, $request->input('items', []));
 
-        return redirect()->route('sales.delivery_notes.edit', $note)
+        return redirect()->route('sales.delivery_notes.index')
             ->with('toasts', [['type' => 'success', 'message' => "Delivery note {$note->number} created."]]);
     }
 
@@ -97,12 +97,7 @@ class DeliveryNoteController extends Controller
 
         $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
 
-        return response()->streamDownload(function () use ($pdf) {
-            echo $pdf->output();
-        }, 'delivery-note-'.$deliveryNote->number.'.pdf', [
-            'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'attachment; filename="delivery-note-'.$deliveryNote->number.'.pdf"',
-        ]);
+        return $pdf->stream('delivery-note-'.$deliveryNote->number.'.pdf');
     }
 
     public function update(Request $request, SalesDeliveryNote $deliveryNote): RedirectResponse

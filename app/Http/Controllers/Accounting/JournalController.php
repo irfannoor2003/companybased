@@ -73,7 +73,7 @@ class JournalController extends Controller
                 ->with('toasts', [['type' => 'error', 'message' => 'Entry saved as draft. Debits must equal credits before posting.']]);
         }
 
-        return redirect()->route('accounting.journal.show', $entry)
+        return redirect()->route('accounting.journal.index')
             ->with('toasts', [['type' => 'success', 'message' => "Journal entry {$entry->number} saved."]]);
     }
 

@@ -57,7 +57,7 @@ class WithholdingTaxReceiptController extends Controller
             'notes' => $data['notes'] ?? null,
         ]);
 
-        return redirect()->route('sales.withholding_tax_receipts.edit', $receipt)
+        return redirect()->route('sales.withholding_tax_receipts.index')
             ->with('toasts', [['type' => 'success', 'message' => "Withholding tax receipt {$receipt->number} created."]]);
     }
 
@@ -66,6 +66,13 @@ class WithholdingTaxReceiptController extends Controller
         $customers = SalesCustomer::query()->orderBy('company_name')->get();
 
         return view('sales.withholding_tax_receipts.edit', compact('withholdingTaxReceipt', 'customers'));
+    }
+
+    public function show(WithholdingTaxReceipt $withholdingTaxReceipt): View
+    {
+        $withholdingTaxReceipt->load(['customer', 'invoice']);
+
+        return view('sales.withholding_tax_receipts.show', compact('withholdingTaxReceipt'));
     }
 
     public function update(Request $request, WithholdingTaxReceipt $withholdingTaxReceipt): RedirectResponse
@@ -104,12 +111,7 @@ class WithholdingTaxReceiptController extends Controller
 
         $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
 
-        return response()->streamDownload(function () use ($pdf) {
-            echo $pdf->output();
-        }, 'wht-'.$withholdingTaxReceipt->number.'.pdf', [
-            'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'attachment; filename="wht-'.$withholdingTaxReceipt->number.'.pdf"',
-        ]);
+        return $pdf->stream('wht-'.$withholdingTaxReceipt->number.'.pdf');
     }
 
     public function export(Request $request): StreamedResponse

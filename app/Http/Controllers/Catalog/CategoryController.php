@@ -59,7 +59,7 @@ class CategoryController extends Controller
             throw $e;
         }
 
-        return redirect()->route('catalog.categories.edit', $category)
+        return redirect()->route('catalog.categories.index')
             ->with('toasts', [['type' => 'success', 'message' => "Category \"{$category->name}\" created."]]);
     }
 

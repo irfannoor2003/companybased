@@ -4,6 +4,8 @@
         ['label' => 'Currencies', 'route' => 'settings.currencies', 'icon' => 'money', 'permission' => 'settings.currencies.view'],
         ['label' => 'Modules', 'route' => 'settings.modules', 'icon' => 'modules', 'permission' => 'settings.modules.view'],
         ['label' => 'Notification Rules', 'route' => 'settings.notification-rules', 'icon' => 'bell', 'permission' => 'settings.notifications.view'],
+        ['label' => 'Templates', 'route' => 'settings.templates.index', 'icon' => 'document', 'permission' => 'settings.templates.view'],
+        ['label' => 'Discount Rules', 'route' => 'settings.discount-rules.index', 'icon' => 'discount', 'permission' => 'settings.discount_rules.view'],
         ['label' => 'Users', 'route' => 'settings.users.index', 'icon' => 'users', 'permission' => 'settings.users.view'],
         ['label' => 'Roles & Permissions', 'route' => 'settings.roles.index', 'icon' => 'roles', 'permission' => 'settings.roles.view'],
         ['label' => 'Backup & Restore', 'route' => 'settings.backups', 'icon' => 'database', 'permission' => 'settings.backup.view'],

@@ -3,11 +3,14 @@
 namespace App\Http\Controllers\Sales;
 
 use App\Http\Controllers\Controller;
+use App\Mail\CustomerEmail;
 use App\Models\PriceList;
 use App\Models\SalesCustomer;
 use App\Support\ExportsCsv;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Mail\Message;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -163,6 +166,31 @@ class CustomerController extends Controller
         }
 
         return response()->json(['code' => $prefix.'-'.str_pad((string) ($max + 1), 3, '0', STR_PAD_LEFT)]);
+    }
+
+    public function emailForm(SalesCustomer $customer): View
+    {
+        return view('sales.customers.email', compact('customer'));
+    }
+
+    public function sendEmail(Request $request, SalesCustomer $customer): RedirectResponse
+    {
+        if (!$customer->email) {
+            return back()->withErrors(['email' => 'This customer has no email address on file.']);
+        }
+
+        $data = $request->validate([
+            'subject' => ['required', 'string', 'max:255'],
+            'body' => ['required', 'string', 'max:5000'],
+        ]);
+
+        $sender = $request->user();
+
+        Mail::to($customer->email)->send(
+            new CustomerEmail($customer, $sender, $data['subject'], $data['body'])
+        );
+
+        return back()->with('toasts', [['type' => 'success', 'message' => "Email sent to {$customer->company_name} ({$customer->email})."]]);
     }
 
     private function validateData(Request $request, ?int $ignoreId = null): array

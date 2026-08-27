@@ -71,6 +71,7 @@ return [
                 'backup' => ['view', 'manage'],
                 'audit' => ['view', 'export'],
                 'mail' => ['view', 'manage'],
+                'subscription' => ['view', 'manage'],
             ],
         ],
 
@@ -95,7 +96,7 @@ return [
             'default_enabled' => true,
             'description' => 'Customers, quotes, orders, invoices, credit notes and delivery.',
             'permissions' => [
-                'customers' => ['view', 'create', 'edit', 'delete', 'export'],
+                'customers' => ['view', 'create', 'edit', 'delete', 'export', 'email'],
                 'quotes' => ['view', 'create', 'edit', 'delete', 'export', 'convert'],
                 'orders' => ['view', 'create', 'edit', 'delete', 'export', 'confirm', 'update_status'],
                 'invoices' => ['view', 'create', 'edit', 'delete', 'export', 'record_payment'],

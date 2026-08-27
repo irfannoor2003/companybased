@@ -69,6 +69,7 @@
                     <th>Description</th>
                     <th class="num">Qty</th>
                     <th class="num">Unit price</th>
+                    <th class="num">Disc.</th>
                     <th class="num">Tax</th>
                     <th class="num">Amount</th>
                 </tr>
@@ -76,15 +77,18 @@
             <tbody>
                 @foreach ($invoice->items as $item)
                     @php
-                        $lineNet = (float) $item->qty * (float) $item->unit_price * (1 - (float) $item->discount_percent / 100);
+                        $lineGross = (float) $item->qty * (float) $item->unit_price;
+                        $lineNet = $lineGross * (1 - (float) $item->discount_percent / 100);
                         $lineTax = $lineNet * ((float) $item->tax_percent / 100);
                         $lineTotal = $lineNet + $lineTax;
+                        $lineDiscount = $lineGross - $lineNet;
                     @endphp
                     <tr>
                         <td>{{ $loop->iteration }}</td>
                         <td>{{ $item->description ?: ($item->product?->name ?? '—') }}</td>
                         <td class="num">{{ number_format((float) $item->qty, 2) }}</td>
                         <td class="num">{{ number_format((float) $item->unit_price, 2) }}</td>
+                        <td class="num">{{ $lineDiscount > 0 ? number_format($lineDiscount, 2) : '—' }}</td>
                         <td class="num">{{ number_format((float) $lineTax, 2) }}</td>
                         <td class="num">{{ number_format((float) $lineTotal, 2) }}</td>
                     </tr>
@@ -92,9 +96,16 @@
             </tbody>
         </table>
 
+        @php
+            $docGross = $invoice->items->sum(fn ($it) => (float) $it->qty * (float) $it->unit_price);
+            $docDiscount = $docGross - (float) $invoice->subtotal;
+        @endphp
         <div class="summary">
             <table>
-                <tr><td class="label">Subtotal</td><td class="value">{{ number_format((float) $invoice->subtotal, 2) }}</td></tr>
+                <tr><td class="label">Subtotal</td><td class="value">{{ number_format($docGross, 2) }}</td></tr>
+                @if ($docDiscount > 0)
+                    <tr><td class="label">Discount</td><td class="value">-{{ number_format($docDiscount, 2) }}</td></tr>
+                @endif
                 <tr><td class="label">Tax</td><td class="value">{{ number_format((float) $invoice->tax_amount, 2) }}</td></tr>
                 <tr class="total"><td class="label">Total</td><td class="value">{{ number_format((float) $invoice->total, 2) }}</td></tr>
                 <tr><td class="label">Paid</td><td class="value">{{ number_format((float) $invoice->paid_amount, 2) }}</td></tr>

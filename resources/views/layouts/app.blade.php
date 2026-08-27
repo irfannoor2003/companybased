@@ -84,5 +84,7 @@
         <script>
             window.flashToasts = @json(session('toasts', []));
         </script>
+
+        @stack('scripts')
     </body>
 </html>

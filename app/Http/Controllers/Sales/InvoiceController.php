@@ -9,6 +9,7 @@ use App\Models\SalesOrder;
 use App\Models\SalesPayment;
 use App\Models\SalesStatusEvent;
 use App\Support\DocumentItems;
+use App\Support\DiscountLimit;
 use App\Support\ExportsCsv;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,6 +21,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 class InvoiceController extends Controller
 {
     use ExportsCsv;
+    use DiscountLimit;
 
     public function index(Request $request): View
     {
@@ -41,18 +43,20 @@ class InvoiceController extends Controller
     {
         $customers = SalesCustomer::query()->orderBy('company_name')->get();
         $products = \App\Models\Product::query()->where('is_active', true)->orderBy('name')->get();
+        $maxDiscount = $this->getMaxDiscountForUser();
 
         $fromOrder = null;
         if ($request->filled('order')) {
             $fromOrder = SalesOrder::query()->with(['items'])->findOrFail($request->order);
         }
 
-        return view('sales.invoices.create', compact('customers', 'products', 'fromOrder'));
+        return view('sales.invoices.create', compact('customers', 'products', 'fromOrder', 'maxDiscount'));
     }
 
     public function store(Request $request): RedirectResponse
     {
         $data = $this->validateData($request);
+        $this->validateDiscountLimits($request->input('items', []));
 
         $invoice = SalesInvoice::create([
             'number' => next_document_number('invoice', 'INV'),
@@ -71,7 +75,7 @@ class InvoiceController extends Controller
 
         $this->recalculateStatus($invoice);
 
-        return redirect()->route('sales.invoices.edit', $invoice)
+        return redirect()->route('sales.invoices.index')
             ->with('toasts', [['type' => 'success', 'message' => "Invoice {$invoice->number} created."]]);
     }
 
@@ -80,8 +84,9 @@ class InvoiceController extends Controller
         $invoice->load(['customer', 'items.product', 'payments', 'statusEvents.user', 'creditNotes']);
         $customers = SalesCustomer::query()->orderBy('company_name')->get();
         $products = \App\Models\Product::query()->where('is_active', true)->orderBy('name')->get();
+        $maxDiscount = $this->getMaxDiscountForUser();
 
-        return view('sales.invoices.edit', compact('invoice', 'customers', 'products'));
+        return view('sales.invoices.edit', compact('invoice', 'customers', 'products', 'maxDiscount'));
     }
 
     public function show(SalesInvoice $invoice): View
@@ -99,17 +104,13 @@ class InvoiceController extends Controller
 
         $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
 
-        return response()->streamDownload(function () use ($pdf) {
-            echo $pdf->output();
-        }, 'invoice-'.$invoice->number.'.pdf', [
-            'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'attachment; filename="invoice-'.$invoice->number.'.pdf"',
-        ]);
+        return $pdf->stream('invoice-'.$invoice->number.'.pdf');
     }
 
     public function update(Request $request, SalesInvoice $invoice): RedirectResponse
     {
         $data = $this->validateData($request);
+        $this->validateDiscountLimits($request->input('items', []));
 
         $invoice->update([
             'order_id' => $data['order_id'] ?? null,

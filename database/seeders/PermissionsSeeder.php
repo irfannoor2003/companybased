@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Permission;
+use App\Models\Role;
 use App\Support\Permissions;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Cache;
@@ -21,6 +22,11 @@ class PermissionsSeeder extends Seeder
         }
 
         Permission::whereNotIn('name', $registered)->delete();
+
+        // The Super Admin always manages packages; grant without revoking anything else.
+        if ($superAdmin = Role::where('name', 'Super Admin')->where('guard_name', 'web')->first()) {
+            $superAdmin->givePermissionTo(['settings.subscription.view', 'settings.subscription.manage']);
+        }
 
         app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
         Cache::forget('permissions.registry.keys');

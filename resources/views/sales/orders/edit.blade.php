@@ -2,13 +2,16 @@
     <x-slot name="header">
         <x-page-header title="Order {{ $order->number }}" description="{{ $order->customer?->company_name }}" icon="orders">
             <x-slot name="actions">
-                @if (auth()->user()->can('sales.invoices.create'))
-                    <x-button href="{{ route('sales.invoices.create', ['order' => $order->id]) }}" variant="secondary" icon="invoice">Create invoice</x-button>
-                @endif
-                @if (auth()->user()->can('sales.delivery_notes.create'))
-                    <x-button href="{{ route('sales.delivery_notes.create', ['order' => $order->id]) }}" variant="secondary" icon="truck">Create delivery note</x-button>
-                @endif
-                <x-button href="{{ route('sales.orders.index') }}" variant="secondary" icon="arrow-left">Back</x-button>
+                <div class="flex items-center gap-2">
+                    <x-document-preview type="Order" number="{{ $order->number }}" customerName="{{ $order->customer?->company_name }}" issueDate="{{ $order->issue_date }}" currency="{{ $order->currency }}" notes="{{ $order->notes }}" />
+                    @if (auth()->user()->can('sales.invoices.create'))
+                        <x-button href="{{ route('sales.invoices.create', ['order' => $order->id]) }}" variant="secondary" icon="invoice">Create invoice</x-button>
+                    @endif
+                    @if (auth()->user()->can('sales.delivery_notes.create'))
+                        <x-button href="{{ route('sales.delivery_notes.create', ['order' => $order->id]) }}" variant="secondary" icon="truck">Create delivery note</x-button>
+                    @endif
+                    <x-button href="{{ route('sales.orders.index') }}" variant="secondary" icon="arrow-left">Back</x-button>
+                </div>
             </x-slot>
         </x-page-header>
     </x-slot>
@@ -54,7 +57,7 @@
                         ])->all();
                     @endphp
 
-                    <x-sales.line-items-editor :products="$products" :initial-items="$initialItems" :currency="$order->currency" />
+                    <x-sales.line-items-editor :products="$products" :initial-items="$initialItems" :currency="$order->currency" :max-discount="$maxDiscount" />
 
                     <x-textarea name="notes" label="Notes" rows="3">{{ old('notes', $order->notes) }}</x-textarea>
 

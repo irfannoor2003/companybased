@@ -14,7 +14,7 @@ class UsersSeeder extends Seeder
         $superAdmin = Role::where('name', 'Super Admin')->firstOrFail();
         $admin = Role::where('name', 'Admin')->firstOrFail();
         $sampleRoles = [
-            'HR', 'Salesman', 'Inventory Manager', 'Accountant', 'Procurement', 'Auditor',
+            'HR', 'Salesman', 'Inventory Manager', 'Employee',
         ];
 
         $superAdminUser = $this->makeUser('Super Admin', 'superadmin@companybased.test', 'Password123!');
@@ -27,6 +27,18 @@ class UsersSeeder extends Seeder
             $slug = strtolower(str_replace(' ', '-', $roleName));
             $user = $this->makeUser($roleName, "{$slug}@companybased.test", 'Password123!');
             $user->syncRoles([Role::where('name', $roleName)->firstOrFail()]);
+        }
+
+        // Deactivate any users still assigned to removed roles (Auditor, Accountant, Procurement)
+        $removedRoles = ['Auditor', 'Accountant', 'Procurement'];
+        foreach ($removedRoles as $roleName) {
+            $role = Role::where('name', $roleName)->first();
+            if ($role) {
+                foreach ($role->users as $user) {
+                    $user->roles()->detach($role->id);
+                    $user->update(['is_active' => false]);
+                }
+            }
         }
     }
 

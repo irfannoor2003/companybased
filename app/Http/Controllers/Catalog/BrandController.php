@@ -55,7 +55,7 @@ class BrandController extends Controller
             throw $e;
         }
 
-        return redirect()->route('catalog.brands.edit', $brand)
+        return redirect()->route('catalog.brands.index')
             ->with('toasts', [['type' => 'success', 'message' => "Brand \"{$brand->name}\" created."]]);
     }
 

@@ -2,13 +2,16 @@
     <x-slot name="header">
         <x-page-header title="Purchase invoice {{ $invoice->number }}" description="{{ $invoice->supplier?->company_name }}" icon="invoice">
             <x-slot name="actions">
-                @if (auth()->user()->can('suppliers.purchase_invoices.view'))
-                    <x-button :href="route('suppliers.purchase_invoices.show', $invoice)" variant="secondary" icon="eye" target="_blank" rel="noopener">View / Print</x-button>
-                @endif
-                @if (auth()->user()->can('suppliers.debit_notes.create') && $invoice->balance() > 0)
-                    <x-button href="{{ route('suppliers.debit_notes.create', ['invoice' => $invoice->id]) }}" variant="secondary" icon="credit">Debit note</x-button>
-                @endif
-                <x-button href="{{ route('suppliers.purchase_invoices.index') }}" variant="secondary" icon="arrow-left">Back</x-button>
+                <div class="flex items-center gap-2">
+                    <x-document-preview type="Purchase Invoice" number="{{ $invoice->number }}" customerName="{{ $invoice->supplier?->company_name }}" issueDate="{{ $invoice->issue_date }}" dueDate="{{ $invoice->due_date }}" currency="{{ $invoice->currency }}" notes="{{ $invoice->notes }}" />
+                    @if (auth()->user()->can('suppliers.purchase_invoices.view'))
+                        <x-button :href="route('suppliers.purchase_invoices.show', $invoice)" variant="secondary" icon="eye" target="_blank" rel="noopener">View / Print</x-button>
+                    @endif
+                    @if (auth()->user()->can('suppliers.debit_notes.create') && $invoice->balance() > 0)
+                        <x-button href="{{ route('suppliers.debit_notes.create', ['invoice' => $invoice->id]) }}" variant="secondary" icon="credit">Debit note</x-button>
+                    @endif
+                    <x-button href="{{ route('suppliers.purchase_invoices.index') }}" variant="secondary" icon="arrow-left">Back</x-button>
+                </div>
             </x-slot>
         </x-page-header>
     </x-slot>

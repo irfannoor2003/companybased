@@ -15,22 +15,12 @@
 
     <div
         class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3"
-        x-data="{
+        x-data="reconciliationEditor({
             opening: {{ (float) $reconciliation->opening_balance }},
             statementEnding: {{ (float) $reconciliation->statement_ending_balance }},
             signed: {{ \Illuminate\Support\Js::from($transactions->mapWithKeys(fn ($t) => [$t->id => $t->signedAmount()])->all()) }},
-            clearedSum() {
-                return Object.entries(this.signed).reduce((sum, [id, v]) => {
-                    const el = document.querySelector('input[name=&quot;cleared[' + id + ']&quot;]');
-                    return sum + (el && el.checked ? v : 0);
-                }, 0);
-            },
-            book() { return this.opening + this.clearedSum(); },
-            diff() { return this.statementEnding - this.book(); },
-            money(v) {
-                return new Intl.NumberFormat('en', { style: 'currency', currency: {{ \Illuminate\Support\Js::from($reconciliation->account?->currency ?? settings('company.currency', 'USD')) }} }).format(v);
-            },
-        }"
+            currency: {{ \Illuminate\Support\Js::from($reconciliation->account?->currency ?? settings('company.currency', 'USD')) }},
+        })"
     >
         <div class="lg:col-span-2">
             <x-card title="Statement details">

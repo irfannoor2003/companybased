@@ -2,13 +2,16 @@
     <x-slot name="header">
         <x-page-header title="Purchase quote {{ $quote->number }}" description="{{ $quote->supplier?->company_name }}" icon="document">
             <x-slot name="actions">
-                @if (auth()->user()->can('suppliers.purchase_quotes.convert') && ! $quote->isConverted())
-                    <form method="POST" action="{{ route('suppliers.purchase_quotes.convert', $quote) }}" class="inline">
-                        @csrf
-                        <x-button type="submit" variant="secondary" icon="refresh">Convert to order</x-button>
-                    </form>
-                @endif
-                <x-button href="{{ route('suppliers.purchase_quotes.index') }}" variant="secondary" icon="arrow-left">Back</x-button>
+                <div class="flex items-center gap-2">
+                    <x-document-preview type="Purchase Quote" number="{{ $quote->number }}" customerName="{{ $quote->supplier?->company_name }}" issueDate="{{ $quote->issue_date }}" currency="{{ $quote->currency }}" notes="{{ $quote->notes }}" />
+                    @if (auth()->user()->can('suppliers.purchase_quotes.convert') && ! $quote->isConverted())
+                        <form method="POST" action="{{ route('suppliers.purchase_quotes.convert', $quote) }}" class="inline">
+                            @csrf
+                            <x-button type="submit" variant="secondary" icon="refresh">Convert to order</x-button>
+                        </form>
+                    @endif
+                    <x-button href="{{ route('suppliers.purchase_quotes.index') }}" variant="secondary" icon="arrow-left">Back</x-button>
+                </div>
             </x-slot>
         </x-page-header>
     </x-slot>

@@ -71,7 +71,7 @@ class PurchaseQuoteController extends Controller
         $totals = DocumentItems::sync($quote, $request->input('items', []));
         $quote->update(['subtotal' => $totals['subtotal'], 'tax_amount' => $totals['tax'], 'total' => $totals['total']]);
 
-        return redirect()->route('suppliers.purchase_quotes.edit', $quote)
+        return redirect()->route('suppliers.purchase_quotes.index')
             ->with('toasts', [['type' => 'success', 'message' => "Purchase quote {$quote->number} created."]]);
     }
 
@@ -99,12 +99,7 @@ class PurchaseQuoteController extends Controller
 
         $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
 
-        return response()->streamDownload(function () use ($pdf) {
-            echo $pdf->output();
-        }, 'purchase-quote-'.$quote->number.'.pdf', [
-            'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'attachment; filename="purchase-quote-'.$quote->number.'.pdf"',
-        ]);
+        return $pdf->stream('purchase-quote-'.$quote->number.'.pdf');
     }
 
     public function update(Request $request, PurchaseQuote $quote): RedirectResponse
@@ -195,7 +190,7 @@ class PurchaseQuoteController extends Controller
 
         $quote->update(['converted_to_order_id' => $order->id, 'status' => 'converted']);
 
-        return redirect()->route('suppliers.purchase_orders.edit', $order)
+        return redirect()->route('suppliers.purchase_orders.index')
             ->with('toasts', [['type' => 'success', 'message' => "Purchase quote {$quote->number} converted to order {$order->number}."]]);
     }
 

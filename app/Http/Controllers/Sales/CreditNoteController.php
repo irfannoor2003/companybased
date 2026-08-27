@@ -9,6 +9,7 @@ use App\Models\SalesCustomer;
 use App\Models\SalesInvoice;
 use App\Support\DocumentData;
 use App\Support\DocumentItems;
+use App\Support\DiscountLimit;
 use App\Support\ExportsCsv;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,6 +21,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class CreditNoteController extends Controller
 {
     use ExportsCsv;
+    use DiscountLimit;
 
     public function index(Request $request): View
     {
@@ -40,18 +42,20 @@ class CreditNoteController extends Controller
     {
         $customers = SalesCustomer::query()->orderBy('company_name')->get();
         $products = Product::query()->where('is_active', true)->orderBy('name')->get();
+        $maxDiscount = $this->getMaxDiscountForUser();
 
         $fromInvoice = null;
         if ($request->filled('invoice')) {
             $fromInvoice = SalesInvoice::query()->with(['items.product'])->findOrFail($request->invoice);
         }
 
-        return view('sales.credit_notes.create', compact('customers', 'products', 'fromInvoice'));
+        return view('sales.credit_notes.create', compact('customers', 'products', 'fromInvoice', 'maxDiscount'));
     }
 
     public function store(Request $request): RedirectResponse
     {
         $data = $this->validateData($request);
+        $this->validateDiscountLimits($request->input('items', []));
 
         $note = SalesCreditNote::create([
             'number' => next_document_number('credit_note', 'CN'),
@@ -67,7 +71,7 @@ class CreditNoteController extends Controller
         $totals = DocumentItems::sync($note, $request->input('items', []));
         $note->update(['subtotal' => $totals['subtotal'], 'tax_amount' => $totals['tax'], 'total' => $totals['total']]);
 
-        return redirect()->route('sales.credit_notes.edit', $note)
+        return redirect()->route('sales.credit_notes.index')
             ->with('toasts', [['type' => 'success', 'message' => "Credit note {$note->number} created."]]);
     }
 
@@ -76,8 +80,9 @@ class CreditNoteController extends Controller
         $creditNote->load(['customer', 'items.product', 'invoice']);
         $customers = SalesCustomer::query()->orderBy('company_name')->get();
         $products = Product::query()->where('is_active', true)->orderBy('name')->get();
+        $maxDiscount = $this->getMaxDiscountForUser();
 
-        return view('sales.credit_notes.edit', compact('creditNote', 'customers', 'products'));
+        return view('sales.credit_notes.edit', compact('creditNote', 'customers', 'products', 'maxDiscount'));
     }
 
     public function show(SalesCreditNote $creditNote): View
@@ -95,17 +100,13 @@ class CreditNoteController extends Controller
 
         $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
 
-        return response()->streamDownload(function () use ($pdf) {
-            echo $pdf->output();
-        }, 'credit-note-'.$creditNote->number.'.pdf', [
-            'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'attachment; filename="credit-note-'.$creditNote->number.'.pdf"',
-        ]);
+        return $pdf->stream('credit-note-'.$creditNote->number.'.pdf');
     }
 
     public function update(Request $request, SalesCreditNote $creditNote): RedirectResponse
     {
         $data = $this->validateData($request);
+        $this->validateDiscountLimits($request->input('items', []));
 
         $creditNote->update([
             'invoice_id' => $data['invoice_id'] ?? null,

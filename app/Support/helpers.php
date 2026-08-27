@@ -131,14 +131,20 @@ if (! function_exists('next_document_number')) {
      * Generate the next sequential document number for a given document type,
      * e.g. next_document_number('invoice', 'INV') => "INV-2026-0001".
      * The counter is stored in settings so numbers never repeat.
+     * Pass a model class to skip numbers already taken in its table.
      */
-    function next_document_number(string $type, string $prefix): string
+    function next_document_number(string $type, string $prefix, ?string $modelClass = null): string
     {
         $key = 'counters.'.$type;
-        $next = ((int) Setting::get($key, 0)) + 1;
-        Setting::set($key, $next, 'counters');
 
-        return $prefix.'-'.now()->format('Y').'-'.str_pad((string) $next, 4, '0', STR_PAD_LEFT);
+        do {
+            $next = ((int) Setting::get($key, 0)) + 1;
+            Setting::set($key, $next, 'counters');
+
+            $number = $prefix.'-'.now()->format('Y').'-'.str_pad((string) $next, 4, '0', STR_PAD_LEFT);
+        } while ($modelClass !== null && $modelClass::withTrashed()->where('number', $number)->exists());
+
+        return $number;
     }
 }
 

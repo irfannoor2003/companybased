@@ -57,7 +57,7 @@ class WriteOffController extends Controller
 
         $this->syncItems($writeOff, $request->input('items', []));
 
-        return redirect()->route('inventory.write_offs.edit', $writeOff)
+        return redirect()->route('inventory.write_offs.index')
             ->with('toasts', [['type' => 'success', 'message' => "Write-off {$writeOff->number} created."]]);
     }
 

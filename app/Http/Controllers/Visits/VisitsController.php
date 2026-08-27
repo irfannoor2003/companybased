@@ -114,13 +114,38 @@ class VisitsController extends Controller
             ->with('toasts', [['type' => 'success', 'message' => "Visit {$visit->visit_number} deleted."]]);
     }
 
-    public function start(Visit $visit): RedirectResponse
+    public function start(Request $request, Visit $visit): RedirectResponse
     {
         if ($visit->status !== 'pending') {
-            return back()->with('toasts', [['type' => 'danger', 'message' => 'Only pending visits can be started.']]);
+            return back()->with('toasts', [['type' => 'error', 'message' => 'Only pending visits can be started.']]);
         }
 
-        $visit->update(['status' => 'started', 'started_at' => now()]);
+        // Validate location is provided
+        $request->validate([
+            'latitude' => ['required', 'numeric', 'between:-90,90'],
+            'longitude' => ['required', 'numeric', 'between:-180,180'],
+        ]);
+
+        // Check if employee is within office radius
+        $officeLat = (float) settings('company.latitude', 0);
+        $officeLng = (float) settings('company.longitude', 0);
+        $radius = (float) settings('company.radius', 500);
+
+        $distance = $this->haversineDistance(
+            $request->latitude, $request->longitude,
+            $officeLat, $officeLng
+        );
+
+        if ($distance > $radius) {
+            return back()->with('toasts', [['type' => 'error', 'message' => 'You must be within the office radius ('.number_format($radius, 0).'m) to start a visit. Current distance: '.number_format($distance, 0).'m']]);
+        }
+
+        $visit->update([
+            'status' => 'started',
+            'started_at' => now(),
+            'start_lat' => $request->latitude,
+            'start_lng' => $request->longitude,
+        ]);
 
         return back()->with('toasts', [['type' => 'success', 'message' => "Visit {$visit->visit_number} started."]]);
     }
@@ -128,23 +153,60 @@ class VisitsController extends Controller
     public function complete(Request $request, Visit $visit): RedirectResponse
     {
         if ($visit->status !== 'started') {
-            return back()->with('toasts', [['type' => 'danger', 'message' => 'Only started visits can be completed.']]);
+            return back()->with('toasts', [['type' => 'error', 'message' => 'Only started visits can be completed.']]);
         }
 
-        $data = $request->validate([
+        // Validate location is provided
+        $request->validate([
+            'latitude' => ['required', 'numeric', 'between:-90,90'],
+            'longitude' => ['required', 'numeric', 'between:-180,180'],
             'outcome' => ['required', Rule::in(Visit::outcomeOptions())],
             'outcome_notes' => ['nullable', 'string', 'max:5000'],
         ]);
 
+        // Check if employee is within office radius
+        $officeLat = (float) settings('company.latitude', 0);
+        $officeLng = (float) settings('company.longitude', 0);
+        $radius = (float) settings('company.radius', 500);
+
+        $distance = $this->haversineDistance(
+            $request->latitude, $request->longitude,
+            $officeLat, $officeLng
+        );
+
+        if ($distance > $radius) {
+            return back()->with('toasts', [['type' => 'error', 'message' => 'You must be within the office radius ('.number_format($radius, 0).'m) to complete a visit. Current distance: '.number_format($distance, 0).'m']]);
+        }
+
         $visit->update([
             'status' => 'completed',
             'completed_at' => now(),
-            'outcome' => $data['outcome'],
-            'outcome_notes' => $data['outcome_notes'] ?? null,
+            'outcome' => $request->outcome,
+            'outcome_notes' => $request->outcome_notes ?? null,
             'distance_km' => (string) $visit->totalDistanceKm(),
         ]);
 
         return back()->with('toasts', [['type' => 'success', 'message' => "Visit {$visit->visit_number} completed."]]);
+    }
+
+    /**
+     * Calculate distance between two points using the Haversine formula.
+     * Returns distance in meters.
+     */
+    private function haversineDistance(float $lat1, float $lng1, float $lat2, float $lng2): float
+    {
+        $earthRadius = 6371000; // meters
+
+        $latDelta = deg2rad($lat2 - $lat1);
+        $lngDelta = deg2rad($lng2 - $lng1);
+
+        $a = sin($latDelta / 2) ** 2
+            + cos(deg2rad($lat1)) * cos(deg2rad($lat2))
+            * sin($lngDelta / 2) ** 2;
+
+        $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
+
+        return $earthRadius * $c;
     }
 
     public function cancel(Request $request, Visit $visit): RedirectResponse

@@ -20,6 +20,7 @@ class DocumentData
         \App\Models\SalesOrder::class => ['title' => 'Order', 'route' => 'sales.orders', 'kind' => 'customer', 'pricing' => true, 'applied' => false, 'type' => 'order'],
         \App\Models\SalesCreditNote::class => ['title' => 'Credit Note', 'route' => 'sales.credit_notes', 'kind' => 'customer', 'pricing' => true, 'applied' => true, 'type' => 'credit_note'],
         \App\Models\SalesDeliveryNote::class => ['title' => 'Delivery Note', 'route' => 'sales.delivery_notes', 'kind' => 'customer', 'pricing' => false, 'applied' => false, 'type' => 'delivery_note'],
+        \App\Models\SalesRecurringInvoice::class => ['title' => 'Recurring Invoice', 'route' => 'sales.recurring_invoices', 'kind' => 'customer', 'pricing' => true, 'applied' => false, 'type' => 'recurring_invoice'],
         \App\Models\PurchaseQuote::class => ['title' => 'Purchase Quote', 'route' => 'suppliers.purchase_quotes', 'kind' => 'supplier', 'pricing' => true, 'applied' => false, 'type' => 'purchase_quote'],
         \App\Models\PurchaseOrder::class => ['title' => 'Purchase Order', 'route' => 'suppliers.purchase_orders', 'kind' => 'supplier', 'pricing' => true, 'applied' => false, 'type' => 'purchase_order'],
         \App\Models\DebitNote::class => ['title' => 'Debit Note', 'route' => 'suppliers.debit_notes', 'kind' => 'supplier', 'pricing' => true, 'applied' => true, 'type' => 'debit_note'],
@@ -130,11 +131,21 @@ class DocumentData
             return [];
         }
 
+        $gross = 0.0;
+        foreach ($document->items as $item) {
+            $gross += (float) $item->qty * (float) $item->unit_price;
+        }
+        $discount = round($gross - (float) ($document->subtotal ?: 0), 2);
+
         $totals = [
-            ['label' => 'Subtotal', 'value' => (float) ($document->subtotal ?: 0), 'total' => false],
+            ['label' => 'Subtotal', 'value' => $gross, 'total' => false],
             ['label' => 'Tax', 'value' => (float) ($document->tax_amount ?: 0), 'total' => false],
             ['label' => 'Total', 'value' => (float) ($document->total ?: 0), 'total' => true],
         ];
+
+        if ($discount > 0) {
+            array_splice($totals, 1, 0, [['label' => 'Discount', 'value' => -$discount, 'total' => false]]);
+        }
 
         if ($def['applied']) {
             $totals[] = ['label' => 'Applied', 'value' => (float) ($document->applied_amount ?: 0), 'total' => false];
@@ -155,6 +166,7 @@ class DocumentData
                 ['label' => 'Description', 'align' => 'left'],
                 ['label' => 'Qty', 'align' => 'right'],
                 ['label' => 'Unit price', 'align' => 'right'],
+                ['label' => 'Disc.', 'align' => 'right'],
                 ['label' => 'Tax', 'align' => 'right'],
                 ['label' => 'Amount', 'align' => 'right'],
             ];
@@ -176,13 +188,15 @@ class DocumentData
 
         foreach ($document->items as $item) {
             if ($def['pricing']) {
-                $net = (float) $item->qty * (float) $item->unit_price * (1 - (float) (($item->discount_percent ?? 0) / 100));
+                $gross = (float) $item->qty * (float) $item->unit_price;
+                $net = $gross * (1 - (float) (($item->discount_percent ?? 0) / 100));
                 $tax = $net * ((float) ($item->tax_percent ?? 0) / 100);
 
                 $rows[] = [
                     'description' => $item->description ?: ($item->product?->name ?? '—'),
                     'qty' => (float) $item->qty,
                     'unit_price' => (float) $item->unit_price,
+                    'discount' => round($gross - $net, 2),
                     'tax' => $tax,
                     'total' => $net + $tax,
                 ];

@@ -18,6 +18,60 @@ class BackupController extends Controller
         $this->authorizePermission('settings.backup.manage');
     }
 
+    /**
+     * Resolve the path to a DB client binary (mysqldump / mysql), working on both
+     * Windows (Laragon/XAMPP) and Linux. The configured env path is only trusted
+     * when the file actually exists, so a Windows path left over on a Linux host
+     * is ignored and a usable binary is located instead. Falls back to the bare
+     * command name so the system PATH is used when nothing explicit is found.
+     */
+    protected function resolveDbBinary(string $envKey, string $default): string
+    {
+        $fromEnv = env($envKey);
+        if ($fromEnv && $this->isUsableBinary($fromEnv)) {
+            return $fromEnv;
+        }
+
+        $candidates = str_starts_with(PHP_OS, 'WIN')
+            ? $this->windowsBinaryCandidates($default)
+            : [
+                '/usr/bin/'.$default,
+                '/usr/local/bin/'.$default,
+                '/opt/lampp/bin/'.$default,
+                '/usr/local/mysql/bin/'.$default,
+            ];
+
+        foreach ($candidates as $candidate) {
+            if ($this->isUsableBinary($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return $default;
+    }
+
+    protected function isUsableBinary(string $path): bool
+    {
+        if (! is_file($path)) {
+            return false;
+        }
+
+        return is_executable($path) || strtolower(substr($path, -4)) === '.exe';
+    }
+
+    protected function windowsBinaryCandidates(string $binary): array
+    {
+        $candidates = ['C:\\xampp\\mysql\\bin\\'.$binary.'.exe'];
+        $laragon = 'C:\\laragon\\bin\\mysql';
+        if (is_dir($laragon)) {
+            foreach (glob($laragon.'\\*', GLOB_ONLYDIR) ?: [] as $dir) {
+                $candidates[] = $dir.'\\bin\\'.$binary.'.exe';
+            }
+        }
+
+        return $candidates;
+    }
+
     public function index()
     {
         $backups = collect(Storage::disk('backups')->allFiles())
@@ -36,7 +90,7 @@ class BackupController extends Controller
     public function create(): RedirectResponse
     {
         $connection = config('database.connections.mysql');
-        $mysqldump = env('MYSQLDUMP_PATH') ?: 'mysqldump';
+        $mysqldump = $this->resolveDbBinary('MYSQLDUMP_PATH', 'mysqldump');
 
         $filename = 'backup-'.now()->format('Y-m-d-His').'.sql';
         $path = storage_path('app/backups/'.$filename);
@@ -91,7 +145,7 @@ class BackupController extends Controller
         ]);
 
         $connection = config('database.connections.mysql');
-        $mysql = env('MYSQL_CLIENT_PATH') ?: 'mysql';
+        $mysql = $this->resolveDbBinary('MYSQL_CLIENT_PATH', 'mysql');
 
         $tempPath = $request->file('backup')->store('tmp/restore-'.Str::random(8).'.sql', 'local');
 

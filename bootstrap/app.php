@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\CheckModule;
+use App\Http\Middleware\CheckSubscription;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\ShareAppSettings;
 use Dotenv\Dotenv;
@@ -51,6 +52,7 @@ return Application::configure(basePath: $basePath)
         $middleware->web(append: [
             ShareAppSettings::class,
             EnsureUserIsActive::class,
+            CheckSubscription::class,
         ]);
 
         $middleware->alias([

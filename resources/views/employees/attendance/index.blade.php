@@ -2,6 +2,9 @@
     <x-slot name="header">
         <x-page-header title="Attendance" description="Daily check-ins and check-outs with automatic rule evaluation." icon="clock">
             <x-slot name="actions">
+                @if (auth()->user()->can('employees.attendance.view'))
+                    <x-button href="{{ route('employees.attendance.qr-code') }}" variant="secondary" icon="scan">Office QR Code</x-button>
+                @endif
                 @if (auth()->user()->can('employees.attendance.export'))
                     <x-export route="employees.attendance.export" />
                 @endif

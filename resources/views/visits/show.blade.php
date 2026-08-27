@@ -36,17 +36,21 @@
 
         <div class="space-y-6 lg:col-span-2">
             @if (auth()->user()->can('visits.visits.edit') && $visit->status !== 'completed' && $visit->status !== 'cancelled')
-                <x-card title="Advance visit">
+                <x-card title="Advance visit" x-data="visitLocation()">
                     <div class="flex flex-wrap items-end gap-3">
                         @if ($visit->status === 'pending')
-                            <form method="POST" action="{{ route('visits.start', $visit) }}">
+                            <form method="POST" action="{{ route('visits.start', $visit) }}" id="startForm">
                                 @csrf
-                                <x-button type="submit" icon="zap">Start visit</x-button>
+                                <input type="hidden" name="latitude" :value="latitude" />
+                                <input type="hidden" name="longitude" :value="longitude" />
+                                <x-button type="submit" icon="zap" @click="getLocation($event)">Start visit</x-button>
                             </form>
                         @endif
                         @if ($visit->status === 'started')
-                            <form method="POST" action="{{ route('visits.complete', $visit) }}" class="flex flex-wrap items-end gap-3">
+                            <form method="POST" action="{{ route('visits.complete', $visit) }}" id="completeForm" class="flex flex-wrap items-end gap-3">
                                 @csrf
+                                <input type="hidden" name="latitude" :value="latitude" />
+                                <input type="hidden" name="longitude" :value="longitude" />
                                 <div class="w-56">
                                     <x-select name="outcome" label="Outcome" required size="sm">
                                         @foreach (\App\Models\Visit::outcomeOptions() as $outcome)
@@ -54,10 +58,13 @@
                                         @endforeach
                                     </x-select>
                                 </div>
-                                <x-button type="submit" variant="success" size="md" icon="check">Complete visit</x-button>
+                                <x-button type="submit" variant="success" size="md" icon="check" @click="getLocation($event)">Complete visit</x-button>
                             </form>
                         @endif
                     </div>
+                    <template x-if="error">
+                        <p class="mt-2 text-sm text-red-600" x-text="error"></p>
+                    </template>
                 </x-card>
             @endif
 
@@ -189,4 +196,33 @@
             </x-card>
         </div>
     </div>
+
+    @push('scripts')
+    <script>
+        function visitLocation() {
+            return {
+                latitude: null,
+                longitude: null,
+                error: '',
+
+                getLocation(event) {
+                    if (navigator.geolocation) {
+                        event.preventDefault();
+                        navigator.geolocation.getCurrentPosition(
+                            (position) => {
+                                this.latitude = position.coords.latitude;
+                                this.longitude = position.coords.longitude;
+                                // Submit the form after getting location
+                                event.target.closest('form').submit();
+                            },
+                            (error) => {
+                                this.error = 'Location access is required to start/complete visits. Please enable location permissions.';
+                            }
+                        );
+                    }
+                }
+            }
+        }
+    </script>
+    @endpush
 </x-app-layout>

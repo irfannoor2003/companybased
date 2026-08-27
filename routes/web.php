@@ -74,10 +74,13 @@ use App\Http\Controllers\Sales\StatementController;
 use App\Http\Controllers\Sales\TrackingController;
 use App\Http\Controllers\Sales\WithholdingTaxReceiptController;
 use App\Http\Controllers\Settings\AuditLogController;
+use App\Http\Controllers\Settings\DiscountRuleController;
 use App\Http\Controllers\Settings\BackupController;
 use App\Http\Controllers\Settings\CompanyController;
 use App\Http\Controllers\Settings\CurrencyController;
 use App\Http\Controllers\Settings\MailSettingsController;
+use App\Http\Controllers\Settings\SubscriptionController;
+use App\Http\Controllers\Settings\TemplateController;
 use App\Http\Controllers\Settings\ModuleController;
 use App\Http\Controllers\Settings\NotificationRuleController;
 use App\Http\Controllers\Settings\RoleController;
@@ -197,6 +200,10 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:sales.customers.edit')->name('customers.update');
         Route::delete('/customers/{customer}', [CustomerController::class, 'destroy'])
             ->middleware('permission:sales.customers.delete')->name('customers.destroy');
+        Route::get('/customers/{customer}/email', [CustomerController::class, 'emailForm'])
+            ->middleware('permission:sales.customers.email')->name('customers.email');
+        Route::post('/customers/{customer}/email', [CustomerController::class, 'sendEmail'])
+            ->middleware('permission:sales.customers.email')->name('customers.email.send');
 
         Route::get('/quotes', [QuoteController::class, 'index'])
             ->middleware('permission:sales.quotes.view')->name('quotes.index');
@@ -328,6 +335,8 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:sales.recurring_invoices.create')->name('recurring_invoices.create');
         Route::get('/recurring-invoices/{recurringInvoice}/edit', [RecurringInvoiceController::class, 'edit'])
             ->middleware('permission:sales.recurring_invoices.edit')->name('recurring_invoices.edit');
+        Route::get('/recurring-invoices/{recurringInvoice}', [RecurringInvoiceController::class, 'show'])
+            ->middleware('permission:sales.recurring_invoices.view')->name('recurring_invoices.show');
         Route::get('/recurring-invoices/export', [RecurringInvoiceController::class, 'export'])
             ->middleware('permission:sales.recurring_invoices.export')->name('recurring_invoices.export');
         Route::post('/recurring-invoices', [RecurringInvoiceController::class, 'store'])
@@ -350,6 +359,8 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:sales.withholding_tax_receipts.create')->name('withholding_tax_receipts.create');
         Route::get('/withholding-tax-receipts/{withholdingTaxReceipt}/edit', [WithholdingTaxReceiptController::class, 'edit'])
             ->middleware('permission:sales.withholding_tax_receipts.edit')->name('withholding_tax_receipts.edit');
+        Route::get('/withholding-tax-receipts/{withholdingTaxReceipt}', [WithholdingTaxReceiptController::class, 'show'])
+            ->middleware('permission:sales.withholding_tax_receipts.view')->name('withholding_tax_receipts.show');
         Route::get('/withholding-tax-receipts/{withholdingTaxReceipt}/pdf', [WithholdingTaxReceiptController::class, 'pdf'])
             ->middleware('permission:sales.withholding_tax_receipts.view')->name('withholding_tax_receipts.pdf');
         Route::get('/withholding-tax-receipts/export', [WithholdingTaxReceiptController::class, 'export'])
@@ -367,6 +378,11 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:sales.statements.view')->name('statements.show');
         Route::get('/statements/{customer}/export', [StatementController::class, 'export'])
             ->middleware('permission:sales.statements.export')->name('statements.export');
+
+        Route::get('/reports/salesman', [\App\Http\Controllers\Sales\SalesReportController::class, 'index'])
+            ->middleware('permission:sales.reports.view')->name('reports.salesman');
+        Route::get('/reports/salesman/export', [\App\Http\Controllers\Sales\SalesReportController::class, 'export'])
+            ->middleware('permission:sales.reports.view')->name('reports.salesman.export');
     });
 
     Route::prefix('inventory')->name('inventory.')->middleware('module:inventory')->group(function () {
@@ -892,6 +908,10 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:employees.my_attendance.view')->name('my_attendance.index');
         Route::post('/my-attendance/mark', [MyAttendanceController::class, 'mark'])
             ->middleware('permission:employees.my_attendance.mark')->name('my_attendance.mark');
+        Route::get('/attendance/qr-code', [AttendanceController::class, 'qrCode'])
+            ->middleware('permission:employees.attendance.view')->name('attendance.qr-code');
+        Route::get('/attendance/qr-code/download', [AttendanceController::class, 'downloadQrCode'])
+            ->middleware('permission:employees.attendance.view')->name('attendance.qr-code.download');
 
         Route::get('/salary-structures', [SalaryStructureController::class, 'index'])
             ->middleware('permission:employees.salary_structures.view')->name('salary_structures.index');
@@ -1238,6 +1258,35 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:settings.mail.manage')->name('mail.update');
         Route::post('/mail/test', [MailSettingsController::class, 'test'])
             ->middleware('permission:settings.mail.manage')->name('mail.test');
+
+        Route::get('/subscription', [SubscriptionController::class, 'index'])
+            ->middleware('permission:settings.subscription.view')->name('subscription');
+        Route::post('/subscription', [SubscriptionController::class, 'activate'])
+            ->middleware('permission:settings.subscription.manage')->name('subscription.activate');
+        Route::delete('/subscription', [SubscriptionController::class, 'deactivate'])
+            ->middleware('permission:settings.subscription.manage')->name('subscription.deactivate');
+
+        Route::middleware('permission:settings.templates.view')->group(function () {
+            Route::get('/templates', [TemplateController::class, 'index'])->name('templates.index');
+            Route::get('/templates/create', [TemplateController::class, 'create'])->name('templates.create');
+            Route::get('/templates/{template}/edit', [TemplateController::class, 'edit'])->name('templates.edit');
+        });
+        Route::middleware('permission:settings.templates.manage')->group(function () {
+            Route::post('/templates', [TemplateController::class, 'store'])->name('templates.store');
+            Route::put('/templates/{template}', [TemplateController::class, 'update'])->name('templates.update');
+            Route::delete('/templates/{template}', [TemplateController::class, 'destroy'])->name('templates.destroy');
+        });
+
+        Route::middleware('permission:settings.discount_rules.view')->group(function () {
+            Route::get('/discount-rules', [DiscountRuleController::class, 'index'])->name('discount-rules.index');
+            Route::get('/discount-rules/create', [DiscountRuleController::class, 'create'])->name('discount-rules.create');
+            Route::get('/discount-rules/{discountRule}/edit', [DiscountRuleController::class, 'edit'])->name('discount-rules.edit');
+        });
+        Route::middleware('permission:settings.discount_rules.manage')->group(function () {
+            Route::post('/discount-rules', [DiscountRuleController::class, 'store'])->name('discount-rules.store');
+            Route::put('/discount-rules/{discountRule}', [DiscountRuleController::class, 'update'])->name('discount-rules.update');
+            Route::delete('/discount-rules/{discountRule}', [DiscountRuleController::class, 'destroy'])->name('discount-rules.destroy');
+        });
     });
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');

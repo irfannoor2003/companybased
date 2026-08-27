@@ -127,6 +127,7 @@ class SalesSeeder extends Seeder
             'notes' => 'Order '.$order2->number,
         ], $order2->items()->get(['product_id', 'description', 'qty', 'unit_price', 'discount_percent', 'tax_percent', 'line_total'])->toArray());
         SalesPayment::create([
+            'number' => next_document_number('sales_payment', 'RC'),
             'invoice_id' => $inv1->id,
             'customer_id' => $inv1->customer_id,
             'amount' => $inv1->total,
@@ -149,6 +150,7 @@ class SalesSeeder extends Seeder
         ], $pick());
         $partial = round((float) $inv2->total * 0.4, 2);
         SalesPayment::create([
+            'number' => next_document_number('sales_payment', 'RC'),
             'invoice_id' => $inv2->id,
             'customer_id' => $inv2->customer_id,
             'amount' => $partial,

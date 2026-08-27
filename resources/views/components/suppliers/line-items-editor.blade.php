@@ -22,48 +22,11 @@
 @endphp
 
 <div
-    x-data="{
+    x-data="supplierLineItems({
         currency: {{ \Illuminate\Support\Js::from($currency) }},
         products: {{ \Illuminate\Support\Js::from($productsMap) }},
         items: {{ \Illuminate\Support\Js::from($initialItems) }},
-        addRow() {
-            this.items.push({ product_id: '', description: '', qty: 1, unit_price: 0, discount_percent: 0, tax_percent: 0 });
-        },
-        removeRow(i) {
-            this.items.splice(i, 1);
-        },
-        onProductChange(i) {
-            const p = this.products[this.items[i].product_id];
-            if (p) {
-                this.items[i].description = p.description;
-                this.items[i].unit_price = p.unit_price;
-            }
-        },
-        lineNet(i) {
-            const it = this.items[i];
-            const sub = (Number(it.qty) || 0) * (Number(it.unit_price) || 0);
-            return sub * (1 - (Number(it.discount_percent) || 0) / 100);
-        },
-        lineTax(i) {
-            return this.lineNet(i) * ((Number(this.items[i].tax_percent) || 0) / 100);
-        },
-        subtotal() {
-            return this.items.reduce((s, _, i) => s + this.lineNet(i), 0);
-        },
-        tax() {
-            return this.items.reduce((s, _, i) => s + this.lineTax(i), 0);
-        },
-        total() {
-            return this.subtotal() + this.tax();
-        },
-        money(v) {
-            try {
-                return new Intl.NumberFormat('en', { style: 'currency', currency: this.currency || '{{ settings('company.currency', 'USD') }}' }).format(v);
-            } catch {
-                return Number(v).toFixed(2) + ' ' + this.currency;
-            }
-        },
-    }"
+    })"
 >
     <div class="mb-3 flex items-center justify-between gap-3">
         <p class="text-sm font-semibold text-ink">Line items</p>
@@ -131,6 +94,10 @@
             <div class="flex justify-between text-ink-soft">
                 <span>Subtotal</span>
                 <span x-text="money(subtotal())"></span>
+            </div>
+            <div class="flex justify-between text-emerald-600" x-show="discountTotal() > 0">
+                <span>Discount</span>
+                <span x-text="'-' + money(discountTotal())"></span>
             </div>
             <div class="flex justify-between text-ink-soft">
                 <span>Tax</span>

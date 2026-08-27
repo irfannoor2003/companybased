@@ -9,6 +9,7 @@ use App\Models\SalesCustomer;
 use App\Models\SalesStatusEvent;
 use App\Support\ExportsCsv;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -65,24 +66,31 @@ class PaymentController extends Controller
             }
         }
 
-        $payment = SalesPayment::create([
-            'number' => next_document_number('sales_payment', 'RC'),
-            'invoice_id' => $data['invoice_id'] ?? null,
-            'customer_id' => $data['customer_id'],
-            'amount' => $data['amount'],
-            'payment_date' => $data['payment_date'],
-            'method' => $data['method'],
-            'reference' => $data['reference'] ?? null,
-            'currency' => $data['currency'] ?? null,
-            'exchange_rate' => exchange_rate_for($data['currency'] ?? null),
-            'notes' => $data['notes'] ?? null,
-        ]);
+        try {
+            $payment = SalesPayment::create([
+                'number' => next_document_number('sales_payment', 'RC', SalesPayment::class),
+                'invoice_id' => $data['invoice_id'] ?? null,
+                'customer_id' => $data['customer_id'],
+                'amount' => $data['amount'],
+                'payment_date' => $data['payment_date'],
+                'method' => $data['method'],
+                'reference' => $data['reference'] ?? null,
+                'currency' => $data['currency'] ?? null,
+                'exchange_rate' => exchange_rate_for($data['currency'] ?? null),
+                'notes' => $data['notes'] ?? null,
+            ]);
+        } catch (QueryException $e) {
+            report($e);
+
+            return back()->withInput()
+                ->with('toasts', [['type' => 'danger', 'message' => 'Could not record the payment. Please try again — if the problem persists, contact support.']]);
+        }
 
         if ($payment->invoice_id) {
             $this->applyToInvoice($payment, $data['amount']);
         }
 
-        return redirect()->route('sales.sales_payments.edit', $payment)
+        return redirect()->route('sales.sales_payments.index')
             ->with('toasts', [['type' => 'success', 'message' => "Payment {$payment->number} recorded."]]);
     }
 
@@ -137,7 +145,15 @@ class PaymentController extends Controller
             }
         }
 
-        return back()->with('toasts', [['type' => 'success', 'message' => "Payment {$payment->number} updated."]]);
+        $redirectTo = $request->input('redirect_to');
+        if (! is_string($redirectTo) || ! str_starts_with($redirectTo, url('/'))) {
+            $redirectTo = $payment->invoice_id
+                ? route('sales.invoices.edit', $payment->invoice_id)
+                : route('sales.sales_payments.index');
+        }
+
+        return redirect()->to($redirectTo)
+            ->with('toasts', [['type' => 'success', 'message' => "Payment {$payment->number} updated."]]);
     }
 
     public function destroy(SalesPayment $payment): RedirectResponse
@@ -158,19 +174,20 @@ class PaymentController extends Controller
             ->with('toasts', [['type' => 'success', 'message' => "Payment {$number} deleted."]]);
     }
 
-    public function pdf(SalesPayment $payment): StreamedResponse
+    public function pdf(SalesPayment $payment)
     {
         $payment->load(['customer', 'invoice']);
 
         $html = view('sales.payments.pdf', compact('payment'))->render();
 
-        $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
+        $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait')->output();
 
-        return response()->streamDownload(function () use ($pdf) {
-            echo $pdf->output();
-        }, 'payment-'.$payment->number.'.pdf', [
+        $filename = 'payment-'.$payment->number.'.pdf';
+
+        return response($pdf, 200, [
             'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'attachment; filename="payment-'.$payment->number.'.pdf"',
+            'Content-Disposition' => 'inline; filename="'.$filename.'"',
+            'Content-Length' => strlen($pdf),
         ]);
     }
 

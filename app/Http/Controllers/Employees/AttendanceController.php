@@ -8,8 +8,17 @@ use App\Models\Employee;
 use App\Services\AttendanceService;
 use App\Support\ExportsCsv;
 use App\Support\ExportsJson;
+use Endroid\QrCode\Encoding\Utf8Encoding;
+use Endroid\QrCode\ErrorCorrectionLevel\ErrorCorrectionLevelHigh;
+use Endroid\QrCode\Label\LabelAlignment\LabelAlignmentCenter;
+use Endroid\QrCode\Label\LabelFactory;
+use Endroid\QrCode\QrCode;
+use Endroid\QrCode\QrCodeInterface;
+use Endroid\QrCode\Writer\WriterInterface;
+use Endroid\QrCode\Writer\PngWriter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Response;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -108,6 +117,50 @@ class AttendanceController extends Controller
     public function qrSignature(string $code, int $timestamp): string
     {
         return hash_hmac('sha256', $code.'|'.$timestamp, (string) config('app.key'));
+    }
+
+    /**
+     * Display the office QR code for attendance.
+     */
+    public function qrCode(): View
+    {
+        $qrText = settings('company.qr_code_text', 'COMPANYBASE-OFFICE-ATTENDANCE-2026');
+
+        $qrCode = QrCode::create($qrText)
+            ->setEncoding(new \Endroid\QrCode\Encoding\EncodingInterface('UTF-8'))
+            ->setErrorCorrectionLevel(new ErrorCorrectionLevelHigh())
+            ->setSize(300)
+            ->setMargin(10);
+
+        $writer = new PngWriter();
+        $result = $writer->write($qrCode);
+        $base64 = 'data:image/png;base64,' . base64_encode($result->getString());
+
+        return view('employees.attendance.qr-code', compact('qrText', 'base64'));
+    }
+
+    /**
+     * Download the office QR code as a PNG file.
+     */
+    public function downloadQrCode()
+    {
+        $qrText = settings('company.qr_code_text', 'COMPANYBASE-OFFICE-ATTENDANCE-2026');
+
+        $qrCode = QrCode::create($qrText)
+            ->setEncoding(new \Endroid\QrCode\Encoding\EncodingInterface('UTF-8'))
+            ->setErrorCorrectionLevel(new ErrorCorrectionLevelHigh())
+            ->setSize(400)
+            ->setMargin(10);
+
+        $writer = new PngWriter();
+        $result = $writer->write($qrCode);
+
+        $fileName = 'office-attendance-qr-code.png';
+
+        return Response::make($result->getString(), 200, [
+            'Content-Type' => 'image/png',
+            'Content-Disposition' => 'attachment; filename="'.$fileName.'"',
+        ]);
     }
 
     public function update(Request $request, AttendanceRecord $record): RedirectResponse

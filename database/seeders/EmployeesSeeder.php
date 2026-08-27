@@ -35,12 +35,14 @@ class EmployeesSeeder extends Seeder
             'Finance' => 'FIN',
             'Operations' => 'OPS',
         ] as $name => $code) {
-            $departments[$name] = Department::create([
-                'name' => $name,
-                'code' => $code,
-                'description' => "Department of {$name}.",
-                'is_active' => true,
-            ]);
+            $departments[$name] = Department::firstOrCreate(
+                ['name' => $name],
+                [
+                    'code' => $code,
+                    'description' => "Department of {$name}.",
+                    'is_active' => true,
+                ]
+            );
         }
 
         $userByEmail = User::query()->pluck('id', 'email');
@@ -55,24 +57,28 @@ class EmployeesSeeder extends Seeder
             ['Tom', 'Brooks', 'EMP-006', 'Operations', 'Operations Supervisor', null],
             ['Sofia', 'Reyes', 'EMP-007', 'Sales', 'Sales Representative', null],
             ['David', 'Kim', 'EMP-008', 'Finance', 'Financial Analyst', null],
+            ['Alex', 'Taylor', 'EMP-009', 'Operations', 'General Staff', 'employee@companybased.test'],
+            ['Jordan', 'Lee', 'EMP-010', 'Operations', 'Inventory Clerk', 'inventory-manager@companybased.test'],
         ];
 
         foreach ($staff as [$firstName, $lastName, $code, $dept, $title, $email]) {
-            $employees[] = Employee::create([
-                'user_id' => $email ? ($userByEmail[$email] ?? null) : null,
-                'employee_code' => $code,
-                'first_name' => $firstName,
-                'last_name' => $lastName,
-                'email' => $email ?: strtolower($firstName).'.'.strtolower($lastName).'@companybased.test',
-                'phone' => '+1 555 '.str_pad((string) mt_rand(0, 9999), 4, '0', STR_PAD_LEFT),
-                'date_of_birth' => Carbon::now()->subYears(mt_rand(24, 50))->subMonths(mt_rand(0, 11))->subDays(mt_rand(0, 27)),
-                'date_hired' => Carbon::now()->subMonths(mt_rand(6, 60)),
-                'department_id' => $departments[$dept]->id,
-                'job_title' => $title,
-                'employment_status' => 'active',
-                'address' => mt_rand(1, 99).' Main Street',
-                'attendance_enabled' => true,
-            ]);
+            $employees[] = Employee::firstOrCreate(
+                ['employee_code' => $code],
+                [
+                    'user_id' => $email ? ($userByEmail[$email] ?? null) : null,
+                    'first_name' => $firstName,
+                    'last_name' => $lastName,
+                    'email' => $email ?: strtolower($firstName).'.'.strtolower($lastName).'@companybased.test',
+                    'phone' => '+1 555 '.str_pad((string) mt_rand(0, 9999), 4, '0', STR_PAD_LEFT),
+                    'date_of_birth' => Carbon::now()->subYears(mt_rand(24, 50))->subMonths(mt_rand(0, 11))->subDays(mt_rand(0, 27)),
+                    'date_hired' => Carbon::now()->subMonths(mt_rand(6, 60)),
+                    'department_id' => $departments[$dept]->id,
+                    'job_title' => $title,
+                    'employment_status' => 'active',
+                    'address' => mt_rand(1, 99).' Main Street',
+                    'attendance_enabled' => true,
+                ]
+            );
         }
 
         $departments['Human Resources']->update(['head_of_department_id' => $employees[0]->id]);
@@ -88,18 +94,21 @@ class EmployeesSeeder extends Seeder
             [2700, 550, 230, 140],
             [2000, 380, 180, 90],
             [2900, 580, 240, 140],
+            [1800, 350, 150, 80],
+            [2200, 420, 180, 90],
         ];
 
         foreach ($employees as $i => $employee) {
-            SalaryStructure::create([
-                'employee_id' => $employee->id,
-                'effective_from' => Carbon::now()->startOfYear(),
-                'basic_salary' => (string) $salaryMatrix[$i][0],
-                'housing_allowance' => (string) $salaryMatrix[$i][1],
-                'transport_allowance' => (string) $salaryMatrix[$i][2],
-                'other_allowance' => (string) $salaryMatrix[$i][3],
-                'is_active' => true,
-            ]);
+            SalaryStructure::firstOrCreate(
+                ['employee_id' => $employee->id, 'effective_from' => Carbon::now()->startOfYear()],
+                [
+                    'basic_salary' => (string) $salaryMatrix[$i][0],
+                    'housing_allowance' => (string) $salaryMatrix[$i][1],
+                    'transport_allowance' => (string) $salaryMatrix[$i][2],
+                    'other_allowance' => (string) $salaryMatrix[$i][3],
+                    'is_active' => true,
+                ]
+            );
         }
 
         $this->seedAttendance($employees, $rules, $attendance);

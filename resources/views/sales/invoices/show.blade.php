@@ -62,6 +62,7 @@
                         <th>Description</th>
                         <th class="text-right">Qty</th>
                         <th class="text-right">Unit price</th>
+                        <th class="text-right">Disc.</th>
                         <th class="text-right">Tax</th>
                         <th class="text-right">Amount</th>
                     </tr>
@@ -69,15 +70,18 @@
                 <tbody>
                     @foreach ($invoice->items as $item)
                         @php
-                            $lineNet = (float) $item->qty * (float) $item->unit_price * (1 - (float) $item->discount_percent / 100);
+                            $lineGross = (float) $item->qty * (float) $item->unit_price;
+                            $lineNet = $lineGross * (1 - (float) $item->discount_percent / 100);
                             $lineTax = $lineNet * ((float) $item->tax_percent / 100);
                             $lineTotal = $lineNet + $lineTax;
+                            $lineDiscount = $lineGross - $lineNet;
                         @endphp
                         <tr>
                             <td class="text-sm text-ink">{{ $loop->iteration }}</td>
                             <td class="text-sm text-ink">{{ $item->description ?: ($item->product?->name ?? '—') }}</td>
                             <td class="text-right text-sm text-ink">{{ number_format((float) $item->qty, 2) }}</td>
                             <td class="text-right text-sm text-ink">{{ money($item->unit_price, $invoice->currency) }}</td>
+                            <td class="text-right text-sm {{ $lineDiscount > 0 ? 'text-emerald-600' : 'text-ink-faint' }}">{{ $lineDiscount > 0 ? '-'.money($lineDiscount, $invoice->currency) : '—' }}</td>
                             <td class="text-right text-sm text-ink">{{ money($lineTax, $invoice->currency) }}</td>
                             <td class="text-right text-sm font-medium text-ink">{{ money($lineTotal, $invoice->currency) }}</td>
                         </tr>
@@ -85,9 +89,16 @@
                 </tbody>
             </table>
 
+            @php
+                $docGross = $invoice->items->sum(fn ($it) => (float) $it->qty * (float) $it->unit_price);
+                $docDiscount = $docGross - (float) $invoice->subtotal;
+            @endphp
             <div class="flex justify-end mb-6">
                 <div class="w-full max-w-xs space-y-1.5">
-                    <div class="flex justify-between"><span class="text-ink-faint">Subtotal</span><span class="text-ink">{{ money($invoice->subtotal, $invoice->currency) }}</span></div>
+                    <div class="flex justify-between"><span class="text-ink-faint">Subtotal</span><span class="text-ink">{{ money($docGross, $invoice->currency) }}</span></div>
+                    @if ($docDiscount > 0)
+                        <div class="flex justify-between text-emerald-600"><span>Discount</span><span>-{{ money($docDiscount, $invoice->currency) }}</span></div>
+                    @endif
                     <div class="flex justify-between"><span class="text-ink-faint">Tax</span><span class="text-ink">{{ money($invoice->tax_amount, $invoice->currency) }}</span></div>
                     <div class="flex justify-between border-t border-line pt-1.5 font-semibold"><span>Total</span><span class="text-ink">{{ money($invoice->total, $invoice->currency) }}</span></div>
                     <div class="flex justify-between"><span class="text-ink-faint">Paid</span><span class="text-emerald-600">{{ money($invoice->paid_amount, $invoice->currency) }}</span></div>

@@ -2,7 +2,10 @@
     <x-slot name="header">
         <x-page-header title="New purchase invoice" description="Record an invoice from a supplier." icon="invoice">
             <x-slot name="actions">
-                <x-button href="{{ route('suppliers.purchase_invoices.index') }}" variant="secondary" icon="arrow-left">Back</x-button>
+                <div class="flex items-center gap-2">
+                    <x-document-preview type="Purchase Invoice" number="Draft" currency="{{ old('currency', settings('company.currency', 'USD')) }}" />
+                    <x-button href="{{ route('suppliers.purchase_invoices.index') }}" variant="secondary" icon="arrow-left">Back</x-button>
+                </div>
             </x-slot>
         </x-page-header>
     </x-slot>

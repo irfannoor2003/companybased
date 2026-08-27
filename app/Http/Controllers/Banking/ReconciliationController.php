@@ -61,7 +61,7 @@ class ReconciliationController extends Controller
 
         $this->syncItems($reconciliation, $this->inScopeTransactions($account, $data['statement_date']), []);
 
-        return redirect()->route('banking.reconciliations.edit', $reconciliation)
+        return redirect()->route('banking.reconciliations.index')
             ->with('toasts', [['type' => 'success', 'message' => "Reconciliation {$reconciliation->number} started."]]);
     }
 

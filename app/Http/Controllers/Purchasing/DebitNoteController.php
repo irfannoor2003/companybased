@@ -67,7 +67,7 @@ class DebitNoteController extends Controller
         $totals = DocumentItems::sync($note, $request->input('items', []));
         $note->update(['subtotal' => $totals['subtotal'], 'tax_amount' => $totals['tax'], 'total' => $totals['total']]);
 
-        return redirect()->route('suppliers.debit_notes.edit', $note)
+        return redirect()->route('suppliers.debit_notes.index')
             ->with('toasts', [['type' => 'success', 'message' => "Debit note {$note->number} created."]]);
     }
 
@@ -95,12 +95,7 @@ class DebitNoteController extends Controller
 
         $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
 
-        return response()->streamDownload(function () use ($pdf) {
-            echo $pdf->output();
-        }, 'debit-note-'.$debitNote->number.'.pdf', [
-            'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'attachment; filename="debit-note-'.$debitNote->number.'.pdf"',
-        ]);
+        return $pdf->stream('debit-note-'.$debitNote->number.'.pdf');
     }
 
     public function update(Request $request, DebitNote $debitNote): RedirectResponse

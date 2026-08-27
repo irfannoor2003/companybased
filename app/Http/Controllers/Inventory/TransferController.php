@@ -59,7 +59,7 @@ class TransferController extends Controller
 
         $this->syncItems($transfer, $request->input('items', []));
 
-        return redirect()->route('inventory.transfers.edit', $transfer)
+        return redirect()->route('inventory.transfers.index')
             ->with('toasts', [['type' => 'success', 'message' => "Transfer {$transfer->number} created."]]);
     }
 

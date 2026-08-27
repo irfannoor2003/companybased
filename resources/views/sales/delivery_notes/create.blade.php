@@ -2,7 +2,10 @@
     <x-slot name="header">
         <x-page-header title="New delivery note" description="Record goods being delivered." icon="truck">
             <x-slot name="actions">
-                <x-button href="{{ route('sales.delivery_notes.index') }}" variant="secondary" icon="arrow-left">Back</x-button>
+                <div class="flex items-center gap-2">
+                    <x-document-preview type="Delivery Note" number="Draft" />
+                    <x-button href="{{ route('sales.delivery_notes.index') }}" variant="secondary" icon="arrow-left">Back</x-button>
+                </div>
             </x-slot>
         </x-page-header>
     </x-slot>

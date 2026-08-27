@@ -10,6 +10,7 @@ use App\Models\SalesOrder;
 use App\Models\SalesQuote;
 use App\Support\DocumentData;
 use App\Support\DocumentItems;
+use App\Support\DiscountLimit;
 use App\Support\ExportsCsv;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -21,6 +22,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class QuoteController extends Controller
 {
     use ExportsCsv;
+    use DiscountLimit;
 
     public function index(Request $request): View
     {
@@ -43,8 +45,9 @@ class QuoteController extends Controller
         $customers = SalesCustomer::query()->orderBy('company_name')->get();
         $priceLists = PriceList::query()->orderBy('name')->get();
         $products = Product::query()->where('is_active', true)->orderBy('name')->get();
+        $maxDiscount = $this->getMaxDiscountForUser();
 
-        return view('sales.quotes.create', compact('customers', 'priceLists', 'products'));
+        return view('sales.quotes.create', compact('customers', 'priceLists', 'products', 'maxDiscount'));
     }
 
     public function store(Request $request): RedirectResponse
@@ -59,6 +62,8 @@ class QuoteController extends Controller
             'notes' => ['nullable', 'string', 'max:5000'],
             'items' => ['required', 'array', 'min:1'],
         ]);
+
+        $this->validateDiscountLimits($request->input('items', []));
 
         $quote = SalesQuote::create([
             'number' => next_document_number('quote', 'Q'),
@@ -75,7 +80,7 @@ class QuoteController extends Controller
         $totals = DocumentItems::sync($quote, $request->input('items', []));
         $quote->update(['subtotal' => $totals['subtotal'], 'tax_amount' => $totals['tax'], 'total' => $totals['total']]);
 
-        return redirect()->route('sales.quotes.edit', $quote)
+        return redirect()->route('sales.quotes.index')
             ->with('toasts', [['type' => 'success', 'message' => "Quote {$quote->number} created."]]);
     }
 
@@ -85,8 +90,9 @@ class QuoteController extends Controller
         $customers = SalesCustomer::query()->orderBy('company_name')->get();
         $priceLists = PriceList::query()->orderBy('name')->get();
         $products = Product::query()->where('is_active', true)->orderBy('name')->get();
+        $maxDiscount = $this->getMaxDiscountForUser();
 
-        return view('sales.quotes.edit', compact('quote', 'customers', 'priceLists', 'products'));
+        return view('sales.quotes.edit', compact('quote', 'customers', 'priceLists', 'products', 'maxDiscount'));
     }
 
     public function show(SalesQuote $quote): View
@@ -104,12 +110,7 @@ class QuoteController extends Controller
 
         $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
 
-        return response()->streamDownload(function () use ($pdf) {
-            echo $pdf->output();
-        }, 'quote-'.$quote->number.'.pdf', [
-            'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'attachment; filename="quote-'.$quote->number.'.pdf"',
-        ]);
+        return $pdf->stream('quote-'.$quote->number.'.pdf');
     }
 
     public function update(Request $request, SalesQuote $quote): RedirectResponse
@@ -128,6 +129,8 @@ class QuoteController extends Controller
             'notes' => ['nullable', 'string', 'max:5000'],
             'items' => ['required', 'array', 'min:1'],
         ]);
+
+        $this->validateDiscountLimits($request->input('items', []));
 
         $quote->update([
             'customer_id' => $data['customer_id'],
@@ -187,6 +190,7 @@ class QuoteController extends Controller
             'number' => next_document_number('order', 'SO'),
             'quote_id' => $quote->id,
             'customer_id' => $quote->customer_id,
+            'salesman_id' => auth()->id(),
             'issue_date' => now()->toDateString(),
             'status' => 'draft',
             'currency' => $quote->currency,
@@ -203,7 +207,7 @@ class QuoteController extends Controller
 
         $quote->update(['converted_to_order_id' => $order->id, 'status' => 'converted']);
 
-        return redirect()->route('sales.orders.edit', $order)
+        return redirect()->route('sales.orders.index')
             ->with('toasts', [['type' => 'success', 'message' => "Quote {$quote->number} converted to order {$order->number}."]]);
     }
 

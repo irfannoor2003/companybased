@@ -70,7 +70,7 @@ class PurchaseOrderController extends Controller
         $totals = DocumentItems::sync($order, $request->input('items', []));
         $order->update(['subtotal' => $totals['subtotal'], 'tax_amount' => $totals['tax'], 'total' => $totals['total']]);
 
-        return redirect()->route('suppliers.purchase_orders.edit', $order)
+        return redirect()->route('suppliers.purchase_orders.index')
             ->with('toasts', [['type' => 'success', 'message' => "Purchase order {$order->number} created."]]);
     }
 
@@ -99,12 +99,7 @@ class PurchaseOrderController extends Controller
 
         $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
 
-        return response()->streamDownload(function () use ($pdf) {
-            echo $pdf->output();
-        }, 'purchase-order-'.$order->number.'.pdf', [
-            'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'attachment; filename="purchase-order-'.$order->number.'.pdf"',
-        ]);
+        return $pdf->stream('purchase-order-'.$order->number.'.pdf');
     }
 
     public function update(Request $request, PurchaseOrder $order): RedirectResponse

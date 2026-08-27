@@ -62,7 +62,7 @@ class ProductionOrderController extends Controller
 
         $this->syncItems($order, $request->input('items', []));
 
-        return redirect()->route('inventory.production_orders.edit', $order)
+        return redirect()->route('inventory.production_orders.index')
             ->with('toasts', [['type' => 'success', 'message' => "Production order {$order->number} created."]]);
     }
 

@@ -85,14 +85,15 @@
                 <tbody>
                     @foreach ($rows as $row)
                         <tr>
-                            @if ($hasPricing)
-                                <td>{{ $loop->iteration }}</td>
-                                <td>{{ $row['description'] }}</td>
-                                <td class="num">{{ number_format((float) $row['qty'], 2) }}</td>
-                                <td class="num">{{ number_format((float) $row['unit_price'], 2) }}</td>
-                                <td class="num">{{ number_format((float) $row['tax'], 2) }}</td>
-                                <td class="num">{{ number_format((float) $row['total'], 2) }}</td>
-                            @else
+                        @if ($hasPricing)
+                            <td>{{ $loop->iteration }}</td>
+                            <td>{{ $row['description'] }}</td>
+                            <td class="num">{{ number_format((float) $row['qty'], 2) }}</td>
+                            <td class="num">{{ number_format((float) $row['unit_price'], 2) }}</td>
+                            <td class="num">{{ ($row['discount'] ?? 0) > 0 ? number_format($row['discount'], 2) : '—' }}</td>
+                            <td class="num">{{ number_format((float) $row['tax'], 2) }}</td>
+                            <td class="num">{{ number_format((float) $row['total'], 2) }}</td>
+                        @else
                                 <td>{{ $loop->iteration }}</td>
                                 <td>{{ $row['description'] }}</td>
                                 <td class="num">{{ number_format((float) $row['qty'], 2) }}</td>

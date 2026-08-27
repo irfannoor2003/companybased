@@ -14,6 +14,19 @@
                  @csrf
                  @method('PUT')
 
+                 <div class="rounded-lg border border-line bg-surface-muted/50 px-4 py-3">
+                     <p class="text-xs font-semibold uppercase text-ink-faint">Customer</p>
+                     <p class="mt-0.5 text-sm font-medium text-ink">{{ $payment->customer?->company_name ?: '—' }}</p>
+                     @if ($payment->customer?->short_code)
+                         <p class="text-xs text-ink-faint">Code: {{ $payment->customer->short_code }}</p>
+                     @endif
+                 </div>
+
+                 <div class="rounded-lg border border-line bg-surface-muted/50 px-4 py-3">
+                     <p class="text-xs font-semibold uppercase text-ink-faint">Against invoice</p>
+                     <p class="mt-0.5 text-sm font-medium text-ink">{{ $payment->invoice?->number ?? 'null' }}</p>
+                 </div>
+
                  <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
                      <x-select name="customer_id" label="Customer" required @change="$event.target.value && syncCurrency($event.target)">
                          @foreach ($customers as $customer)

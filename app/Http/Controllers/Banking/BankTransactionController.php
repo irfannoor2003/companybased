@@ -63,7 +63,7 @@ class BankTransactionController extends Controller
             'is_reconciled' => false,
         ]);
 
-        return redirect()->route('banking.transactions.edit', $transaction)
+        return redirect()->route('banking.transactions.index')
             ->with('toasts', [['type' => 'success', 'message' => "Transaction {$transaction->number} recorded."]]);
     }
 

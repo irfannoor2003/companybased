@@ -17,7 +17,7 @@ class SalesOrder extends Model
     protected $table = 'sales_orders';
 
     protected $fillable = [
-        'number', 'tracking_code', 'quote_id', 'customer_id', 'issue_date', 'expected_delivery_date',
+        'number', 'tracking_code', 'quote_id', 'customer_id', 'salesman_id', 'issue_date', 'expected_delivery_date',
         'status', 'currency', 'exchange_rate', 'subtotal', 'discount_amount', 'tax_amount', 'total',
         'shipping_address', 'notes',
     ];
@@ -40,6 +40,11 @@ class SalesOrder extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(SalesCustomer::class, 'customer_id');
+    }
+
+    public function salesman(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'salesman_id');
     }
 
     public function quote(): BelongsTo

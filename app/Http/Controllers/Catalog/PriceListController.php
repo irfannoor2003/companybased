@@ -74,7 +74,7 @@ class PriceListController extends Controller
             throw $e;
         }
 
-        return redirect()->route('catalog.price_lists.edit', $priceList)
+        return redirect()->route('catalog.price_lists.index')
             ->with('toasts', [['type' => 'success', 'message' => "Price list \"{$priceList->name}\" created."]]);
     }
 

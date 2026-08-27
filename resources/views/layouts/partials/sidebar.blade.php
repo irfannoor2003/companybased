@@ -28,7 +28,25 @@
         return ['item' => $item, 'visible' => $visible];
     });
 
-    $isActive = fn ($route) => request()->routeIs($route) || request()->routeIs($route . '.*');
+    $isActive = function ($route) {
+        $current = request()->route()->getName();
+        if (! $current) {
+            return false;
+        }
+        if ($current === $route) {
+            return true;
+        }
+        if (str_starts_with($current, $route . '.')) {
+            return true;
+        }
+        $segments = explode('.', $route);
+        if (end($segments) === 'index') {
+            array_pop($segments);
+            $base = implode('.', $segments);
+            return str_starts_with($current, $base . '.');
+        }
+        return false;
+    };
 @endphp
 
 {{-- Mobile overlay --}}

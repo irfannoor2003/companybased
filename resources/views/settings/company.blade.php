@@ -170,5 +170,32 @@
                 </div>
             </form>
         </x-card>
+
+        {{-- Office Location --}}
+        <x-card title="Office Location" description="Set your office coordinates and radius for attendance and visit tracking. Employees must be within this radius to clock in/out.">
+            <form method="POST" action="{{ route('settings.company.update') }}" class="space-y-5">
+                @csrf
+                @method('PUT')
+
+                <div class="grid grid-cols-1 gap-5 sm:grid-cols-3">
+                    <x-input name="latitude" label="Latitude" type="number" step="any" required
+                        value="{{ old('latitude', settings('company.latitude', '5.6037')) }}" hint="e.g. 5.6037" />
+                    <x-input name="longitude" label="Longitude" type="number" step="any" required
+                        value="{{ old('longitude', settings('company.longitude', '-0.1870')) }}" hint="e.g. -0.1870" />
+                    <x-input name="radius" label="Office radius (meters)" type="number" min="50" max="10000" required
+                        value="{{ old('radius', settings('company.radius', '500')) }}" hint="Default: 500m" />
+                </div>
+
+                <div class="max-w-md">
+                    <x-input name="qr_code_text" label="QR Code Text" required
+                        value="{{ old('qr_code_text', settings('company.qr_code_text', 'COMPANYBASE-OFFICE-ATTENDANCE-2026')) }}"
+                        hint="Text encoded in the office QR code. Employees must scan this exact code." />
+                </div>
+
+                <div class="flex justify-end border-t border-line pt-4">
+                    <x-button type="submit" icon="save">Save office location</x-button>
+                </div>
+            </form>
+        </x-card>
     </div>
 </x-settings-layout>

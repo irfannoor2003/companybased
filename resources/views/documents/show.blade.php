@@ -9,6 +9,9 @@
                     <button type="button" onclick="window.print()" class="btn-ghost btn-icon btn-sm" title="Print">
                         <x-icon name="printer" class="size-4" />
                     </button>
+                    @if ($doc instanceof \App\Models\SalesOrder && auth()->user()->can('sales.invoices.create'))
+                        <x-button href="{{ route('sales.invoices.create', ['order' => $doc->id]) }}" variant="secondary" icon="invoice">Create Invoice</x-button>
+                    @endif
                     @can($viewPermission)
                         <x-button :href="$editRoute" variant="secondary" icon="edit">Edit</x-button>
                     @endcan
@@ -84,18 +87,19 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach ($rows as $row)
-                            <tr>
-                                <td class="text-sm text-ink">{{ $loop->iteration }}</td>
-                                <td class="text-sm text-ink">{{ $row['description'] }}</td>
-                                <td class="text-right text-sm text-ink">{{ number_format((float) $row['qty'], 2) }}</td>
-                                @if ($hasPricing)
-                                    <td class="text-right text-sm text-ink">{{ money($row['unit_price'], $currency) }}</td>
-                                    <td class="text-right text-sm text-ink">{{ money($row['tax'], $currency) }}</td>
-                                    <td class="text-right text-sm font-medium text-ink">{{ money($row['total'], $currency) }}</td>
-                                @endif
-                            </tr>
-                        @endforeach
+        @foreach ($rows as $row)
+            <tr>
+                <td class="text-sm text-ink">{{ $loop->iteration }}</td>
+                <td class="text-sm text-ink">{{ $row['description'] }}</td>
+                <td class="text-right text-sm text-ink">{{ number_format((float) $row['qty'], 2) }}</td>
+                @if ($hasPricing)
+                    <td class="text-right text-sm text-ink">{{ money($row['unit_price'], $currency) }}</td>
+                    <td class="text-right text-sm {{ ($row['discount'] ?? 0) > 0 ? 'text-emerald-600' : 'text-ink-faint' }}">{{ ($row['discount'] ?? 0) > 0 ? '-'.money($row['discount'], $currency) : '—' }}</td>
+                    <td class="text-right text-sm text-ink">{{ money($row['tax'], $currency) }}</td>
+                    <td class="text-right text-sm font-medium text-ink">{{ money($row['total'], $currency) }}</td>
+                @endif
+            </tr>
+        @endforeach
                     </tbody>
                 </table>
             @endif

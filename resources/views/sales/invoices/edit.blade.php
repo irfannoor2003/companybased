@@ -2,13 +2,16 @@
     <x-slot name="header">
         <x-page-header title="Invoice {{ $invoice->number }}" description="{{ $invoice->customer?->company_name }}" icon="invoice">
             <x-slot name="actions">
-                @if (auth()->user()->can('sales.invoices.view'))
-                    <x-button :href="route('sales.invoices.show', $invoice)" variant="secondary" icon="eye" target="_blank" rel="noopener">View / Print</x-button>
-                @endif
-                @if (auth()->user()->can('sales.credit_notes.create') && $invoice->balance() > 0)
-                    <x-button href="{{ route('sales.credit_notes.create', ['invoice' => $invoice->id]) }}" variant="secondary" icon="credit">Credit note</x-button>
-                @endif
-                <x-button href="{{ route('sales.invoices.index') }}" variant="secondary" icon="arrow-left">Back</x-button>
+                <div class="flex items-center gap-2">
+                    <x-document-preview type="Invoice" number="{{ $invoice->number }}" customerName="{{ $invoice->customer?->company_name }}" issueDate="{{ $invoice->issue_date }}" dueDate="{{ $invoice->due_date }}" currency="{{ $invoice->currency }}" notes="{{ $invoice->notes }}" />
+                    @if (auth()->user()->can('sales.invoices.view'))
+                        <x-button :href="route('sales.invoices.show', $invoice)" variant="secondary" icon="eye" target="_blank" rel="noopener">View / Print</x-button>
+                    @endif
+                    @if (auth()->user()->can('sales.credit_notes.create') && $invoice->balance() > 0)
+                        <x-button href="{{ route('sales.credit_notes.create', ['invoice' => $invoice->id]) }}" variant="secondary" icon="credit">Credit note</x-button>
+                    @endif
+                    <x-button href="{{ route('sales.invoices.index') }}" variant="secondary" icon="arrow-left">Back</x-button>
+                </div>
             </x-slot>
         </x-page-header>
     </x-slot>
@@ -52,7 +55,7 @@
                         ])->all();
                     @endphp
 
-                    <x-sales.line-items-editor :products="$products" :initial-items="$initialItems" :currency="$invoice->currency" />
+                    <x-sales.line-items-editor :products="$products" :initial-items="$initialItems" :currency="$invoice->currency" :max-discount="$maxDiscount" />
 
                     <x-textarea name="notes" label="Notes" rows="3">{{ old('notes', $invoice->notes) }}</x-textarea>
 
@@ -105,6 +108,11 @@
                                     <p class="text-sm font-medium text-ink">{{ money($payment->amount, $invoice->currency) }}</p>
                                     <p class="text-xs text-ink-faint">{{ $payment->payment_date?->format('Y-m-d') }} · {{ ucwords(str_replace('_', ' ', $payment->method)) }}{{ $payment->reference ? ' · '.$payment->reference : '' }}</p>
                                 </div>
+                                @if (auth()->user()->can('sales.sales_payments.edit'))
+                                    <a href="{{ route('sales.sales_payments.edit', $payment) }}" class="btn-ghost btn-icon btn-sm shrink-0" title="Edit payment">
+                                        <x-icon name="edit" class="size-4" />
+                                    </a>
+                                @endif
                             </div>
                         @endforeach
                     </div>

@@ -50,7 +50,7 @@ class BillOfMaterialController extends Controller
 
         $this->syncItems($bom, $request->input('items', []));
 
-        return redirect()->route('inventory.bill_of_materials.edit', $bom)
+        return redirect()->route('inventory.bill_of_materials.index')
             ->with('toasts', [['type' => 'success', 'message' => "Bill of materials \"{$bom->name}\" created."]]);
     }
 

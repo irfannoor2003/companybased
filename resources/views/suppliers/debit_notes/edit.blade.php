@@ -2,7 +2,10 @@
     <x-slot name="header">
         <x-page-header title="Debit note {{ $debitNote->number }}" description="{{ $debitNote->supplier?->company_name }}" icon="credit">
             <x-slot name="actions">
-                <x-button href="{{ route('suppliers.debit_notes.index') }}" variant="secondary" icon="arrow-left">Back</x-button>
+                <div class="flex items-center gap-2">
+                    <x-document-preview type="Debit Note" number="{{ $debitNote->number }}" customerName="{{ $debitNote->supplier?->company_name }}" issueDate="{{ $debitNote->issue_date }}" currency="{{ $debitNote->currency }}" notes="{{ $debitNote->notes }}" />
+                    <x-button href="{{ route('suppliers.debit_notes.index') }}" variant="secondary" icon="arrow-left">Back</x-button>
+                </div>
             </x-slot>
         </x-page-header>
     </x-slot>

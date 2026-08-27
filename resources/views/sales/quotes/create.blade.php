@@ -2,7 +2,10 @@
     <x-slot name="header">
         <x-page-header title="New quote" description="Build a quotation for a customer." icon="document">
             <x-slot name="actions">
-                <x-button href="{{ route('sales.quotes.index') }}" variant="secondary" icon="arrow-left">Back</x-button>
+                <div class="flex items-center gap-2">
+                    <x-document-preview type="Quote" number="Draft" currency="{{ old('currency', settings('company.currency', 'USD')) }}" />
+                    <x-button href="{{ route('sales.quotes.index') }}" variant="secondary" icon="arrow-left">Back</x-button>
+                </div>
             </x-slot>
         </x-page-header>
     </x-slot>
@@ -40,7 +43,7 @@
                     </x-select>
                 </div>
 
-                <x-sales.line-items-editor :products="$products" :initial-items="[]" :currency="old('currency', settings('company.currency', 'USD'))" />
+                <x-sales.line-items-editor :products="$products" :initial-items="[]" :currency="old('currency', settings('company.currency', 'USD'))" :max-discount="$maxDiscount" />
 
                 <x-textarea name="notes" label="Notes" rows="3">{{ old('notes') }}</x-textarea>
 

@@ -2,7 +2,10 @@
     <x-slot name="header">
         <x-page-header title="Credit note {{ $creditNote->number }}" description="{{ $creditNote->customer?->company_name }}" icon="credit">
             <x-slot name="actions">
-                <x-button href="{{ route('sales.credit_notes.index') }}" variant="secondary" icon="arrow-left">Back</x-button>
+                <div class="flex items-center gap-2">
+                    <x-document-preview type="Credit Note" number="{{ $creditNote->number }}" customerName="{{ $creditNote->customer?->company_name }}" issueDate="{{ $creditNote->issue_date }}" currency="{{ $creditNote->currency }}" notes="{{ $creditNote->notes }}" />
+                    <x-button href="{{ route('sales.credit_notes.index') }}" variant="secondary" icon="arrow-left">Back</x-button>
+                </div>
             </x-slot>
         </x-page-header>
     </x-slot>
@@ -47,7 +50,7 @@
                         ])->all();
                     @endphp
 
-                    <x-sales.line-items-editor :products="$products" :initial-items="$initialItems" :currency="$creditNote->currency" />
+                    <x-sales.line-items-editor :products="$products" :initial-items="$initialItems" :currency="$creditNote->currency" :max-discount="$maxDiscount" />
 
                     <x-textarea name="notes" label="Notes" rows="3">{{ old('notes', $creditNote->notes) }}</x-textarea>
 
