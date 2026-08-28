@@ -90,6 +90,9 @@ class RolesSeeder extends Seeder
             // Mail server
             'settings.mail.view',
             'settings.mail.manage',
+            // Packages / subscription
+            'settings.subscription.view',
+            'settings.subscription.manage',
         ];
 
         // ── 2. Admin ───────────────────────────────────────────────────

@@ -11,6 +11,7 @@
         ['label' => 'Backup & Restore', 'route' => 'settings.backups', 'icon' => 'database', 'permission' => 'settings.backup.view'],
         ['label' => 'Audit Log', 'route' => 'settings.audit-log', 'icon' => 'audit', 'permission' => 'settings.audit.view'],
         ['label' => 'Mail Server', 'route' => 'settings.mail', 'icon' => 'mail', 'permission' => 'settings.mail.view'],
+        ['label' => 'Packages', 'route' => 'settings.subscription', 'icon' => 'package', 'permission' => 'settings.subscription.view'],
     ];
     $visibleTabs = array_values(array_filter($tabs, fn ($t) => auth()->user()->can($t['permission'])));
 @endphp

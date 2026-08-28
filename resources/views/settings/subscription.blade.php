@@ -1,5 +1,5 @@
 <x-settings-layout page-title="Packages">
-    <x-page-header title="Packages" description="Control how long this installation stays active. Set an activation period and the system will lock out all staff (except the Super Admin) once it expires." icon="package">
+    <x-page-header title="Packages" description="Control how long this installation stays active. Set an activation period and the system will lock out all staff (except the Super Admin) when no package is active or once it expires." icon="package">
         <x-slot name="actions">
             @if ($subscription && $subscription->is_active)
                 <form method="POST" action="{{ route('settings.subscription.deactivate') }}"
@@ -47,11 +47,11 @@
                     </div>
                 </dl>
                 <div class="mt-4">
-                    <span class="badge badge-success">Active</span>
+                    <x-badge color="success" dot>Active</x-badge>
                 </div>
             @else
                 <x-empty-state icon="package" title="No active package"
-                    description="There is no active subscription, so all users currently have unrestricted access. Activate a package below to start enforcing an expiry date." />
+                    description="There is no active package, so staff access is currently blocked. Only the Super Admin can use the system. Activate a package below to grant access." />
             @endif
         </x-card>
 

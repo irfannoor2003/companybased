@@ -45,6 +45,20 @@ class Subscription extends Model
         return $sub !== null && $sub->expires_at !== null && $sub->expires_at->isPast();
     }
 
+    /**
+     * True when staff access must be blocked: either there is no active
+     * package at all, or the active package has expired. The Super Admin is
+     * exempt and may always reach the panel to (re)activate a package.
+     */
+    public static function isAccessBlocked(): bool
+    {
+        $sub = static::current();
+
+        return $sub === null
+            || $sub->expires_at === null
+            || $sub->expires_at->isPast();
+    }
+
     public static function daysRemaining(): ?int
     {
         $sub = static::current();

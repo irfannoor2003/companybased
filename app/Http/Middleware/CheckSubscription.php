@@ -38,7 +38,7 @@ class CheckSubscription
             return $next($request);
         }
 
-        if (Subscription::isExpired()) {
+        if (Subscription::isAccessBlocked()) {
             if ($request->expectsJson()) {
                 return response()->json([
                     'message' => 'Package expired. Please contact your administrator to reactivate.',
