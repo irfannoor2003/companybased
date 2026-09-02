@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\SalesCustomer;
 use App\Models\SalesDeliveryNote;
+use App\Models\SalesInvoice;
 use App\Models\SalesOrder;
+use App\Models\SalesQuote;
 use App\Models\SalesStatusEvent;
 use App\Services\TrackingService;
 use App\Support\DocumentData;
@@ -48,7 +50,17 @@ class DeliveryNoteController extends Controller
             $fromOrder = SalesOrder::query()->with(['items.product'])->findOrFail($request->order);
         }
 
-        return view('sales.delivery_notes.create', compact('customers', 'products', 'fromOrder'));
+        $fromInvoice = null;
+        if ($request->filled('invoice')) {
+            $fromInvoice = SalesInvoice::query()->with(['items.product'])->findOrFail($request->invoice);
+        }
+
+        $fromQuote = null;
+        if ($request->filled('quote')) {
+            $fromQuote = SalesQuote::query()->with(['items.product', 'customer'])->findOrFail($request->quote);
+        }
+
+        return view('sales.delivery_notes.create', compact('customers', 'products', 'fromOrder', 'fromInvoice', 'fromQuote'));
     }
 
     public function store(Request $request): RedirectResponse
@@ -89,8 +101,9 @@ class DeliveryNoteController extends Controller
         return view('documents.show', DocumentData::build($deliveryNote));
     }
 
-    public function pdf(SalesDeliveryNote $deliveryNote): StreamedResponse
+    public function pdf(SalesDeliveryNote $deliveryNote): \Illuminate\Http\Response
     {
+        $this->preparePdf();
         $deliveryNote->load(['customer', 'items.product', 'order']);
 
         $html = view('pdf.document', DocumentData::build($deliveryNote))->render();

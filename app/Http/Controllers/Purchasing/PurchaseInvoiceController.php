@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Purchasing;
 
 use App\Http\Controllers\Controller;
+use App\Models\BankAccount;
+use App\Models\InventoryProductionOrder;
 use App\Models\Product;
 use App\Models\PurchaseInvoice;
 use App\Models\PurchaseOrder;
@@ -11,12 +13,13 @@ use App\Models\Supplier;
 use App\Models\SupplierPayment;
 use App\Support\DocumentItems;
 use App\Support\ExportsCsv;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
-use Barryvdh\DomPDF\Facade\Pdf;
 
 class PurchaseInvoiceController extends Controller
 {
@@ -48,7 +51,14 @@ class PurchaseInvoiceController extends Controller
             $fromOrder = PurchaseOrder::query()->with(['items'])->findOrFail($request->order);
         }
 
-        return view('suppliers.purchase_invoices.create', compact('suppliers', 'products', 'fromOrder'));
+        $fromProduction = null;
+        if ($request->filled('production_order')) {
+            $fromProduction = InventoryProductionOrder::query()
+                ->with(['items.componentItem.product'])
+                ->findOrFail($request->production_order);
+        }
+
+        return view('suppliers.purchase_invoices.create', compact('suppliers', 'products', 'fromOrder', 'fromProduction'));
     }
 
     public function store(Request $request): RedirectResponse
@@ -58,6 +68,7 @@ class PurchaseInvoiceController extends Controller
         $invoice = PurchaseInvoice::create([
             'number' => next_document_number('purchase_invoice', 'PIN'),
             'order_id' => $data['order_id'] ?? null,
+            'production_order_id' => $data['production_order_id'] ?? null,
             'supplier_id' => $data['supplier_id'],
             'issue_date' => $data['issue_date'],
             'due_date' => $data['due_date'] ?? null,
@@ -78,29 +89,46 @@ class PurchaseInvoiceController extends Controller
 
     public function edit(PurchaseInvoice $invoice): View
     {
-        $invoice->load(['supplier', 'items.product', 'payments', 'statusEvents.user', 'debitNotes']);
+        $invoice->load(['supplier', 'items.product', 'payments.bankAccount', 'statusEvents.user', 'debitNotes', 'productionOrder']);
         $suppliers = Supplier::query()->orderBy('company_name')->get();
         $products = Product::query()->where('is_active', true)->orderBy('name')->get();
+        $bankAccounts = BankAccount::query()->active()->orderBy('name')->get();
 
-        return view('suppliers.purchase_invoices.edit', compact('invoice', 'suppliers', 'products'));
+        return view('suppliers.purchase_invoices.edit', compact('invoice', 'suppliers', 'products', 'bankAccounts'));
     }
 
     public function show(PurchaseInvoice $invoice): View
     {
-        $invoice->load(['supplier', 'items.product', 'payments', 'statusEvents.user', 'debitNotes']);
+        $invoice->load(['supplier', 'items.product', 'payments.bankAccount', 'statusEvents.user', 'debitNotes', 'productionOrder']);
 
         return view('suppliers.purchase_invoices.show', compact('invoice'));
     }
 
-    public function pdf(PurchaseInvoice $invoice): StreamedResponse
+    public function pdf(PurchaseInvoice $invoice): Response
     {
-        $invoice->load(['supplier', 'items.product', 'payments', 'debitNotes']);
+        $this->preparePdf();
+        $invoice->load(['supplier', 'items.product', 'payments', 'debitNotes', 'productionOrder']);
 
-        $html = view('suppliers.purchase_invoices.pdf', compact('invoice'))->render();
+        $template = in_array($invoice->template, ['classic', 'modern', 'minimal', 'corporate'], true) ? $invoice->template : 'classic';
+        $view = 'suppliers.purchase_invoices.pdf'.($template === 'classic' ? '' : '-'.$template);
+
+        $html = view($view, compact('invoice'))->render();
 
         $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
 
         return $pdf->stream('purchase-invoice-'.$invoice->number.'.pdf');
+    }
+
+    public function updateTemplate(Request $request, PurchaseInvoice $invoice): RedirectResponse
+    {
+        $data = $request->validate([
+            'template' => ['required', Rule::in(array_keys(PurchaseInvoice::templateOptions()))],
+        ]);
+
+        $invoice->update(['template' => $data['template']]);
+
+        return redirect()->route('suppliers.purchase_invoices.show', $invoice)
+            ->with('toasts', [['type' => 'success', 'message' => 'Invoice template set to '.ucfirst($data['template']).'.']]);
     }
 
     public function update(Request $request, PurchaseInvoice $invoice): RedirectResponse
@@ -109,6 +137,7 @@ class PurchaseInvoiceController extends Controller
 
         $invoice->update([
             'order_id' => $data['order_id'] ?? null,
+            'production_order_id' => $data['production_order_id'] ?? null,
             'supplier_id' => $data['supplier_id'],
             'issue_date' => $data['issue_date'],
             'due_date' => $data['due_date'] ?? null,
@@ -165,6 +194,7 @@ class PurchaseInvoiceController extends Controller
             'amount' => ['required', 'numeric', 'gt:0'],
             'payment_date' => ['required', 'date'],
             'method' => ['required', Rule::in(SupplierPayment::methodOptions())],
+            'bank_account_id' => ['nullable', 'integer', Rule::exists('bank_accounts', 'id')],
             'reference' => ['nullable', 'string', 'max:120'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
@@ -180,6 +210,7 @@ class PurchaseInvoiceController extends Controller
             'number' => next_document_number('supplier_payment', 'SP', SupplierPayment::class),
             'invoice_id' => $invoice->id,
             'supplier_id' => $invoice->supplier_id,
+            'bank_account_id' => $data['bank_account_id'] ?? null,
             'amount' => $data['amount'],
             'payment_date' => $data['payment_date'],
             'method' => $data['method'],
@@ -225,6 +256,7 @@ class PurchaseInvoiceController extends Controller
     {
         return $request->validate([
             'order_id' => ['nullable', 'integer', Rule::exists('purchase_orders', 'id')],
+            'production_order_id' => ['nullable', 'integer', Rule::exists('inventory_production_orders', 'id')],
             'supplier_id' => ['required', 'integer', Rule::exists('suppliers', 'id')],
             'issue_date' => ['required', 'date'],
             'due_date' => ['nullable', 'date'],

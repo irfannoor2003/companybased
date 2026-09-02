@@ -25,6 +25,23 @@
                 --color-primary-strong: {{ $appBrand['primaryStrongRgb'] }};
                 --color-accent: {{ $appBrand['accentRgb'] }};
             }
+
+            {{-- Print cleanly: only the document content, no sidebar/topbar/app chrome. --}}
+            @media print {
+                aside, header, .toasts, x-toasts, .print\:hidden { display: none !important; }
+                body {
+                    background: #fff !important;
+                }
+                main { overflow: visible !important; }
+                main > div {
+                    max-width: 100% !important;
+                    padding: 0 !important;
+                }
+                .document, .invoice-document {
+                    box-shadow: none !important;
+                    border: none !important;
+                }
+            }
         </style>
 
         {{-- Apply persisted theme before paint to avoid flashes. --}}

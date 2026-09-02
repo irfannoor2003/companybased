@@ -5,6 +5,12 @@
                 @if (auth()->user()->can('sales.invoices.view'))
                     <x-button :href="route('sales.invoices.pdf', $invoice)" variant="secondary" icon="download" target="_blank" rel="noopener">Export PDF</x-button>
                 @endif
+                @if (auth()->user()->can('sales.delivery_notes.create'))
+                    <x-button href="{{ route('sales.delivery_notes.create', ['invoice' => $invoice->id]) }}" variant="secondary" icon="truck">Create Delivery Note</x-button>
+                @endif
+                @if (auth()->user()->can('suppliers.purchase_invoices.create'))
+                    <x-button href="{{ route('suppliers.purchase_invoices.create') }}" variant="secondary" icon="invoice">Invoice Against Purchase Order</x-button>
+                @endif
                 <x-button :href="route('sales.invoices.edit', $invoice)" variant="secondary" icon="edit">Edit</x-button>
                 <x-button href="{{ route('sales.invoices.index') }}" variant="secondary" icon="arrow-left">Back</x-button>
             </x-slot>
@@ -22,7 +28,7 @@
             <div class="flex justify-between border-b border-line pb-4 mb-6">
                 <div>
                     @if (settings('branding.logo'))
-                        <img src="{{ Storage::url(settings('branding.logo')) }}" alt="{{ company_name() }}" class="h-10">
+                        <img src="{{ Storage::url(settings('branding.logo')) }}" alt="{{ company_name() }}" class="h-20">
                     @else
                         <span class="text-xl font-bold text-ink">{{ company_name() }}</span>
                     @endif
@@ -114,6 +120,7 @@
                             <tr>
                                 <th>Date</th>
                                 <th>Method</th>
+                                <th>Bank account</th>
                                 <th>Reference</th>
                                 <th class="text-right">Amount</th>
                             </tr>
@@ -123,6 +130,7 @@
                                 <tr>
                                     <td class="text-sm text-ink">{{ $payment->payment_date?->format('Y-m-d') }}</td>
                                     <td class="text-sm text-ink-soft">{{ ucfirst(str_replace('_', ' ', $payment->method)) }}</td>
+                                    <td class="text-sm text-ink-soft">{{ $payment->bankAccount?->name ?: '—' }}</td>
                                     <td class="text-sm text-ink-soft">{{ $payment->reference ?: '—' }}</td>
                                     <td class="text-right text-sm text-ink">{{ money($payment->amount, $invoice->currency) }}</td>
                                 </tr>

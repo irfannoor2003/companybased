@@ -51,10 +51,17 @@
                                 @csrf
                                 <input type="hidden" name="latitude" :value="latitude" />
                                 <input type="hidden" name="longitude" :value="longitude" />
+                                <div class="w-36">
+                                    <x-input name="distance_km" label="Distance (km)" type="number" step="0.01" min="0" required placeholder="e.g. 12.50" size="sm" :error="$errors->first('distance_km')" />
+                                </div>
                                 <div class="w-56">
-                                    <x-select name="outcome" label="Outcome" required size="sm">
+                                    <x-input name="note" label="Note" size="sm" placeholder="e.g. Met with procurement manager" :error="$errors->first('note')" />
+                                </div>
+                                <div class="w-40">
+                                    <x-select name="outcome" label="Outcome" size="sm" :error="$errors->first('outcome')">
+                                        <option value="">—</option>
                                         @foreach (\App\Models\Visit::outcomeOptions() as $outcome)
-                                            <option value="{{ $outcome }}">{{ ucfirst(str_replace('_', ' ', $outcome)) }}</option>
+                                            <option value="{{ $outcome }}" @selected(old('outcome') === $outcome)>{{ ucfirst(str_replace('_', ' ', $outcome)) }}</option>
                                         @endforeach
                                     </x-select>
                                 </div>
@@ -69,14 +76,19 @@
             @endif
 
             @if (auth()->user()->can('visits.visits.edit') && in_array($visit->status, ['pending', 'started'], true))
-                <x-card title="Cancel visit" description="This hides the visit from the active list.">
+                <x-card title="Cancel visit" description="This hides the visit from the active list." x-data="visitLocation()">
                     <form method="POST" action="{{ route('visits.cancel', $visit) }}" onsubmit="return confirm('Cancel this visit?')" class="flex flex-wrap items-end gap-3">
                         @csrf
+                        <input type="hidden" name="latitude" :value="latitude" />
+                        <input type="hidden" name="longitude" :value="longitude" />
                         <div class="min-w-[240px] flex-1">
-                            <x-input name="cancel_reason" label="Reason (optional)" size="sm" placeholder="e.g. customer unavailable" />
+                            <x-input name="cancel_reason" label="Reason" required size="sm" placeholder="Why is this visit being cancelled?" :error="$errors->first('cancel_reason')" />
                         </div>
-                        <x-button type="submit" variant="danger-secondary" size="sm" icon="x">Cancel visit</x-button>
+                        <x-button type="submit" variant="danger-secondary" size="sm" icon="x" @click="getLocation($event)">Cancel visit</x-button>
                     </form>
+                    <template x-if="error">
+                        <p class="mt-2 text-sm text-red-600" x-text="error"></p>
+                    </template>
                 </x-card>
             @endif
 
@@ -212,11 +224,10 @@
                             (position) => {
                                 this.latitude = position.coords.latitude;
                                 this.longitude = position.coords.longitude;
-                                // Submit the form after getting location
-                                event.target.closest('form').submit();
+                                event.target.closest('form').requestSubmit();
                             },
                             (error) => {
-                                this.error = 'Location access is required to start/complete visits. Please enable location permissions.';
+                                this.error = 'Location access is required to start, complete or cancel visits. Please enable location permissions.';
                             }
                         );
                     }

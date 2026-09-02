@@ -51,6 +51,11 @@
                             Open report builder
                             <x-icon name="arrow-right" class="size-4" />
                         </a>
+                    @elseif (! empty($group['route']))
+                        <a href="{{ route($group['route']) }}" class="link inline-flex items-center gap-1 text-sm">
+                            View reports
+                            <x-icon name="arrow-right" class="size-4" />
+                        </a>
                     @else
                         <button type="button" class="link inline-flex items-center gap-1 text-sm disabled:cursor-not-allowed disabled:opacity-50"
                             title="Coming in the Reports milestone" disabled>

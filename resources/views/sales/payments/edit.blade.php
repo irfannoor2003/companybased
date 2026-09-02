@@ -24,7 +24,7 @@
 
                  <div class="rounded-lg border border-line bg-surface-muted/50 px-4 py-3">
                      <p class="text-xs font-semibold uppercase text-ink-faint">Against invoice</p>
-                     <p class="mt-0.5 text-sm font-medium text-ink">{{ $payment->invoice?->number ?? 'null' }}</p>
+                     <p class="mt-0.5 text-sm font-medium text-ink">{{ $payment->invoice?->number ?: '—' }}</p>
                  </div>
 
                  <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
@@ -47,6 +47,7 @@
                          @endforeach
                      </x-select>
                      <x-input name="reference" label="Reference" value="{{ old('reference', $payment->reference) }}" placeholder="e.g. bank ref, cheque no." />
+                     @include('partials.payment-bank-account', ['pbSelected' => old('bank_account_id', $payment->bank_account_id)])
                      <x-select name="currency" label="Currency">
                          <option value="">— Default —</option>
                          @foreach (currency_options() as $code => $label)

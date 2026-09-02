@@ -96,6 +96,9 @@
                                 <td class="text-right">
                                     @if (auth()->user()->can('catalog.price_lists.edit'))
                                         <div class="flex items-center justify-end gap-1">
+                                            <a href="{{ route('catalog.price_lists.show', $priceList) }}" class="btn-ghost btn-icon btn-sm" title="View">
+                                                <x-icon name="eye" class="size-4" />
+                                            </a>
                                             <a href="{{ route('catalog.price_lists.edit', $priceList) }}" class="btn-ghost btn-icon btn-sm" title="Edit">
                                                 <x-icon name="edit" class="size-4" />
                                             </a>

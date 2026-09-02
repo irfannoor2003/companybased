@@ -27,6 +27,7 @@ use App\Http\Controllers\Employees\AttendanceRulesController;
 use App\Http\Controllers\Employees\DepartmentController;
 use App\Http\Controllers\Employees\EmployeeController;
 use App\Http\Controllers\Employees\EmployeeDocumentController;
+use App\Http\Controllers\Employees\LeaveController;
 use App\Http\Controllers\Employees\MyAttendanceController;
 use App\Http\Controllers\Employees\PayrollRunController;
 use App\Http\Controllers\Employees\SalaryStructureController;
@@ -61,6 +62,8 @@ use App\Http\Controllers\Purchasing\PurchaseQuoteController;
 use App\Http\Controllers\Purchasing\SupplierController;
 use App\Http\Controllers\Purchasing\SupplierLedgerController;
 use App\Http\Controllers\Purchasing\SupplierPaymentController;
+use App\Http\Controllers\FinancialReportController;
+use App\Http\Controllers\InventoryReportController;
 use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\Sales\CreditNoteController;
 use App\Http\Controllers\Sales\CustomerController;
@@ -114,6 +117,14 @@ Route::middleware('auth')->group(function () {
         Route::get('/create', [CustomReportController::class, 'create'])->name('create');
         Route::post('/', [CustomReportController::class, 'store'])->name('store');
     });
+
+    Route::get('/reports/financial', [FinancialReportController::class, 'index'])
+        ->middleware('permission:reports.reports.view')
+        ->name('reports.financial');
+
+    Route::get('/reports/inventory', [InventoryReportController::class, 'index'])
+        ->middleware('permission:reports.reports.view')
+        ->name('reports.inventory');
 
     Route::prefix('catalog')->name('catalog.')->middleware('module:catalog')->group(function () {
         Route::get('/products', [ProductController::class, 'index'])
@@ -175,6 +186,8 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:catalog.price_lists.edit')->name('price_lists.update');
         Route::delete('/price-lists/{priceList}', [PriceListController::class, 'destroy'])
             ->middleware('permission:catalog.price_lists.delete')->name('price_lists.destroy');
+        Route::get('/price-lists/{priceList}', [PriceListController::class, 'show'])
+            ->middleware('permission:catalog.price_lists.view')->name('price_lists.show');
     });
 
     Route::prefix('sales')->name('sales.')->middleware('module:sales')->group(function () {
@@ -267,6 +280,8 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:sales.invoices.create')->name('invoices.store');
         Route::put('/invoices/{invoice}', [InvoiceController::class, 'update'])
             ->middleware('permission:sales.invoices.edit')->name('invoices.update');
+        Route::put('/invoices/{invoice}/template', [InvoiceController::class, 'updateTemplate'])
+            ->middleware('permission:sales.invoices.edit')->name('invoices.template');
         Route::delete('/invoices/{invoice}', [InvoiceController::class, 'destroy'])
             ->middleware('permission:sales.invoices.delete')->name('invoices.destroy');
         Route::post('/invoices/{invoice}/payments', [InvoiceController::class, 'recordPayment'])
@@ -282,6 +297,8 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:sales.sales_payments.view')->name('sales_payments.pdf');
         Route::get('/payment-in/export', [PaymentController::class, 'export'])
             ->middleware('permission:sales.sales_payments.export')->name('sales_payments.export');
+        Route::get('/payment-in/{payment}', [PaymentController::class, 'show'])
+            ->middleware('permission:sales.sales_payments.view')->name('sales_payments.show');
         Route::post('/payment-in', [PaymentController::class, 'store'])
             ->middleware('permission:sales.sales_payments.create')->name('sales_payments.store');
         Route::put('/payment-in/{payment}', [PaymentController::class, 'update'])
@@ -443,6 +460,8 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:inventory.write_offs.view')->name('write_offs.index');
         Route::get('/write-offs/create', [WriteOffController::class, 'create'])
             ->middleware('permission:inventory.write_offs.create')->name('write_offs.create');
+        Route::get('/write-off/{writeOff}', [WriteOffController::class, 'show'])
+            ->middleware('permission:inventory.write_offs.view')->name('write_offs.show');
         Route::get('/write-offs/{writeOff}/edit', [WriteOffController::class, 'edit'])
             ->middleware('permission:inventory.write_offs.edit')->name('write_offs.edit');
         Route::get('/write-offs/export', [WriteOffController::class, 'export'])
@@ -475,6 +494,8 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:inventory.production_orders.view')->name('production_orders.index');
         Route::get('/production-orders/create', [ProductionOrderController::class, 'create'])
             ->middleware('permission:inventory.production_orders.create')->name('production_orders.create');
+        Route::get('/production-order/{order}', [ProductionOrderController::class, 'show'])
+            ->middleware('permission:inventory.production_orders.view')->name('production_orders.show');
         Route::get('/production-orders/{order}/edit', [ProductionOrderController::class, 'edit'])
             ->middleware('permission:inventory.production_orders.edit')->name('production_orders.edit');
         Route::get('/production-orders/export', [ProductionOrderController::class, 'export'])
@@ -591,6 +612,8 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:suppliers.purchase_invoices.create')->name('purchase_invoices.store');
         Route::put('/purchase-invoices/{invoice}', [PurchaseInvoiceController::class, 'update'])
             ->middleware('permission:suppliers.purchase_invoices.edit')->name('purchase_invoices.update');
+        Route::put('/purchase-invoices/{invoice}/template', [PurchaseInvoiceController::class, 'updateTemplate'])
+            ->middleware('permission:suppliers.purchase_invoices.edit')->name('purchase_invoices.template');
         Route::delete('/purchase-invoices/{invoice}', [PurchaseInvoiceController::class, 'destroy'])
             ->middleware('permission:suppliers.purchase_invoices.delete')->name('purchase_invoices.destroy');
         Route::post('/purchase-invoices/{invoice}/payments', [PurchaseInvoiceController::class, 'recordPayment'])
@@ -625,6 +648,8 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:suppliers.supplier_payments.view')->name('supplier_payments.pdf');
         Route::get('/supplier-payments/export', [SupplierPaymentController::class, 'export'])
             ->middleware('permission:suppliers.supplier_payments.export')->name('supplier_payments.export');
+        Route::get('/supplier-payments/{payment}', [SupplierPaymentController::class, 'show'])
+            ->middleware('permission:suppliers.supplier_payments.view')->name('supplier_payments.show');
         Route::post('/supplier-payments', [SupplierPaymentController::class, 'store'])
             ->middleware('permission:suppliers.supplier_payments.create')->name('supplier_payments.store');
         Route::put('/supplier-payments/{payment}', [SupplierPaymentController::class, 'update'])
@@ -912,6 +937,27 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:employees.attendance.view')->name('attendance.qr-code');
         Route::get('/attendance/qr-code/download', [AttendanceController::class, 'downloadQrCode'])
             ->middleware('permission:employees.attendance.view')->name('attendance.qr-code.download');
+
+        // Leave requests
+        Route::get('/leave-requests', [LeaveController::class, 'index'])
+            ->middleware('permission:employees.leave_requests.view')->name('leave.index');
+        Route::get('/leave-requests/export', [LeaveController::class, 'export'])
+            ->middleware('permission:employees.leave_requests.export')->name('leave.export');
+        Route::get('/leave-requests/{leave}', [LeaveController::class, 'show'])
+            ->middleware('permission:employees.leave_requests.view')->name('leave.show');
+        Route::post('/leave-requests/{leave}/approve', [LeaveController::class, 'approve'])
+            ->middleware('permission:employees.leave_requests.approve')->name('leave.approve');
+        Route::post('/leave-requests/{leave}/reject', [LeaveController::class, 'reject'])
+            ->middleware('permission:employees.leave_requests.approve')->name('leave.reject');
+        // My leave (self-service)
+        Route::get('/my-leave', [LeaveController::class, 'my'])
+            ->middleware('permission:employees.my_leave.view')->name('leave.my');
+        Route::get('/my-leave/create', [LeaveController::class, 'myCreate'])
+            ->middleware('permission:employees.my_leave.create')->name('leave.my.create');
+        Route::post('/my-leave', [LeaveController::class, 'myStore'])
+            ->middleware('permission:employees.my_leave.create')->name('leave.my.store');
+        Route::post('/my-leave/{leave}/cancel', [LeaveController::class, 'myCancel'])
+            ->middleware('permission:employees.my_leave.cancel')->name('leave.my.cancel');
 
         Route::get('/salary-structures', [SalaryStructureController::class, 'index'])
             ->middleware('permission:employees.salary_structures.view')->name('salary_structures.index');

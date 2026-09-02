@@ -53,6 +53,9 @@
             <div class="meta-row"><dt>Due date</dt><dd>{{ $invoice->due_date?->format('Y-m-d') ?: '—' }}</dd></div>
             <div class="meta-row"><dt>Status</dt><dd>{{ ucfirst(str_replace('_', ' ', $invoice->status)) }}</dd></div>
             <div class="meta-row"><dt>Currency</dt><dd>{{ $invoice->currency ?: '—' }}</dd></div>
+            @if ($invoice->productionOrder)
+                <div class="meta-row"><dt>Production order</dt><dd>{{ $invoice->productionOrder->number }}</dd></div>
+            @endif
             <div class="meta-row"><dt>Supplier</dt><dd>{{ $invoice->supplier?->company_name ?: '—' }}</dd></div>
             @if ($invoice->supplier?->short_code)
                 <div class="meta-row"><dt>Supplier code</dt><dd>{{ $invoice->supplier->short_code }}</dd></div>

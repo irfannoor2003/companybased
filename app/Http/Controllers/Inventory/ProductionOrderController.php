@@ -44,6 +44,13 @@ class ProductionOrderController extends Controller
         return view('inventory.production_orders.create', compact('items', 'warehouses', 'billOfMaterials'));
     }
 
+    public function show(InventoryProductionOrder $order): View
+    {
+        $order->load(['item.product', 'warehouse', 'billOfMaterial', 'items.componentItem.product']);
+
+        return view('inventory.production_orders.show', compact('order'));
+    }
+
     public function store(Request $request): RedirectResponse
     {
         $data = $this->validateData($request);

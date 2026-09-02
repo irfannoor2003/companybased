@@ -14,4 +14,18 @@ abstract class Controller
     {
         abort_if(auth()->user()?->can($permission) !== true, 403);
     }
+
+    /**
+     * Raise the memory ceiling before rendering a PDF. Shared hosting often caps
+     * PHP memory below what dompdf needs to lay out + render a large document,
+     * which surfaces as a 500. Bumping the limit here is safe: under normal
+     * conditions it never approaches the ceiling.
+     */
+    protected function preparePdf(): void
+    {
+        $limit = '256M';
+        if ((int) ini_get('memory_limit') > 0 && (int) ini_get('memory_limit') < 256) {
+            @ini_set('memory_limit', $limit);
+        }
+    }
 }

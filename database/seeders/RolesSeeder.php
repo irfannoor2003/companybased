@@ -54,7 +54,7 @@ class RolesSeeder extends Seeder
         [
             'name' => 'Employee',
             'label' => 'Employee',
-            'description' => 'Self-service attendance only. Default role for general staff who just need to clock in.',
+            'description' => 'Self-service attendance and leave. Default role for general staff who need to clock in and request leave.',
             'is_system' => true,
             'permissions' => 'employee',
         ],
@@ -104,6 +104,7 @@ class RolesSeeder extends Seeder
             'settings.backup.view', 'settings.backup.manage',
             'settings.audit.view', 'settings.audit.export',
             'settings.mail.view', 'settings.mail.manage',
+            'settings.subscription.view', 'settings.subscription.manage',
         ];
         $admin = array_values(array_diff($all, $superAdminSettings));
 
@@ -112,6 +113,7 @@ class RolesSeeder extends Seeder
         $hr = array_values(array_unique(array_merge(
             $readOnly,
             ['settings.users.create'],
+            ['employees.leave_requests.approve'],
         )));
 
         // ── 4. Salesman ────────────────────────────────────────────────
@@ -139,21 +141,30 @@ class RolesSeeder extends Seeder
             'sales.orders.edit',
             // Sales — invoices (view only)
             'sales.invoices.view',
+            // Sales — payments received (view, e.g. payment account + status)
+            'sales.sales_payments.view',
             // Sales — tracking & statements
             'sales.tracking.view',
             'sales.statements.view',
+            // Sales — reports
+            'sales.reports.view',
             // Inventory (view only)
             'inventory.items.view',
             // Visits
             'visits.visits.view',
             'visits.visits.create',
             'visits.visits.edit',
+            'visits.visits.export',
             'visits.pit_stops.view',
             'visits.pit_stops.create',
             'visits.pit_stops.edit',
             // Attendance
             'employees.my_attendance.view',
             'employees.my_attendance.mark',
+            // Leave (my own requests)
+            'employees.my_leave.view',
+            'employees.my_leave.create',
+            'employees.my_leave.cancel',
         ];
 
         // ── 5. Inventory Manager ───────────────────────────────────────
@@ -163,9 +174,12 @@ class RolesSeeder extends Seeder
             // Sales — orders (view + status)
             'sales.orders.view',
             'sales.orders.update_status',
-            // Sales — invoices (create from confirmed orders)
+            // Sales — invoices (create from confirmed orders, edit incl. PDF template)
             'sales.invoices.view',
             'sales.invoices.create',
+            'sales.invoices.edit',
+            // Sales — payments received (view, e.g. payment account + status)
+            'sales.sales_payments.view',
             // Sales — delivery notes
             'sales.delivery_notes.view',
             'sales.delivery_notes.create',
@@ -174,6 +188,8 @@ class RolesSeeder extends Seeder
             // Sales — tracking
             'sales.tracking.view',
             'sales.tracking.update_status',
+            // Sales — reports
+            'sales.reports.view',
             // Catalog (full CRUD)
             'catalog.products.view',
             'catalog.products.create',
@@ -216,6 +232,9 @@ class RolesSeeder extends Seeder
             'dashboard.overview.view',
             'employees.my_attendance.view',
             'employees.my_attendance.mark',
+            'employees.my_leave.view',
+            'employees.my_leave.create',
+            'employees.my_leave.cancel',
         ];
 
         // ── Cleanup: remove old roles no longer in the new set ─────────

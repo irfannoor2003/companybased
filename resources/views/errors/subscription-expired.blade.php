@@ -144,7 +144,16 @@
             <p class="cb-text">Please contact your administrator to activate a package to continue using the application.</p>
         @endif
 
-        <a href="{{ route('login') }}" class="cb-btn">Back to login</a>
+        <div style="display:flex;flex-direction:column;gap:0.75rem;margin-top:1.5rem;">
+            <form method="POST" action="{{ route('logout') }}">
+                @csrf
+                <button type="submit" class="cb-btn" style="outline:none;border:none;cursor:pointer">{{ company_name() }} — Logout</button>
+            </form>
+
+            <a href="https://wa.me/923214245840?text={{ urlencode('Package expired for ' . company_name() . ', we need to renew it.') }}" target="_blank" rel="noopener" class="cb-btn" style="background:#25D366;background-color:#25D366;">
+                Contact us on WhatsApp
+            </a>
+        </div>
     </div>
 </body>
 </html>

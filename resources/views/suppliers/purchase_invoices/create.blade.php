@@ -24,11 +24,24 @@
                     </x-select>
                     @if ($fromOrder)
                         <input type="hidden" name="order_id" value="{{ $fromOrder->id }}">
-                        <div class="flex items-end">
-                            <a href="{{ route('suppliers.purchase_orders.edit', $fromOrder) }}" class="inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm text-ink-soft hover:border-primary/40">
-                                <x-icon name="orders" class="size-4" />
-                                Billing {{ $fromOrder->number }}
-                            </a>
+                    @endif
+                    @if ($fromProduction)
+                        <input type="hidden" name="production_order_id" value="{{ $fromProduction->id }}">
+                    @endif
+                    @if ($fromOrder || $fromProduction)
+                        <div class="flex items-end gap-2">
+                            @if ($fromOrder)
+                                <a href="{{ route('suppliers.purchase_orders.edit', $fromOrder) }}" class="inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm text-ink-soft hover:border-primary/40">
+                                    <x-icon name="orders" class="size-4" />
+                                    Billing {{ $fromOrder->number }}
+                                </a>
+                            @endif
+                            @if ($fromProduction)
+                                <a href="{{ route('inventory.production_orders.show', $fromProduction) }}" class="inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm text-primary hover:border-primary/40">
+                                    <x-icon name="zap" class="size-4" />
+                                    Production {{ $fromProduction->number }}
+                                </a>
+                            @endif
                         </div>
                     @else
                         <x-select name="order_id" label="Related order">
@@ -54,14 +67,21 @@
                 </div>
 
                 @php
-                    $initialItems = $fromOrder ? $fromOrder->items->map(fn ($item) => [
+                    $initialItems = $fromProduction ? $fromProduction->items->map(fn ($line) => [
+                        'product_id' => (string) ($line->componentItem?->product_id ?? ''),
+                        'description' => $line->componentItem?->product?->name ?? ($line->componentItem?->product?->sku ?? ''),
+                        'qty' => (float) ($line->quantity_required ?? 0),
+                        'unit_price' => (float) ($line->componentItem?->product?->cost_price ?? 0),
+                        'discount_percent' => 0,
+                        'tax_percent' => 0,
+                    ])->all() : ($fromOrder ? $fromOrder->items->map(fn ($item) => [
                         'product_id' => (string) ($item->product_id ?? ''),
                         'description' => $item->description,
                         'qty' => (float) $item->qty,
                         'unit_price' => (float) $item->unit_price,
                         'discount_percent' => (float) $item->discount_percent,
                         'tax_percent' => (float) $item->tax_percent,
-                    ])->all() : [];
+                    ])->all() : []);
                 @endphp
 
                 <x-suppliers.line-items-editor :products="$products" :initial-items="$initialItems" :currency="old('currency', $fromOrder?->currency ?? settings('company.currency', 'USD'))" />

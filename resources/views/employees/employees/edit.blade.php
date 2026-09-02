@@ -18,6 +18,7 @@
                         <x-input name="last_name" label="Last name" required value="{{ old('last_name', $employee->last_name) }}" :error="$errors->first('last_name')" />
                         <x-input name="employee_code" label="Employee code" required placeholder="e.g. EMP-001" value="{{ old('employee_code', $employee->employee_code) }}" :error="$errors->first('employee_code')" />
                         <x-input name="email" label="Email" type="email" placeholder="employee@example.com" value="{{ old('email', $employee->email) }}" :error="$errors->first('email')" />
+                        <p class="-mt-2 text-xs text-ink-faint sm:col-span-2">Changing the email to an existing login links it automatically; a new email creates a login account (Employee role).</p>
                         <x-input name="phone" label="Phone" placeholder="+1 555 000 0000" value="{{ old('phone', $employee->phone) }}" :error="$errors->first('phone')" />
                     </div>
                 </div>
@@ -39,11 +40,12 @@
                         </x-select>
                         <x-input name="date_hired" label="Date hired" type="date" required value="{{ old('date_hired', $employee->date_hired?->format('Y-m-d')) }}" :error="$errors->first('date_hired')" />
                         <x-select name="user_id" label="Linked user" :error="$errors->first('user_id')">
-                            <option value="">Not linked</option>
+                            <option value="">Auto — by email</option>
                             @foreach ($users as $user)
                                 <option value="{{ $user->id }}" @selected(old('user_id', $employee->user_id) == $user->id)>{{ $user->name }} ({{ $user->email }})</option>
                             @endforeach
                         </x-select>
+                        <x-input name="password" label="Login password (optional)" type="password" hint="Only when a new login account is created; leave blank for a random one." :error="$errors->first('password')" />
                         <x-input name="date_of_birth" label="Date of birth" type="date" value="{{ old('date_of_birth', $employee->date_of_birth?->format('Y-m-d')) }}" :error="$errors->first('date_of_birth')" />
                     </div>
                 </div>

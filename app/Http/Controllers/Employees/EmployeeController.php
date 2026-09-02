@@ -5,11 +5,14 @@ namespace App\Http\Controllers\Employees;
 use App\Http\Controllers\Controller;
 use App\Models\Department;
 use App\Models\Employee;
+use App\Models\Role;
 use App\Models\User;
 use App\Support\ExportsCsv;
 use App\Support\ExportsJson;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -51,8 +54,10 @@ class EmployeeController extends Controller
     {
         $data = $this->validateData($request);
 
+        $user = $this->resolveLinkedUser($data, $request->string('password')->toString());
+
         $employee = Employee::create([
-            'user_id' => $data['user_id'] ?? null,
+            'user_id' => $user?->id,
             'employee_code' => $data['employee_code'],
             'first_name' => $data['first_name'],
             'last_name' => $data['last_name'],
@@ -96,8 +101,10 @@ class EmployeeController extends Controller
     {
         $data = $this->validateData($request, $employee);
 
+        $user = $this->resolveLinkedUser($data, $request->string('password')->toString());
+
         $employee->update([
-            'user_id' => $data['user_id'] ?? null,
+            'user_id' => $user?->id,
             'employee_code' => $data['employee_code'],
             'first_name' => $data['first_name'],
             'last_name' => $data['last_name'],
@@ -166,6 +173,49 @@ class EmployeeController extends Controller
             'employment_status' => ['required', Rule::in(Employee::employmentStatusOptions())],
             'address' => ['nullable', 'string', 'max:5000'],
             'attendance_enabled' => ['nullable', 'boolean'],
+            'password' => ['nullable', 'string', 'min:8'],
         ]);
+    }
+
+    /**
+     * Resolve the user account linked to an employee. When no user is picked
+     * explicitly, the employee email is used:
+     *  - an existing account with that email gets linked, or
+     *  - a new account is created (Employee role) so attendance/leave/self-service
+     *    works straight after creating the employee.
+     */
+    private function resolveLinkedUser(array $data, string $password = ''): ?User
+    {
+        if (! empty($data['user_id'])) {
+            return User::find($data['user_id']);
+        }
+
+        if (empty($data['email'])) {
+            return null;
+        }
+
+        $user = User::where('email', $data['email'])->first();
+
+        if ($user) {
+            return $user;
+        }
+
+        $role = Role::where('name', 'Employee')->first();
+
+        $user = User::create([
+            'name' => trim(($data['first_name'] ?? '').' '.($data['last_name'] ?? '')),
+            'first_name' => $data['first_name'] ?? null,
+            'last_name' => $data['last_name'] ?? null,
+            'email' => $data['email'],
+            'password' => Hash::make($password ?: Str::random(16)),
+            'is_active' => true,
+            'email_verified_at' => now(),
+        ]);
+
+        if ($role) {
+            $user->syncRoles([$role]);
+        }
+
+        return $user;
     }
 }

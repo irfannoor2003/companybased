@@ -36,14 +36,16 @@
                         @endforeach
                     </x-select>
                 </div>
-                <div class="w-48">
-                    <x-select name="sales_rep_id" label="Sales rep" size="sm">
-                        <option value="">All reps</option>
-                        @foreach ($salesReps as $rep)
-                            <option value="{{ $rep->id }}" @selected(request('sales_rep_id') == $rep->id)>{{ $rep->fullName() }}</option>
-                        @endforeach
-                    </x-select>
-                </div>
+                @if (! $isSalesman)
+                    <div class="w-48">
+                        <x-select name="sales_rep_id" label="Sales rep" size="sm">
+                            <option value="">All reps</option>
+                            @foreach ($salesReps as $rep)
+                                <option value="{{ $rep->id }}" @selected(request('sales_rep_id') == $rep->id)>{{ $rep->fullName() }}</option>
+                            @endforeach
+                        </x-select>
+                    </div>
+                @endif
                 <div class="w-40">
                     <x-input name="from" label="From" type="date" value="{{ request('from') }}" size="sm" />
                 </div>
@@ -67,7 +69,9 @@
                             <tr>
                                 <th>Visit</th>
                                 <th>Customer</th>
-                                <th>Sales rep</th>
+                                @if (! $isSalesman)
+                                    <th>Sales rep</th>
+                                @endif
                                 <th>Scheduled</th>
                                 <th class="text-right">Pit stops</th>
                                 <th>Status</th>
@@ -86,7 +90,9 @@
                                         @endif
                                     </td>
                                     <td class="text-ink-soft">{{ $visit->customer?->company_name ?: '—' }}</td>
-                                    <td class="text-ink-soft">{{ $visit->salesRep?->fullName() ?: '—' }}</td>
+                                    @if (! $isSalesman)
+                                        <td class="text-ink-soft">{{ $visit->salesRep?->fullName() ?: '—' }}</td>
+                                    @endif
                                     <td class="text-ink-soft">{{ $visit->scheduled_at?->format('Y-m-d') ?: '—' }}</td>
                                     <td class="text-right text-ink-soft">{{ $visit->pit_stops_count }}</td>
                                     <td><x-visits.status-badge :status="$visit->status" /></td>

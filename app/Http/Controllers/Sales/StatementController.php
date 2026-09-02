@@ -107,7 +107,7 @@ class StatementController extends Controller
                 'reference' => $payment->invoice?->number ?? '—',
                 'debit' => null,
                 'credit' => $payment->amount,
-                'url' => route('sales.invoices.edit', $payment->invoice),
+                'url' => $payment->invoice ? route('sales.invoices.edit', $payment->invoice) : null,
             ]);
         }
 

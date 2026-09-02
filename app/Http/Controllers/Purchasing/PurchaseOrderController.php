@@ -91,7 +91,7 @@ class PurchaseOrderController extends Controller
         return view('documents.show', DocumentData::build($order));
     }
 
-    public function pdf(PurchaseOrder $order): StreamedResponse
+    public function pdf(PurchaseOrder $order): \Illuminate\Http\Response
     {
         $order->load(['supplier', 'items.product']);
 

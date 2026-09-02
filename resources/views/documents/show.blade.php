@@ -12,6 +12,12 @@
                     @if ($doc instanceof \App\Models\SalesOrder && auth()->user()->can('sales.invoices.create'))
                         <x-button href="{{ route('sales.invoices.create', ['order' => $doc->id]) }}" variant="secondary" icon="invoice">Create Invoice</x-button>
                     @endif
+                    @if (($doc instanceof \App\Models\SalesOrder || $doc instanceof \App\Models\SalesQuote) && auth()->user()->can('sales.delivery_notes.create'))
+                        <x-button href="{{ route('sales.delivery_notes.create', $doc instanceof \App\Models\SalesOrder ? ['order' => $doc->id] : ['quote' => $doc->id]) }}" variant="secondary" icon="truck">Create Delivery Note</x-button>
+                    @endif
+                    @if ($doc instanceof \App\Models\PurchaseOrder && auth()->user()->can('suppliers.purchase_invoices.create'))
+                        <x-button href="{{ route('suppliers.purchase_invoices.create', ['order' => $doc->id]) }}" variant="secondary" icon="invoice">Invoice Against Purchase Order</x-button>
+                    @endif
                     @can($viewPermission)
                         <x-button :href="$editRoute" variant="secondary" icon="edit">Edit</x-button>
                     @endcan
@@ -32,7 +38,7 @@
             <div class="flex justify-between border-b border-line pb-4 mb-6">
                 <div>
                     @if (settings('branding.logo'))
-                        <img src="{{ Storage::url(settings('branding.logo')) }}" alt="{{ company_name() }}" class="h-10">
+                        <img src="{{ Storage::url(settings('branding.logo')) }}" alt="{{ company_name() }}" class="h-20">
                     @else
                         <span class="text-xl font-bold text-ink">{{ company_name() }}</span>
                     @endif

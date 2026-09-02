@@ -120,10 +120,12 @@ return [
             'module' => 'employees',
             'items' => [
                 ['label' => 'My Attendance', 'route' => 'employees.my_attendance.index', 'icon' => 'clock', 'permission' => 'employees.my_attendance.view'],
+                ['label' => 'My Leave', 'route' => 'employees.leave.my', 'icon' => 'calendar', 'permission' => 'employees.my_leave.view'],
                 ['label' => 'Employees', 'route' => 'employees.employees.index', 'icon' => 'employees', 'permission' => 'employees.employees.view'],
                 ['label' => 'Departments', 'route' => 'employees.departments.index', 'icon' => 'building', 'permission' => 'employees.departments.view'],
                 ['label' => 'Attendance', 'route' => 'employees.attendance.index', 'icon' => 'clock', 'permission' => 'employees.attendance.view'],
                 ['label' => 'Attendance Reports', 'route' => 'employees.attendance.report', 'icon' => 'reports', 'permission' => 'employees.attendance.view'],
+                ['label' => 'Leave Requests', 'route' => 'employees.leave.index', 'icon' => 'calendar', 'permission' => 'employees.leave_requests.view'],
                 ['label' => 'Salary Structures', 'route' => 'employees.salary_structures.index', 'icon' => 'money', 'permission' => 'employees.salary_structures.view'],
                 ['label' => 'Payroll', 'route' => 'employees.payroll.index', 'icon' => 'document', 'permission' => 'employees.payroll_runs.view'],
             ],

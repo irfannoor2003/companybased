@@ -15,8 +15,8 @@ class PurchaseInvoice extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'number', 'order_id', 'supplier_id', 'issue_date', 'due_date',
-        'status', 'currency', 'exchange_rate', 'subtotal', 'discount_amount', 'tax_amount', 'total',
+        'number', 'order_id', 'production_order_id', 'supplier_id', 'issue_date', 'due_date',
+        'status', 'template', 'currency', 'exchange_rate', 'subtotal', 'discount_amount', 'tax_amount', 'total',
         'paid_amount', 'notes',
     ];
 
@@ -46,6 +46,11 @@ class PurchaseInvoice extends Model
         return $this->belongsTo(PurchaseOrder::class, 'order_id');
     }
 
+    public function productionOrder(): BelongsTo
+    {
+        return $this->belongsTo(InventoryProductionOrder::class, 'production_order_id');
+    }
+
     public function items(): HasMany
     {
         return $this->hasMany(PurchaseInvoiceItem::class, 'invoice_id');
@@ -69,6 +74,11 @@ class PurchaseInvoice extends Model
     public static function statusOptions(): array
     {
         return ['draft', 'sent', 'partially_paid', 'paid', 'overdue', 'cancelled'];
+    }
+
+    public static function templateOptions(): array
+    {
+        return ['classic' => 'Classic', 'modern' => 'Modern', 'minimal' => 'Minimal', 'corporate' => 'Corporate'];
     }
 
     public function balance(): float

@@ -31,16 +31,6 @@
                     <x-input name="scheduled_at" label="Scheduled date" type="date" required value="{{ old('scheduled_at', $visit->scheduled_at?->format('Y-m-d')) }}" :error="$errors->first('scheduled_at')" />
                 </div>
 
-                <div>
-                    <h3 class="text-sm font-semibold text-ink">Start location <span class="font-normal text-ink-faint">(optional)</span></h3>
-                    <div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        <x-input name="start_lat" label="Latitude" type="number" step="any" placeholder="e.g. 5.6037" value="{{ old('start_lat', $visit->start_lat) }}" :error="$errors->first('start_lat')" />
-                        <x-input name="start_lng" label="Longitude" type="number" step="any" placeholder="e.g. -0.1870" value="{{ old('start_lng', $visit->start_lng) }}" :error="$errors->first('start_lng')" />
-                    </div>
-                </div>
-
-                <x-textarea name="notes" label="Notes">{{ old('notes', $visit->notes) }}</x-textarea>
-
                 <div class="flex items-center gap-2 pt-1">
                     <x-button type="submit" icon="save">Save changes</x-button>
                     <x-button href="{{ route('visits.show', $visit) }}" variant="secondary">Cancel</x-button>

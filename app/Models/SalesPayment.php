@@ -15,7 +15,7 @@ class SalesPayment extends Model
     protected $table = 'sales_payments';
 
     protected $fillable = [
-        'number', 'invoice_id', 'customer_id', 'amount', 'payment_date', 'method',
+        'number', 'invoice_id', 'customer_id', 'bank_account_id', 'amount', 'payment_date', 'method',
         'reference', 'currency', 'exchange_rate', 'notes',
     ];
 
@@ -38,6 +38,11 @@ class SalesPayment extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(SalesCustomer::class, 'customer_id');
+    }
+
+    public function bankAccount(): BelongsTo
+    {
+        return $this->belongsTo(BankAccount::class, 'bank_account_id');
     }
 
     public static function methodOptions(): array

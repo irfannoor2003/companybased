@@ -29,6 +29,28 @@
                             <option value="{{ $supplier->id }}" data-currency="{{ $supplier->currency ?? '' }}" @selected(old('supplier_id', $invoice->supplier_id) == $supplier->id)>{{ $supplier->company_name }}</option>
                         @endforeach
                         </x-select>
+                        @if ($invoice->order)
+                            <input type="hidden" name="order_id" value="{{ $invoice->order->id }}">
+                        @endif
+                        @if ($invoice->productionOrder)
+                            <input type="hidden" name="production_order_id" value="{{ $invoice->productionOrder->id }}">
+                        @endif
+                        @if ($invoice->order || $invoice->productionOrder)
+                            <div class="flex items-end gap-2">
+                                @if ($invoice->order)
+                                    <a href="{{ route('suppliers.purchase_orders.edit', $invoice->order) }}" class="inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm text-ink-soft hover:border-primary/40">
+                                        <x-icon name="orders" class="size-4" />
+                                        Billing {{ $invoice->order->number }}
+                                    </a>
+                                @endif
+                                @if ($invoice->productionOrder)
+                                    <a href="{{ route('inventory.production_orders.show', $invoice->productionOrder) }}" class="inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm text-primary hover:border-primary/40">
+                                        <x-icon name="zap" class="size-4" />
+                                        Production {{ $invoice->productionOrder->number }}
+                                    </a>
+                                @endif
+                            </div>
+                        @endif
                         <x-select name="status" label="Status">
                             @foreach (\App\Models\PurchaseInvoice::statusOptions() as $status)
                                 <option value="{{ $status }}" @selected(old('status', $invoice->status) === $status)>{{ ucfirst(str_replace('_', ' ', $status)) }}</option>
@@ -93,6 +115,7 @@
                                 <option value="{{ $method }}" @selected(old('method', 'bank_transfer') === $method)>{{ ucwords(str_replace('_', ' ', $method)) }}</option>
                             @endforeach
                         </x-select>
+                        @include('partials.payment-bank-account', ['pbLabel' => 'Paid from account', 'pbSelected' => old('bank_account_id')])
                         <x-input name="reference" label="Reference" value="{{ old('reference') }}" placeholder="e.g. bank ref, cheque no." />
                         <x-button type="submit" icon="save" class="w-full">Record payment</x-button>
                     </form>
@@ -106,7 +129,7 @@
                             <div class="flex items-center justify-between gap-3 px-5 py-3">
                                 <div>
                                     <p class="text-sm font-medium text-ink">{{ money($payment->amount, $invoice->currency) }}</p>
-                                    <p class="text-xs text-ink-faint">{{ $payment->payment_date?->format('Y-m-d') }} · {{ ucwords(str_replace('_', ' ', $payment->method)) }}{{ $payment->reference ? ' · '.$payment->reference : '' }}</p>
+                                    <p class="text-xs text-ink-faint">{{ $payment->payment_date?->format('Y-m-d') }} · {{ ucwords(str_replace('_', ' ', $payment->method)) }}{{ $payment->bankAccount?->name ? ' · '.$payment->bankAccount->name : '' }}{{ $payment->reference ? ' · '.$payment->reference : '' }}</p>
                                 </div>
                             </div>
                         @endforeach

@@ -13,7 +13,7 @@ class SupplierPayment extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'number', 'invoice_id', 'supplier_id', 'amount', 'payment_date',
+        'number', 'invoice_id', 'supplier_id', 'bank_account_id', 'amount', 'payment_date',
         'method', 'reference', 'currency', 'exchange_rate', 'notes',
     ];
 
@@ -36,6 +36,11 @@ class SupplierPayment extends Model
     public function supplier(): BelongsTo
     {
         return $this->belongsTo(Supplier::class, 'supplier_id');
+    }
+
+    public function bankAccount(): BelongsTo
+    {
+        return $this->belongsTo(BankAccount::class, 'bank_account_id');
     }
 
     public static function methodOptions(): array

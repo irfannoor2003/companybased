@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Sales;
 
 use App\Http\Controllers\Controller;
+use App\Models\BankAccount;
 use App\Models\SalesInvoice;
 use App\Models\SalesPayment;
 use App\Models\SalesCustomer;
@@ -49,7 +50,16 @@ class PaymentController extends Controller
             $fromInvoice = SalesInvoice::query()->with(['customer'])->findOrFail($request->invoice);
         }
 
-        return view('sales.payments.create', compact('customers', 'invoices', 'fromInvoice'));
+        $bankAccounts = BankAccount::query()->active()->orderBy('name')->get();
+
+        return view('sales.payments.create', compact('customers', 'invoices', 'fromInvoice', 'bankAccounts'));
+    }
+
+    public function show(SalesPayment $payment): View
+    {
+        $payment->load(['customer', 'invoice', 'bankAccount']);
+
+        return view('sales.payments.show', compact('payment'));
     }
 
     public function store(Request $request): RedirectResponse
@@ -71,6 +81,7 @@ class PaymentController extends Controller
                 'number' => next_document_number('sales_payment', 'RC', SalesPayment::class),
                 'invoice_id' => $data['invoice_id'] ?? null,
                 'customer_id' => $data['customer_id'],
+                'bank_account_id' => $data['bank_account_id'] ?? null,
                 'amount' => $data['amount'],
                 'payment_date' => $data['payment_date'],
                 'method' => $data['method'],
@@ -102,8 +113,9 @@ class PaymentController extends Controller
             ->where('status', '!=', 'paid')
             ->orderBy('issue_date')
             ->get();
+        $bankAccounts = BankAccount::query()->active()->orderBy('name')->get();
 
-        return view('sales.payments.edit', compact('payment', 'customers', 'invoices'));
+        return view('sales.payments.edit', compact('payment', 'customers', 'invoices', 'bankAccounts'));
     }
 
     public function update(Request $request, SalesPayment $payment): RedirectResponse
@@ -126,6 +138,7 @@ class PaymentController extends Controller
         $payment->update([
             'invoice_id' => $data['invoice_id'] ?? null,
             'customer_id' => $data['customer_id'],
+            'bank_account_id' => $data['bank_account_id'] ?? null,
             'amount' => $data['amount'],
             'payment_date' => $data['payment_date'],
             'method' => $data['method'],
@@ -256,6 +269,7 @@ class PaymentController extends Controller
         return $request->validate([
             'invoice_id' => ['nullable', 'integer', Rule::exists('sales_invoices', 'id')],
             'customer_id' => ['required', 'integer', Rule::exists('sales_customers', 'id')],
+            'bank_account_id' => ['nullable', 'integer', Rule::exists('bank_accounts', 'id')],
             'amount' => ['required', 'numeric', 'gt:0'],
             'payment_date' => ['required', 'date'],
             'method' => ['required', Rule::in(SalesPayment::methodOptions())],

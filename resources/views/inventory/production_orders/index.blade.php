@@ -77,11 +77,21 @@
                                 </td>
                                 <td><x-inventory.status-badge :status="$order->status" /></td>
                                 <td class="text-right">
-                                    @if (auth()->user()->can('inventory.production_orders.edit'))
-                                        <div class="flex items-center justify-end gap-1">
+                                    <div class="flex items-center justify-end gap-1">
+                                        @if (auth()->user()->can('inventory.production_orders.view'))
+                                            <a href="{{ route('inventory.production_orders.show', $order) }}" class="btn-ghost btn-icon btn-sm" title="View">
+                                                <x-icon name="eye" class="size-4" />
+                                            </a>
+                                        @endif
+                                        @if (auth()->user()->can('inventory.production_orders.edit'))
                                             <a href="{{ route('inventory.production_orders.edit', $order) }}" class="btn-ghost btn-icon btn-sm" title="Edit">
                                                 <x-icon name="edit" class="size-4" />
                                             </a>
+                                            @if (auth()->user()->can('suppliers.purchase_invoices.create') && ! in_array($order->status, ['completed', 'cancelled']))
+                                                <a href="{{ route('suppliers.purchase_invoices.create', ['production_order' => $order->id]) }}" class="btn-ghost btn-icon btn-sm" title="Convert to purchase invoice">
+                                                    <x-icon name="invoice" class="size-4" />
+                                                </a>
+                                            @endif
                                             @if (auth()->user()->can('inventory.production_orders.delete'))
                                                 <form method="POST" action="{{ route('inventory.production_orders.destroy', $order) }}"
                                                     onsubmit="return confirm('Delete production order {{ $order->number }}?');">
@@ -92,8 +102,8 @@
                                                     </button>
                                                 </form>
                                             @endif
-                                        </div>
-                                    @endif
+                                        @endif
+                                    </div>
                                 </td>
                             </tr>
                         @endforeach

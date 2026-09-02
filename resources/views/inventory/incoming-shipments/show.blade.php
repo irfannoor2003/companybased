@@ -1,6 +1,6 @@
 <x-app-layout :pageTitle="'Shipment '.$shipment->number">
     <x-slot name="header">
-        <x-page-header title="Incoming shipment {{ $shipment->number }}" description="{{ $shipment->supplier?->name ?? $shipment->warehouse?->name ?? 'No supplier' }}" icon="truck">
+        <x-page-header title="Incoming shipment {{ $shipment->number }}" description="{{ $shipment->supplier?->company_name ?? $shipment->warehouse?->name ?? 'No supplier' }}" icon="truck">
             <x-slot name="actions">
                 <x-button href="{{ route('inventory.incoming_shipments.index') }}" variant="secondary" icon="arrow-left">Back</x-button>
                 @if (auth()->user()->can('inventory.incoming_shipments.edit') && ! $shipment->isLocked())
@@ -16,7 +16,7 @@
                 <dl class="grid grid-cols-2 gap-4 text-sm">
                     <div>
                         <dt class="text-ink-faint">Supplier</dt>
-                        <dd class="font-medium text-ink">{{ $shipment->supplier?->name ?? '—' }}</dd>
+                        <dd class="font-medium text-ink">{{ $shipment->supplier?->company_name ?? '—' }}</dd>
                     </div>
                     <div>
                         <dt class="text-ink-faint">Destination warehouse</dt>

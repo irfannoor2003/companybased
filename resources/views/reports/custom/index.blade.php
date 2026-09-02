@@ -17,7 +17,8 @@
                 icon="reports"
                 title="No saved reports yet"
                 description="Create a custom report to pick a data source, choose fields and apply filters."
-                :action="['label' => 'Create report', 'href' => route('reports.custom.create')]"
+                action="Create report"
+                :action-href="route('reports.custom.create')"
             />
         @else
             <div class="table-wrap !border-0 !rounded-none">

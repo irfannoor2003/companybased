@@ -19,7 +19,7 @@
                     <x-select name="customer_id" label="Customer" required>
                         <option value="">— Select customer —</option>
                         @foreach ($customers as $customer)
-                            <option value="{{ $customer->id }}" @selected(old('customer_id', $fromOrder?->customer_id) == $customer->id)>{{ $customer->company_name }}</option>
+                            <option value="{{ $customer->id }}" @selected(old('customer_id', $fromInvoice?->customer_id ?? $fromOrder?->customer_id ?? $fromQuote?->customer_id) == $customer->id)>{{ $customer->company_name }}</option>
                         @endforeach
                     </x-select>
                     @if ($fromOrder)
@@ -28,6 +28,20 @@
                             <a href="{{ route('sales.orders.edit', $fromOrder) }}" class="inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm text-ink-soft hover:border-primary/40">
                                 <x-icon name="orders" class="size-4" />
                                 Fulfilling {{ $fromOrder->number }}
+                            </a>
+                        </div>
+                    @elseif ($fromInvoice)
+                        <div class="flex items-end">
+                            <a href="{{ route('sales.invoices.show', $fromInvoice) }}" class="inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm text-ink-soft hover:border-primary/40">
+                                <x-icon name="invoice" class="size-4" />
+                                For invoice {{ $fromInvoice->number }}
+                            </a>
+                        </div>
+                    @elseif ($fromQuote)
+                        <div class="flex items-end">
+                            <a href="{{ route('sales.quotes.show', $fromQuote) }}" class="inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm text-ink-soft hover:border-primary/40">
+                                <x-icon name="document" class="size-4" />
+                                From quote {{ $fromQuote->number }}
                             </a>
                         </div>
                     @else
@@ -48,10 +62,11 @@
                     <x-input name="tracking_number" label="Tracking number" value="{{ old('tracking_number') }}" />
                 </div>
 
-                <x-input name="shipping_address" label="Shipping address" value="{{ old('shipping_address', $fromOrder?->shipping_address) }}" />
+                <x-input name="shipping_address" label="Shipping address" value="{{ old('shipping_address', $fromOrder?->shipping_address ?? $fromInvoice?->customer?->address ?? $fromQuote?->customer?->address) }}" />
 
                 @php
-                    $initialItems = $fromOrder ? $fromOrder->items->map(fn ($item) => [
+                    $source = $fromOrder ?? $fromInvoice ?? $fromQuote;
+                    $initialItems = $source ? $source->items->map(fn ($item) => [
                         'product_id' => (string) ($item->product_id ?? ''),
                         'description' => $item->description,
                         'qty' => (float) $item->qty,

@@ -5,6 +5,7 @@
         ['label' => 'Attendance', 'route' => 'employees.attendance.index', 'icon' => 'clock', 'permission' => 'employees.attendance.view'],
         ['label' => 'Attendance Reports', 'route' => 'employees.attendance.report', 'icon' => 'reports', 'permission' => 'employees.attendance.view'],
         ['label' => 'Salary Structures', 'route' => 'employees.salary_structures.index', 'icon' => 'money', 'permission' => 'employees.salary_structures.view'],
+        ['label' => 'Leave Requests', 'route' => 'employees.leave.index', 'icon' => 'calendar', 'permission' => 'employees.leave_requests.view'],
         ['label' => 'Payroll', 'route' => 'employees.payroll.index', 'icon' => 'document', 'permission' => 'employees.payroll_runs.view'],
     ];
     $visibleTabs = array_values(array_filter($tabs, fn ($t) => auth()->user()->can($t['permission'])));

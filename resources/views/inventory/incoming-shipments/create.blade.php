@@ -16,7 +16,7 @@
                     <x-select name="supplier_id" label="Supplier" size="sm">
                         <option value="">— None —</option>
                         @foreach ($suppliers as $supplier)
-                            <option value="{{ $supplier->id }}" @selected(old('supplier_id') == $supplier->id)>{{ $supplier->name }}</option>
+                            <option value="{{ $supplier->id }}" @selected(old('supplier_id') == $supplier->id)>{{ $supplier->company_name }}</option>
                         @endforeach
                     </x-select>
 
@@ -31,7 +31,7 @@
                         <option value="">— None —</option>
                         @foreach ($purchaseOrders as $order)
                             <option value="{{ $order->id }}" @selected(old('purchase_order_id') == $order->id)>
-                                {{ $order->number }} · {{ $order->supplier?->name }}
+                                {{ $order->number }} · {{ $order->supplier?->company_name }}
                             </option>
                         @endforeach
                     </x-select>

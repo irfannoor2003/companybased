@@ -87,7 +87,7 @@ class DebitNoteController extends Controller
         return view('documents.show', DocumentData::build($debitNote));
     }
 
-    public function pdf(DebitNote $debitNote): StreamedResponse
+    public function pdf(DebitNote $debitNote): \Illuminate\Http\Response
     {
         $debitNote->load(['supplier', 'items.product', 'invoice']);
 

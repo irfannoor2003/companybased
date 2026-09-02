@@ -5,6 +5,18 @@
                 @if (auth()->user()->can('suppliers.purchase_invoices.view'))
                     <x-button :href="route('suppliers.purchase_invoices.pdf', $invoice)" variant="secondary" icon="download" target="_blank" rel="noopener">Export PDF</x-button>
                 @endif
+                @if (auth()->user()->can('suppliers.purchase_invoices.edit'))
+                    <form method="POST" action="{{ route('suppliers.purchase_invoices.template', $invoice) }}" class="flex items-center gap-2">
+                        @csrf
+                        @method('PUT')
+                        <label class="text-xs text-ink-faint" for="purchase_invoice_template">Template</label>
+                        <select name="template" id="purchase_invoice_template" onchange="this.form.submit()" class="select-input !py-1.5 !text-sm">
+                            @foreach (\App\Models\PurchaseInvoice::templateOptions() as $value => $label)
+                                <option value="{{ $value }}" @selected($invoice->template === $value)>{{ $label }}</option>
+                            @endforeach
+                        </select>
+                    </form>
+                @endif
                 <x-button :href="route('suppliers.purchase_invoices.edit', $invoice)" variant="secondary" icon="edit">Edit</x-button>
                 <x-button href="{{ route('suppliers.purchase_invoices.index') }}" variant="secondary" icon="arrow-left">Back</x-button>
             </x-slot>
@@ -34,6 +46,9 @@
                     <p class="text-sm text-ink-soft mt-1">{{ $invoice->number }}</p>
                     <p class="text-sm text-ink-faint">Issue date: {{ $invoice->issue_date?->format('Y-m-d') }}</p>
                     <p class="text-sm text-ink-faint">Due date: {{ $invoice->due_date?->format('Y-m-d') ?: '—' }}</p>
+                    @if ($invoice->productionOrder)
+                        <p class="text-sm text-ink-faint">Against production order: <a href="{{ route('inventory.production_orders.show', $invoice->productionOrder) }}" class="text-primary underline">{{ $invoice->productionOrder->number }}</a></p>
+                    @endif
                     <p class="text-sm text-ink-faint">Status: {{ ucfirst(str_replace('_', ' ', $invoice->status)) }}</p>
                 </div>
             </div>
@@ -113,6 +128,8 @@
                         <thead>
                             <tr>
                                 <th>Date</th>
+                                <th>Method</th>
+                                <th>Bank account</th>
                                 <th>Reference</th>
                                 <th class="text-right">Amount</th>
                             </tr>
@@ -121,6 +138,8 @@
                             @foreach ($invoice->payments as $payment)
                                 <tr>
                                     <td class="text-sm text-ink">{{ $payment->payment_date?->format('Y-m-d') }}</td>
+                                    <td class="text-sm text-ink-soft">{{ ucfirst(str_replace('_', ' ', $payment->method)) }}</td>
+                                    <td class="text-sm text-ink-soft">{{ $payment->bankAccount?->name ?: '—' }}</td>
                                     <td class="text-sm text-ink-soft">{{ $payment->reference ?: '—' }}</td>
                                     <td class="text-right text-sm text-ink">{{ money($payment->amount, $invoice->currency) }}</td>
                                 </tr>

@@ -1,6 +1,6 @@
 <x-app-layout :pageTitle="'Edit shipment '.$shipment->number">
     <x-slot name="header">
-        <x-page-header title="Incoming shipment {{ $shipment->number }}" description="{{ $shipment->supplier?->name ?? $shipment->warehouse?->name }}" icon="truck">
+        <x-page-header title="Incoming shipment {{ $shipment->number }}" description="{{ $shipment->supplier?->company_name ?? $shipment->warehouse?->name }}" icon="truck">
             <x-slot name="actions">
                 <x-button href="{{ route('inventory.incoming_shipments.show', $shipment) }}" variant="secondary" icon="arrow-left">Back to shipment</x-button>
             </x-slot>
@@ -17,7 +17,7 @@
                     <x-select name="supplier_id" label="Supplier" size="sm">
                         <option value="">— None —</option>
                         @foreach ($suppliers as $supplier)
-                            <option value="{{ $supplier->id }}" @selected(old('supplier_id', $shipment->supplier_id) == $supplier->id)>{{ $supplier->name }}</option>
+                            <option value="{{ $supplier->id }}" @selected(old('supplier_id', $shipment->supplier_id) == $supplier->id)>{{ $supplier->company_name }}</option>
                         @endforeach
                     </x-select>
 
@@ -32,7 +32,7 @@
                         <option value="">— None —</option>
                         @foreach ($purchaseOrders as $order)
                             <option value="{{ $order->id }}" @selected(old('purchase_order_id', $shipment->purchase_order_id) == $order->id)>
-                                {{ $order->number }} · {{ $order->supplier?->name }}
+                                {{ $order->number }} · {{ $order->supplier?->company_name }}
                             </option>
                         @endforeach
                     </x-select>

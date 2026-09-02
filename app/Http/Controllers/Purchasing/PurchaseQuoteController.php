@@ -91,7 +91,7 @@ class PurchaseQuoteController extends Controller
         return view('documents.show', DocumentData::build($quote));
     }
 
-    public function pdf(PurchaseQuote $quote): StreamedResponse
+    public function pdf(PurchaseQuote $quote): \Illuminate\Http\Response
     {
         $quote->load(['supplier', 'items.product']);
 

@@ -3,25 +3,28 @@
 namespace App\Http\Controllers\Sales;
 
 use App\Http\Controllers\Controller;
+use App\Models\BankAccount;
+use App\Models\Product;
 use App\Models\SalesCustomer;
 use App\Models\SalesInvoice;
 use App\Models\SalesOrder;
 use App\Models\SalesPayment;
 use App\Models\SalesStatusEvent;
-use App\Support\DocumentItems;
 use App\Support\DiscountLimit;
+use App\Support\DocumentItems;
 use App\Support\ExportsCsv;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
-use Barryvdh\DomPDF\Facade\Pdf;
 
 class InvoiceController extends Controller
 {
-    use ExportsCsv;
     use DiscountLimit;
+    use ExportsCsv;
 
     public function index(Request $request): View
     {
@@ -42,7 +45,7 @@ class InvoiceController extends Controller
     public function create(Request $request): View
     {
         $customers = SalesCustomer::query()->orderBy('company_name')->get();
-        $products = \App\Models\Product::query()->where('is_active', true)->orderBy('name')->get();
+        $products = Product::query()->where('is_active', true)->orderBy('name')->get();
         $maxDiscount = $this->getMaxDiscountForUser();
 
         $fromOrder = null;
@@ -81,30 +84,47 @@ class InvoiceController extends Controller
 
     public function edit(SalesInvoice $invoice): View
     {
-        $invoice->load(['customer', 'items.product', 'payments', 'statusEvents.user', 'creditNotes']);
+        $invoice->load(['customer', 'items.product', 'payments.bankAccount', 'statusEvents.user', 'creditNotes']);
         $customers = SalesCustomer::query()->orderBy('company_name')->get();
-        $products = \App\Models\Product::query()->where('is_active', true)->orderBy('name')->get();
+        $products = Product::query()->where('is_active', true)->orderBy('name')->get();
         $maxDiscount = $this->getMaxDiscountForUser();
+        $bankAccounts = BankAccount::query()->active()->orderBy('name')->get();
 
-        return view('sales.invoices.edit', compact('invoice', 'customers', 'products', 'maxDiscount'));
+        return view('sales.invoices.edit', compact('invoice', 'customers', 'products', 'maxDiscount', 'bankAccounts'));
     }
 
     public function show(SalesInvoice $invoice): View
     {
-        $invoice->load(['customer', 'items.product', 'payments', 'statusEvents.user', 'creditNotes']);
+        $invoice->load(['customer', 'items.product', 'payments.bankAccount', 'statusEvents.user', 'creditNotes']);
 
         return view('sales.invoices.show', compact('invoice'));
     }
 
-    public function pdf(SalesInvoice $invoice): StreamedResponse
+    public function pdf(SalesInvoice $invoice): Response
     {
+        $this->preparePdf();
         $invoice->load(['customer', 'items.product', 'payments', 'creditNotes']);
 
-        $html = view('sales.invoices.pdf', compact('invoice'))->render();
+        $template = in_array($invoice->template, ['classic', 'modern', 'minimal', 'corporate'], true) ? $invoice->template : 'classic';
+        $view = 'sales.invoices.pdf'.($template === 'classic' ? '' : '-'.$template);
+
+        $html = view($view, compact('invoice'))->render();
 
         $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
 
         return $pdf->stream('invoice-'.$invoice->number.'.pdf');
+    }
+
+    public function updateTemplate(Request $request, SalesInvoice $invoice): RedirectResponse
+    {
+        $data = $request->validate([
+            'template' => ['required', Rule::in(array_keys(SalesInvoice::templateOptions()))],
+        ]);
+
+        $invoice->update(['template' => $data['template']]);
+
+        return redirect()->route('sales.invoices.show', $invoice)
+            ->with('toasts', [['type' => 'success', 'message' => 'Invoice template set to '.ucfirst($data['template']).'.']]);
     }
 
     public function update(Request $request, SalesInvoice $invoice): RedirectResponse
@@ -170,6 +190,7 @@ class InvoiceController extends Controller
             'amount' => ['required', 'numeric', 'gt:0'],
             'payment_date' => ['required', 'date'],
             'method' => ['required', Rule::in(SalesPayment::methodOptions())],
+            'bank_account_id' => ['nullable', 'integer', Rule::exists('bank_accounts', 'id')],
             'reference' => ['nullable', 'string', 'max:120'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
@@ -185,6 +206,7 @@ class InvoiceController extends Controller
             'number' => next_document_number('sales_payment', 'RC'),
             'invoice_id' => $invoice->id,
             'customer_id' => $invoice->customer_id,
+            'bank_account_id' => $data['bank_account_id'] ?? null,
             'amount' => $data['amount'],
             'payment_date' => $data['payment_date'],
             'method' => $data['method'],

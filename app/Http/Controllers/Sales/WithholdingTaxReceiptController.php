@@ -103,7 +103,7 @@ class WithholdingTaxReceiptController extends Controller
             ->with('toasts', [['type' => 'success', 'message' => "Withholding tax receipt {$number} deleted."]]);
     }
 
-    public function pdf(WithholdingTaxReceipt $withholdingTaxReceipt): StreamedResponse
+    public function pdf(WithholdingTaxReceipt $withholdingTaxReceipt): \Illuminate\Http\Response
     {
         $withholdingTaxReceipt->load(['customer', 'invoice']);
 

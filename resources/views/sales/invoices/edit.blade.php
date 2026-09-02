@@ -93,6 +93,7 @@
                                 <option value="{{ $method }}" @selected(old('method', 'bank_transfer') === $method)>{{ ucwords(str_replace('_', ' ', $method)) }}</option>
                             @endforeach
                         </x-select>
+                        @include('partials.payment-bank-account', ['pbSelected' => old('bank_account_id')])
                         <x-input name="reference" label="Reference" value="{{ old('reference') }}" placeholder="e.g. bank ref, cheque no." />
                         <x-button type="submit" icon="save" class="w-full">Record payment</x-button>
                     </form>
@@ -106,7 +107,7 @@
                             <div class="flex items-center justify-between gap-3 px-5 py-3">
                                 <div>
                                     <p class="text-sm font-medium text-ink">{{ money($payment->amount, $invoice->currency) }}</p>
-                                    <p class="text-xs text-ink-faint">{{ $payment->payment_date?->format('Y-m-d') }} · {{ ucwords(str_replace('_', ' ', $payment->method)) }}{{ $payment->reference ? ' · '.$payment->reference : '' }}</p>
+                                    <p class="text-xs text-ink-faint">{{ $payment->payment_date?->format('Y-m-d') }} · {{ ucwords(str_replace('_', ' ', $payment->method)) }}{{ $payment->bankAccount?->name ? ' · '.$payment->bankAccount->name : '' }}{{ $payment->reference ? ' · '.$payment->reference : '' }}</p>
                                 </div>
                                 @if (auth()->user()->can('sales.sales_payments.edit'))
                                     <a href="{{ route('sales.sales_payments.edit', $payment) }}" class="btn-ghost btn-icon btn-sm shrink-0" title="Edit payment">

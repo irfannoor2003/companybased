@@ -40,7 +40,7 @@
                         </div>
                         <div>
                             <p class="text-sm font-medium text-ink">{{ $row->salesman?->name ?? 'Unassigned' }}</p>
-                            <p class="text-xs text-ink-soft">{{ $row->order_count }} orders · {{ currency_format($row->total_value) }}</p>
+                            <p class="text-xs text-ink-soft">{{ $row->order_count }} orders · {{ money($row->total_value) }}</p>
                         </div>
                     </div>
                 </x-card>
@@ -74,7 +74,7 @@
                                 <td class="whitespace-nowrap px-4 py-3">
                                     <x-badge :value="$order->status" :color="match($order->status) { 'confirmed' => 'success', 'packed' => 'info', 'shipped' => 'warning', 'delivered' => 'success', default => 'neutral' }" />
                                 </td>
-                                <td class="whitespace-nowrap px-4 py-3 text-right font-medium">{{ currency_format($order->total) }}</td>
+                                <td class="whitespace-nowrap px-4 py-3 text-right font-medium">{{ money($order->total) }}</td>
                             </tr>
                         @endforeach
                     </tbody>

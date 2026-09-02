@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Purchasing;
 
 use App\Http\Controllers\Controller;
+use App\Models\BankAccount;
 use App\Models\PurchaseInvoice;
 use App\Models\PurchaseStatusEvent;
 use App\Models\Supplier;
@@ -35,6 +36,13 @@ class SupplierPaymentController extends Controller
         return view('suppliers.supplier_payments.index', compact('payments', 'suppliers'));
     }
 
+    public function show(SupplierPayment $payment): View
+    {
+        $payment->load(['supplier', 'invoice', 'bankAccount']);
+
+        return view('suppliers.supplier_payments.show', compact('payment'));
+    }
+
     public function create(Request $request): View
     {
         $suppliers = Supplier::query()->orderBy('company_name')->get();
@@ -42,13 +50,14 @@ class SupplierPaymentController extends Controller
             ->where('status', '!=', 'paid')
             ->orderBy('issue_date')
             ->get();
+        $bankAccounts = BankAccount::query()->active()->orderBy('name')->get();
 
         $fromInvoice = null;
         if ($request->filled('invoice')) {
             $fromInvoice = PurchaseInvoice::query()->with(['supplier'])->findOrFail($request->invoice);
         }
 
-        return view('suppliers.supplier_payments.create', compact('suppliers', 'invoices', 'fromInvoice'));
+        return view('suppliers.supplier_payments.create', compact('suppliers', 'invoices', 'fromInvoice', 'bankAccounts'));
     }
 
     public function store(Request $request): RedirectResponse
@@ -69,6 +78,7 @@ class SupplierPaymentController extends Controller
             'number' => next_document_number('supplier_payment', 'SP', SupplierPayment::class),
             'invoice_id' => $data['invoice_id'] ?? null,
             'supplier_id' => $data['supplier_id'],
+            'bank_account_id' => $data['bank_account_id'] ?? null,
             'amount' => $data['amount'],
             'payment_date' => $data['payment_date'],
             'method' => $data['method'],
@@ -94,8 +104,9 @@ class SupplierPaymentController extends Controller
             ->where('status', '!=', 'paid')
             ->orderBy('issue_date')
             ->get();
+        $bankAccounts = BankAccount::query()->active()->orderBy('name')->get();
 
-        return view('suppliers.supplier_payments.edit', compact('payment', 'suppliers', 'invoices'));
+        return view('suppliers.supplier_payments.edit', compact('payment', 'suppliers', 'invoices', 'bankAccounts'));
     }
 
     public function update(Request $request, SupplierPayment $payment): RedirectResponse
@@ -118,6 +129,7 @@ class SupplierPaymentController extends Controller
         $payment->update([
             'invoice_id' => $data['invoice_id'] ?? null,
             'supplier_id' => $data['supplier_id'],
+            'bank_account_id' => $data['bank_account_id'] ?? null,
             'amount' => $data['amount'],
             'payment_date' => $data['payment_date'],
             'method' => $data['method'],
@@ -166,8 +178,9 @@ class SupplierPaymentController extends Controller
             ->with('toasts', [['type' => 'success', 'message' => "Payment {$number} deleted."]]);
     }
 
-    public function pdf(SupplierPayment $payment): StreamedResponse
+    public function pdf(SupplierPayment $payment): \Illuminate\Http\Response
     {
+        $this->preparePdf();
         $payment->load(['supplier', 'invoice']);
 
         $html = view('suppliers.supplier_payments.pdf', compact('payment'))->render();
@@ -242,6 +255,7 @@ class SupplierPaymentController extends Controller
         return $request->validate([
             'invoice_id' => ['nullable', 'integer', Rule::exists('purchase_invoices', 'id')],
             'supplier_id' => ['required', 'integer', Rule::exists('suppliers', 'id')],
+            'bank_account_id' => ['nullable', 'integer', Rule::exists('bank_accounts', 'id')],
             'amount' => ['required', 'numeric', 'gt:0'],
             'payment_date' => ['required', 'date'],
             'method' => ['required', Rule::in(SupplierPayment::methodOptions())],

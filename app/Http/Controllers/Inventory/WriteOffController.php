@@ -42,6 +42,13 @@ class WriteOffController extends Controller
         return view('inventory.write_offs.create', compact('warehouses', 'items'));
     }
 
+    public function show(InventoryWriteOff $writeOff): View
+    {
+        $writeOff->load(['warehouse', 'items.item.product']);
+
+        return view('inventory.write_offs.show', compact('writeOff'));
+    }
+
     public function store(Request $request): RedirectResponse
     {
         $data = $this->validateData($request);

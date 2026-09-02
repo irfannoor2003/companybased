@@ -86,6 +86,13 @@ class PriceListController extends Controller
         return view('catalog.price_lists.edit', compact('priceList', 'products'));
     }
 
+    public function show(PriceList $priceList): View
+    {
+        $priceList->load(['items.product.category']);
+
+        return view('catalog.price_lists.show', compact('priceList'));
+    }
+
     public function update(Request $request, PriceList $priceList): RedirectResponse
     {
         $data = $this->validateData($request, $priceList->id);

@@ -18,7 +18,7 @@ class SalesInvoice extends Model
 
     protected $fillable = [
         'number', 'order_id', 'customer_id', 'issue_date', 'due_date',
-        'status', 'currency', 'exchange_rate', 'subtotal', 'discount_amount', 'tax_amount', 'total',
+        'status', 'template', 'currency', 'exchange_rate', 'subtotal', 'discount_amount', 'tax_amount', 'total',
         'paid_amount', 'withheld_amount', 'notes',
     ];
 
@@ -77,6 +77,11 @@ class SalesInvoice extends Model
     public static function statusOptions(): array
     {
         return ['draft', 'sent', 'partially_paid', 'paid', 'overdue', 'cancelled'];
+    }
+
+    public static function templateOptions(): array
+    {
+        return ['classic' => 'Classic', 'modern' => 'Modern', 'minimal' => 'Minimal', 'corporate' => 'Corporate'];
     }
 
     public function balance(): float

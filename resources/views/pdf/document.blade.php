@@ -41,6 +41,9 @@
     <div class="page">
         <div class="header">
             <div>
+                @if (settings('branding.logo'))
+                    <img src="{{ storage_path('app/public/'.settings('branding.logo')) }}" alt="{{ company_name() }}" style="max-height:64px;max-width:180px;margin-bottom:4px;">
+                @endif
                 <div class="brand-name">{{ company_name() }}</div>
                 @if (settings('company.email'))
                     <div class="brand-tagline">{{ settings('company.email') }}</div>

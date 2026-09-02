@@ -92,7 +92,7 @@ class CreditNoteController extends Controller
         return view('documents.show', DocumentData::build($creditNote));
     }
 
-    public function pdf(SalesCreditNote $creditNote): StreamedResponse
+    public function pdf(SalesCreditNote $creditNote): \Illuminate\Http\Response
     {
         $creditNote->load(['customer', 'items.product', 'invoice']);
 

@@ -34,6 +34,7 @@
                         @endforeach
                     </x-select>
                     <x-input name="reference" label="Reference" value="{{ old('reference', $payment->reference) }}" placeholder="e.g. bank ref, cheque no." />
+                    @include('partials.payment-bank-account', ['pbLabel' => 'Paid from account', 'pbSelected' => old('bank_account_id', $payment->bank_account_id)])
                     <x-select name="currency" label="Currency">
                         <option value="">— Default —</option>
                         @foreach (currency_options() as $code => $label)

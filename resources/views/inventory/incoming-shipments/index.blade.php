@@ -66,7 +66,7 @@
                         @foreach ($shipments as $shipment)
                             <tr>
                                 <td class="font-mono text-xs font-medium text-primary">{{ $shipment->number }}</td>
-                                <td class="text-ink-soft">{{ $shipment->supplier?->name ?? '—' }}</td>
+                                <td class="text-ink-soft">{{ $shipment->supplier?->company_name ?? '—' }}</td>
                                 <td class="text-ink-soft">{{ $shipment->warehouse?->name ?? '—' }}</td>
                                 <td class="whitespace-nowrap text-ink-soft">{{ $shipment->expected_arrival_at?->format('Y-m-d') ?: '—' }}</td>
                                 <td class="text-ink-soft">{{ $shipment->items_count ?? $shipment->items()->count() }}</td>

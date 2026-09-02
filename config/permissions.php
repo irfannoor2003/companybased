@@ -107,6 +107,7 @@ return [
                 'tracking' => ['view', 'update_status', 'export'],
                 'withholding_tax_receipts' => ['view', 'create', 'edit', 'delete', 'export'],
                 'statements' => ['view', 'export'],
+                'reports' => ['view'],
             ],
         ],
 
@@ -203,6 +204,8 @@ return [
                 'salary_structures' => ['view', 'create', 'edit', 'delete', 'export'],
                 'payroll_runs' => ['view', 'create', 'edit', 'delete', 'export', 'approve'],
                 'documents' => ['view', 'create', 'edit', 'delete', 'export'],
+                'leave_requests' => ['view', 'create', 'edit', 'delete', 'export', 'approve'],
+                'my_leave' => ['view', 'create', 'cancel'],
             ],
         ],
 

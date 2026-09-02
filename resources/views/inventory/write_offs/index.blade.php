@@ -68,8 +68,13 @@
                                 <td class="text-right text-ink-soft">{{ $writeOff->items_count ?? $writeOff->items()->count() }}</td>
                                 <td><x-inventory.status-badge :status="$writeOff->status" /></td>
                                 <td class="text-right">
-                                    @if (auth()->user()->can('inventory.write_offs.edit'))
-                                        <div class="flex items-center justify-end gap-1">
+                                    <div class="flex items-center justify-end gap-1">
+                                        @if (auth()->user()->can('inventory.write_offs.view'))
+                                            <a href="{{ route('inventory.write_offs.show', $writeOff) }}" class="btn-ghost btn-icon btn-sm" title="View">
+                                                <x-icon name="eye" class="size-4" />
+                                            </a>
+                                        @endif
+                                        @if (auth()->user()->can('inventory.write_offs.edit'))
                                             <a href="{{ route('inventory.write_offs.edit', $writeOff) }}" class="btn-ghost btn-icon btn-sm" title="Edit">
                                                 <x-icon name="edit" class="size-4" />
                                             </a>
@@ -83,8 +88,8 @@
                                                     </button>
                                                 </form>
                                             @endif
-                                        </div>
-                                    @endif
+                                        @endif
+                                    </div>
                                 </td>
                             </tr>
                         @endforeach

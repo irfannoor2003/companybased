@@ -102,8 +102,9 @@ class QuoteController extends Controller
         return view('documents.show', DocumentData::build($quote));
     }
 
-    public function pdf(SalesQuote $quote): StreamedResponse
+    public function pdf(SalesQuote $quote): \Illuminate\Http\Response
     {
+        $this->preparePdf();
         $quote->load(['customer', 'items.product']);
 
         $html = view('pdf.document', DocumentData::build($quote))->render();

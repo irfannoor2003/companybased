@@ -5,7 +5,7 @@
                 <div class="flex items-center gap-2">
                     <x-document-preview type="Purchase Order" number="{{ $order->number }}" customerName="{{ $order->supplier?->company_name }}" issueDate="{{ $order->order_date }}" currency="{{ $order->currency }}" notes="{{ $order->notes }}" />
                     @if (auth()->user()->can('suppliers.purchase_invoices.create') && ! in_array($order->status, ['draft', 'cancelled']))
-                        <x-button href="{{ route('suppliers.purchase_invoices.create', ['order' => $order->id]) }}" variant="secondary" icon="invoice">Create invoice</x-button>
+                        <x-button href="{{ route('suppliers.purchase_invoices.create', ['order' => $order->id]) }}" variant="secondary" icon="invoice">Invoice Against Purchase Order</x-button>
                     @endif
                     <x-button href="{{ route('suppliers.purchase_orders.index') }}" variant="secondary" icon="arrow-left">Back</x-button>
                 </div>

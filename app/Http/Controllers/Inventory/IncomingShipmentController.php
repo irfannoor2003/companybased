@@ -50,7 +50,7 @@ class IncomingShipmentController extends Controller
             ->orderBy('name')
             ->get();
 
-        $suppliers = Supplier::query()->orderBy('name')->get();
+        $suppliers = Supplier::query()->orderBy('company_name')->get();
         $warehouses = InventoryWarehouse::query()->where('is_active', true)->orderBy('name')->get();
         $purchaseOrders = PurchaseOrder::query()->orderBy('number')->get();
 
@@ -98,7 +98,7 @@ class IncomingShipmentController extends Controller
         $shipment->load(['items.product']);
 
         $trackedProducts = Product::query()->whereHas('inventoryItem')->with('inventoryItem')->where('is_active', true)->orderBy('name')->get();
-        $suppliers = Supplier::query()->orderBy('name')->get();
+        $suppliers = Supplier::query()->orderBy('company_name')->get();
         $warehouses = InventoryWarehouse::query()->where('is_active', true)->orderBy('name')->get();
         $purchaseOrders = PurchaseOrder::query()->orderBy('number')->get();
 
@@ -204,7 +204,7 @@ class IncomingShipmentController extends Controller
 
         return $this->streamCsv('incoming-shipments-'.now()->format('Y-m-d').'.csv', ['Number', 'Supplier', 'Warehouse', 'Expected', 'Status', 'Note'], $shipments->map(fn (InventoryIncomingShipment $s) => [
             $s->number,
-            $s->supplier?->name,
+            $s->supplier?->company_name,
             $s->warehouse?->name,
             $s->expected_arrival_at?->format('Y-m-d'),
             ucfirst($s->status),
