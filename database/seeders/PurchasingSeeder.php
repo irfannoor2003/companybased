@@ -35,7 +35,7 @@ class PurchasingSeeder extends Seeder
         ])->map(fn (array $def) => Supplier::create($def + [
             'mobile' => null,
             'address' => null,
-            'currency' => 'USD',
+            'currency' => 'PKR',
             'is_active' => true,
             'notes' => 'Demo supplier created by PurchasingSeeder.',
         ]));
@@ -48,7 +48,7 @@ class PurchasingSeeder extends Seeder
             'issue_date' => now()->subDays(3)->toDateString(),
             'valid_until' => now()->addDays(27)->toDateString(),
             'status' => 'draft',
-            'currency' => 'USD',
+            'currency' => 'PKR',
             'notes' => 'Requested pricing for the quarterly restock.',
         ], $pick());
         $this->events($quote, 'draft');
@@ -59,7 +59,7 @@ class PurchasingSeeder extends Seeder
             'issue_date' => now()->subDays(9)->toDateString(),
             'valid_until' => now()->addDays(21)->toDateString(),
             'status' => 'accepted',
-            'currency' => 'USD',
+            'currency' => 'PKR',
             'notes' => 'Accepted — best total landed cost.',
         ], $pick());
         $this->events($quote2, 'draft');
@@ -72,7 +72,7 @@ class PurchasingSeeder extends Seeder
             'issue_date' => now()->subDays(13)->toDateString(),
             'valid_until' => now()->addDays(17)->toDateString(),
             'status' => 'converted',
-            'currency' => 'USD',
+            'currency' => 'PKR',
         ], $pick());
         $this->events($quote3, 'draft');
         $this->events($quote3, 'sent');
@@ -84,7 +84,7 @@ class PurchasingSeeder extends Seeder
             'order_date' => now()->subDays(5)->toDateString(),
             'expected_delivery_date' => now()->addDays(3)->toDateString(),
             'status' => 'confirmed',
-            'currency' => 'USD',
+            'currency' => 'PKR',
             'shipping_address' => '14 Harbour Way, Copenhagen',
             'notes' => 'Confirm freight cost before dispatch.',
         ], $pick());
@@ -99,7 +99,7 @@ class PurchasingSeeder extends Seeder
             'order_date' => now()->subDays(13)->toDateString(),
             'expected_delivery_date' => now()->subDays(1)->toDateString(),
             'status' => 'received',
-            'currency' => 'USD',
+            'currency' => 'PKR',
             'shipping_address' => '2200 Tech Park Blvd, Austin',
             'notes' => 'Converted from purchase quote '.$quote3->number.'.',
         ], $quote3->items()->get(['product_id', 'description', 'qty', 'unit_price', 'discount_percent', 'tax_percent', 'line_total'])->toArray());
@@ -116,7 +116,7 @@ class PurchasingSeeder extends Seeder
             'issue_date' => now()->subDays(11)->toDateString(),
             'due_date' => now()->addDays(4)->toDateString(),
             'status' => 'paid',
-            'currency' => 'USD',
+            'currency' => 'PKR',
             'notes' => 'Invoice '.$order->number,
         ], $order->items()->get(['product_id', 'description', 'qty', 'unit_price', 'discount_percent', 'tax_percent', 'line_total'])->toArray());
         SupplierPayment::create([
@@ -127,7 +127,7 @@ class PurchasingSeeder extends Seeder
             'payment_date' => now()->subDays(2)->toDateString(),
             'method' => 'bank_transfer',
             'reference' => 'PAY-77210',
-            'currency' => 'USD',
+            'currency' => 'PKR',
         ]);
         $inv1->update(['paid_amount' => $inv1->total]);
         $this->events($inv1, 'sent');
@@ -139,7 +139,7 @@ class PurchasingSeeder extends Seeder
             'issue_date' => now()->subDays(19)->toDateString(),
             'due_date' => now()->subDays(4)->toDateString(),
             'status' => 'partially_paid',
-            'currency' => 'USD',
+            'currency' => 'PKR',
         ], $pick());
         $partial = round((float) $inv2->total * 0.5, 2);
         SupplierPayment::create([
@@ -150,7 +150,7 @@ class PurchasingSeeder extends Seeder
             'payment_date' => now()->subDays(9)->toDateString(),
             'method' => 'cheque',
             'reference' => 'CHQ-9912',
-            'currency' => 'USD',
+            'currency' => 'PKR',
         ]);
         $inv2->update(['paid_amount' => $partial]);
         $this->events($inv2, 'sent');
@@ -162,7 +162,7 @@ class PurchasingSeeder extends Seeder
             'issue_date' => now()->subDays(42)->toDateString(),
             'due_date' => now()->subDays(12)->toDateString(),
             'status' => 'overdue',
-            'currency' => 'USD',
+            'currency' => 'PKR',
             'notes' => 'Follow up with supplier on this invoice.',
         ], $pick());
         $this->events($inv3, 'sent');
@@ -174,7 +174,7 @@ class PurchasingSeeder extends Seeder
             'supplier_id' => $inv2->supplier_id,
             'issue_date' => now()->subDays(2)->toDateString(),
             'reason' => 'Short delivery',
-            'currency' => 'USD',
+            'currency' => 'PKR',
         ], $pick());
         $note->update(['applied_amount' => round((float) $note->total * 0.3, 2)]);
     }

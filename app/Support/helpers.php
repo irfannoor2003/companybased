@@ -26,7 +26,7 @@ if (! function_exists('module_enabled')) {
 if (! function_exists('company_name')) {
     function company_name(): string
     {
-        return (string) (settings('company.name') ?: config('app.name', 'CompanyBase'));
+        return (string) (settings('company.name') ?: config('app.name', 'Nexos Digital'));
     }
 }
 

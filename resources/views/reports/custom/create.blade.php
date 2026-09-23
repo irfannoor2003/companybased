@@ -62,7 +62,7 @@
     @endphp
 
     <div
-        x-data="reportBuilder({{ json_encode($moduleFields) }})"
+        x-data="reportBuilder({{ json_encode($moduleFields) }}, {{ json_encode($fromReport) }})"
         x-cloak
     >
         <form method="POST" action="{{ route('reports.custom.store') }}" @submit="prepareSubmit">
@@ -76,8 +76,8 @@
                     {{-- Basic Info --}}
                     <x-card>
                         <div class="space-y-4">
-                            <x-input name="name" label="Report Name" placeholder="e.g. Monthly Sales Summary" required value="{{ old('name') }}" />
-                            <x-input name="description" label="Description (optional)" placeholder="What does this report show?" value="{{ old('description') }}" />
+                            <x-input name="name" label="Report Name" placeholder="e.g. Monthly Sales Summary" required value="{{ old('name', $fromReport->name ?? '') }}" />
+                            <x-input name="description" label="Description (optional)" placeholder="What does this report show?" value="{{ old('description', $fromReport->description ?? '') }}" />
                         </div>
                     </x-card>
 
@@ -214,18 +214,21 @@
 
     @push('head')
     <script>
-        function reportBuilder(moduleFields) {
+        function reportBuilder(moduleFields, fromReport) {
+            const from = fromReport || {};
             return {
-                module: '',
-                availableFields: [],
-                selectedFields: [],
-                filters: [],
+                module: from.module || '',
+                availableFields: from.module ? (moduleFields[from.module] || []) : [],
+                selectedFields: from.fields || [],
+                filters: from.filters || [],
 
                 selectModule(mod) {
                     this.module = mod;
                     this.availableFields = moduleFields[mod] || [];
-                    this.selectedFields = [];
-                    this.filters = [];
+                    if (this.module !== (from.module || '')) {
+                        this.selectedFields = [];
+                        this.filters = [];
+                    }
                 },
 
                 toggleField(key) {

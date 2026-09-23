@@ -116,6 +116,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/', [CustomReportController::class, 'index'])->name('index');
         Route::get('/create', [CustomReportController::class, 'create'])->name('create');
         Route::post('/', [CustomReportController::class, 'store'])->name('store');
+        Route::get('/{customReport}', [CustomReportController::class, 'show'])->name('show');
     });
 
     Route::get('/reports/financial', [FinancialReportController::class, 'index'])

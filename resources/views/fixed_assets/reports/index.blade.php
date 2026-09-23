@@ -81,5 +81,21 @@
                 </div>
             @endif
         </x-card>
+
+        <!-- New: Depreciation Trend Chart -->
+        <x-card title="Depreciation Trend" description="Monthly depreciation over the last 12 periods" :padding="false">
+            @if (empty($depreciationChartData['labels']))
+                <x-empty-state icon="clock" title="No data" description="Depreciation data will appear once assets are depreciated." />
+            @else
+                <div class="p-4">
+                    <x-base-chart
+                        :type="'bar'"
+                        :data="$chartDataJson"
+                        :options="$chartOptionsJson"
+                        :height="400"
+                    />
+                </div>
+            @endif
+        </x-card>
     </div>
 </x-app-layout>

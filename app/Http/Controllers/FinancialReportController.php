@@ -28,7 +28,99 @@ class FinancialReportController extends Controller
         $trial = $this->trialBalance($positionItems);
         $ledger = $periodItems;
 
-        return view('reports.financial', compact('from', 'to', 'summary', 'balanceSheet', 'trial', 'ledger'));
+        // Chart data for P&L trend (monthly totals for the period)
+        $plChartData = $this->profitAndLossChartData($from, $to);
+
+        // Chart data for asset/liquidity position
+        $bsChartData = $this->balanceSheetChartData($positionItems);
+
+        $plChartJson = json_encode([
+            'labels' => $plChartData['labels'],
+            'datasets' => [
+                ['label' => 'Revenue', 'data' => $plChartData['revenue'], 'borderColor' => '#3182ce', 'backgroundColor' => 'rgba(49, 130, 206, 0.1)'],
+                ['label' => 'Expenses', 'data' => $plChartData['expenses'], 'borderColor' => '#e53e3e', 'backgroundColor' => 'rgba(229, 62, 62, 0.1)'],
+            ],
+        ]);
+
+        $plOptionsJson = json_encode([
+            'responsive' => true,
+            'plugins' => [
+                'legend' => ['position' => 'bottom'],
+                'title' => ['display' => true, 'text' => 'P&L by Month'],
+            ],
+            'scales' => ['y' => ['beginAtZero' => true, 'title' => ['display' => true, 'text' => 'Amount']]],
+        ]);
+
+        $bsChartJson = json_encode([
+            'labels' => $bsChartData['labels'],
+            'datasets' => [[
+                'data' => $bsChartData['data'],
+                'backgroundColor' => $bsChartData['colors'],
+            ]],
+        ]);
+
+        $bsOptionsJson = json_encode([
+            'responsive' => true,
+            'plugins' => [
+                'legend' => ['position' => 'bottom'],
+                'title' => ['display' => true, 'text' => 'Financial Position'],
+            ],
+        ]);
+
+        return view('reports.financial', compact('from', 'to', 'summary', 'balanceSheet', 'trial', 'ledger', 'plChartData', 'bsChartData', 'plChartJson', 'plOptionsJson', 'bsChartJson', 'bsOptionsJson'));
+    }
+
+    /**
+     * Monthly P&L data for chart.
+     */
+    private function profitAndLossChartData(string $from, string $to): array
+    {
+        $items = JournalEntryItem::query()
+            ->with(['entry', 'account'])
+            ->whereHas('entry', fn ($q) => $q->where('status', 'posted')->whereBetween('entry_date', [$from, $to]))
+            ->get();
+
+        $months = [];
+        $revenue = [];
+        $expenses = [];
+
+        for ($m = strtotime($from); $m <= strtotime($to); $m = strtotime('+1 month', $m)) {
+            $monthStart = date('Y-m-01', $m);
+            $monthEnd = date('Y-m-t', $m);
+
+            $monthItems = $items->filter(fn ($i) => $i->entry?->entry_date >= $monthStart && $i->entry?->entry_date <= $monthEnd);
+
+            $rev = $monthItems->filter(fn ($i) => $i->account?->type === 'revenue')
+                ->sum(fn ($i) => (float) $i->credit - (float) $i->debit);
+            $exp = $monthItems->filter(fn ($i) => $i->account?->type === 'expense')
+                ->sum(fn ($i) => (float) $i->debit - (float) $i->credit);
+
+            $months[] = date('M Y', $m);
+            $revenue[] = (float) $rev;
+            $expenses[] = (float) $exp;
+        }
+
+        return [
+            'labels' => $months,
+            'revenue' => $revenue,
+            'expenses' => $expenses,
+        ];
+    }
+
+    /**
+     * Asset/liability position over time data for chart.
+     */
+    private function balanceSheetChartData(Collection $positionItems): array
+    {
+        $assets = round($this->netBalance($positionItems, ['asset']), 2);
+        $liabilities = round(-1 * $this->netBalance($positionItems, ['liability']), 2);
+        $equity = round(-1 * $this->netBalance($positionItems, ['equity']), 2);
+
+        return [
+            'labels' => ['Assets', 'Liabilities', 'Equity'],
+            'data' => [$assets, $liabilities, $equity],
+            'colors' => ['#10b981', '#f56565', '#64748b'],
+        ];
     }
 
     /**

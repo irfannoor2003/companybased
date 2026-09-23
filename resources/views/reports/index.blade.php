@@ -28,21 +28,28 @@
                     <div>
                         <p class="text-sm font-semibold text-ink">{{ $group['label'] }}</p>
                         @if (! empty($group['reports']))
-                            <p class="text-xs text-ink-faint">{{ count($group['reports']) }} report{{ count($group['reports']) === 1 ? '' : 's' }}</p>
+                            <p class="text-xs text-ink-faint">{{ count($group['reports']) }}{{ count($group['reports']) === 1 ? ' report' : ' reports' }}</p>
                         @endif
                     </div>
                 </div>
                 <p class="mt-3 flex-1 text-sm text-ink-soft">{{ $group['description'] }}</p>
 
-                @if (! empty($group['reports']))
-                    <ul class="mt-4 space-y-1">
-                        @foreach ($group['reports'] as $report)
-                            <li class="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-ink-soft transition-colors hover:bg-surface-muted hover:text-ink">
-                                <x-icon name="document" class="size-4 text-ink-faint" />
-                                {{ $report }}
-                            </li>
-                        @endforeach
-                    </ul>
+                @if (! empty($group['custom']))
+                    <a href="{{ route('reports.custom.index') }}" class="link inline-flex items-center gap-1 text-sm">
+                        Open report builder
+                        <x-icon name="arrow-right" class="size-4" />
+                    </a>
+                @elseif (! empty($group['route']))
+                    <a href="{{ route($group['route']) }}" class="link inline-flex items-center gap-1 text-sm">
+                        View reports
+                        <x-icon name="arrow-right" class="size-4" />
+                    </a>
+                @else
+                    <button type="button" class="link inline-flex items-center gap-1 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                        title="Coming in the Reports milestone" disabled>
+                        View reports
+                        <x-icon name="arrow-right" class="size-4" />
+                    </button>
                 @endif
 
                 <div class="mt-4 border-t border-line pt-4">
@@ -51,17 +58,41 @@
                             Open report builder
                             <x-icon name="arrow-right" class="size-4" />
                         </a>
-                    @elseif (! empty($group['route']))
-                        <a href="{{ route($group['route']) }}" class="link inline-flex items-center gap-1 text-sm">
-                            View reports
-                            <x-icon name="arrow-right" class="size-4" />
-                        </a>
-                    @else
-                        <button type="button" class="link inline-flex items-center gap-1 text-sm disabled:cursor-not-allowed disabled:opacity-50"
-                            title="Coming in the Reports milestone" disabled>
-                            View reports
-                            <x-icon name="arrow-right" class="size-4" />
-                        </button>
+                    @elseif ($group['key'] === 'financial')
+                        <div class="flex items-center gap-2 text-xs text-ink-faint">
+                            <x-icon name="chart-bar" class="size-3" />
+                            <span>P&L & Balance Sheet charts</span>
+                        </div>
+                    @elseif ($group['key'] === 'inventory')
+                        <div class="flex items-center gap-2 text-xs text-ink-faint">
+                            <x-icon name="chart-bar" class="size-3" />
+                            <span>Valuation & warehouse charts</span>
+                        </div>
+                    @elseif ($group['key'] === 'cash_flow')
+                        <div class="flex items-center gap-2 text-xs text-ink-faint">
+                            <x-icon name="chart-line" class="size-3" />
+                            <span>Cash flow forecasting</span>
+                        </div>
+    @elseif ($group['key'] === 'sales')
+                        <div class="flex items-center gap-2 text-xs text-ink-faint">
+                            <x-icon name="chart-line" class="size-3" />
+                            <span>Sales performance</span>
+                        </div>
+    @elseif ($group['key'] === 'employees')
+                        <div class="flex items-center gap-2 text-xs text-ink-faint">
+                            <x-icon name="calendar" class="size-3" />
+                            <span>Attendance analytics</span>
+                        </div>
+    @elseif ($group['key'] === 'assets')
+                        <div class="flex items-center gap-2 text-xs text-ink-faint">
+                            <x-icon name="chart-pie" class="size-3" />
+                            <span>Depreciation summary</span>
+                        </div>
+    @elseif ($group['key'] === 'investments')
+                        <div class="flex items-center gap-2 text-xs text-ink-faint">
+                            <x-icon name="chart-area" class="size-3" />
+                            <span>Portfolio growth</span>
+                        </div>
                     @endif
                 </div>
             </div>

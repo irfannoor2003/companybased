@@ -124,7 +124,7 @@ class AttendanceController extends Controller
      */
     public function qrCode(): View
     {
-        $qrText = settings('company.qr_code_text', 'COMPANYBASE-OFFICE-ATTENDANCE-2026');
+        $qrText = settings('company.qr_code_text', 'NEXOSDIGITAL-OFFICE-ATTENDANCE-2026');
 
         $qrCode = QrCode::create($qrText)
             ->setEncoding(new \Endroid\QrCode\Encoding\EncodingInterface('UTF-8'))
@@ -144,7 +144,7 @@ class AttendanceController extends Controller
      */
     public function downloadQrCode()
     {
-        $qrText = settings('company.qr_code_text', 'COMPANYBASE-OFFICE-ATTENDANCE-2026');
+        $qrText = settings('company.qr_code_text', 'NEXOSDIGITAL-OFFICE-ATTENDANCE-2026');
 
         $qrCode = QrCode::create($qrText)
             ->setEncoding(new \Endroid\QrCode\Encoding\EncodingInterface('UTF-8'))

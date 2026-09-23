@@ -53,7 +53,62 @@ class ReportController extends Controller
             ->orderByDesc('period')
             ->get();
 
-        return view('fixed_assets.reports.index', compact('assets', 'byCategory', 'totals', 'byPeriod'));
+        $depreciationChartData = $this->depreciationChartData();
+
+        $chartDataJson = json_encode([
+            'labels' => $depreciationChartData['labels'],
+            'datasets' => [[
+                'label' => 'Depreciation',
+                'data' => $depreciationChartData['data'],
+                'backgroundColor' => 'rgba(168, 85, 247, 0.6)',
+                'borderColor' => '#a855f7',
+            ]],
+        ]);
+
+        $chartOptionsJson = json_encode([
+            'responsive' => true,
+            'plugins' => [
+                'legend' => ['position' => 'bottom'],
+                'title' => ['display' => true, 'text' => 'Depreciation by Period'],
+            ],
+            'scales' => [
+                'y' => ['title' => ['display' => true, 'text' => 'Amount'], 'beginAtZero' => true],
+            ],
+        ]);
+
+        return view('fixed_assets.reports.index', compact('assets', 'byCategory', 'totals', 'byPeriod', 'depreciationChartData', 'chartDataJson', 'chartOptionsJson'));
+    }
+
+    /**
+     * Depreciation trend chart data for the last 12 periods.
+     */
+    private function depreciationChartData(): array
+    {
+        $periods = FixedAssetDepreciation::query()
+            ->selectRaw('period, sum(amount) as total')
+            ->groupBy('period')
+            ->orderByDesc('period')
+            ->take(12)
+            ->get();
+
+        $labels = [];
+        $data = [];
+
+        foreach ($periods as $row) {
+            $labels[] = $row->period;
+            $data[] = (float) $row->total;
+        }
+
+        // Pad with zeros to have up to 12 months
+        while (count($labels) < 12) {
+            array_unshift($labels, null);
+            array_unshift($data, 0);
+        }
+
+        return [
+            'labels' => array_slice($labels, 0, 12),
+            'data' => array_slice($data, 0, 12),
+        ];
     }
 
     public function export(Request $request): StreamedResponse

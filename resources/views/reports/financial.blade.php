@@ -43,6 +43,12 @@
                     </tbody>
                 </table>
             </div>
+
+            <x-base-chart
+                :type="'bar'"
+                :data="$plChartJson"
+                :options="$plOptionsJson"
+            />
         </x-card>
 
         <x-card title="Balance Sheet" description="As of {{ $to }}" :padding="false">
@@ -72,6 +78,13 @@
                     </tbody>
                 </table>
             </div>
+
+            <x-base-chart
+                :type="'doughnut'"
+                :data="$bsChartJson"
+                :options="$bsOptionsJson"
+                :height="400"
+            />
         </x-card>
 
         <x-card title="Trial Balance" description="As of {{ $to }}" :padding="false">

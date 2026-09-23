@@ -65,7 +65,125 @@ class InventoryReportController extends Controller
             'low' => $reorder->count(),
         ];
 
-        return view('reports.inventory', compact('from', 'to', 'stockRows', 'valuation', 'reorder', 'movements', 'stats'));
+        // Chart data: stock valuation trend by month
+        $stockChartData = $this->stockValuationChartData($from, $to);
+
+        // Chart data: on-hand by warehouse
+        $warehouseChartData = $this->onHandByWarehouseChartData();
+
+        $stockChartJson = json_encode([
+            'labels' => $stockChartData['labels'],
+            'datasets' => [[
+                'label' => 'Stock Value',
+                'data' => $stockChartData['values'],
+                'borderColor' => '#38bdf8',
+                'backgroundColor' => 'rgba(56, 191, 248, 0.1)',
+                'fill' => true,
+                'tension' => 0.4,
+            ]],
+        ]);
+
+        $stockOptionsJson = json_encode([
+            'responsive' => true,
+            'plugins' => [
+                'legend' => ['position' => 'bottom'],
+                'title' => ['display' => true, 'text' => 'Stock Valuation by Month'],
+            ],
+            'scales' => [
+                'y' => ['title' => ['display' => true, 'text' => 'Value'], 'beginAtZero' => true],
+            ],
+        ]);
+
+        $warehouseChartJson = json_encode([
+            'labels' => $warehouseChartData['labels'],
+            'datasets' => [[
+                'label' => 'On Hand',
+                'data' => $warehouseChartData['values'],
+                'backgroundColor' => 'rgba(34, 197, 94, 0.6)',
+            ]],
+        ]);
+
+        $warehouseOptionsJson = json_encode([
+            'responsive' => true,
+            'plugins' => [
+                'legend' => ['display' => false],
+                'title' => ['display' => true, 'text' => 'On-Hand Stock by Warehouse'],
+            ],
+            'scales' => [
+                'y' => ['title' => ['display' => true, 'text' => 'Quantity'], 'beginAtZero' => true],
+            ],
+        ]);
+
+        return view('reports.inventory', compact('from', 'to', 'stockRows', 'valuation', 'reorder', 'movements', 'stats', 'stockChartData', 'warehouseChartData', 'stockChartJson', 'stockOptionsJson', 'warehouseChartJson', 'warehouseOptionsJson'));
+    }
+
+    /**
+     * Monthly valuation data for chart.
+     */
+    private function stockValuationChartData(string $from, string $to): array
+    {
+        $items = InventoryStock::query()
+            ->with(['item.product'])
+            ->get();
+
+        $months = [];
+        $values = [];
+
+        for ($m = strtotime($from); $m <= strtotime($to); $m = strtotime('+1 month', $m)) {
+            $monthStart = date('Y-m-01', $m);
+            $monthEnd = date('Y-m-t', $m);
+
+            $monthQty = 0;
+            $monthCost = 0;
+
+            foreach ($items as $row) {
+                $item = $row->item;
+                if (!$item?->product) continue;
+
+                $qty = (float) $row->quantity;
+                $cost = (float) ($item->product->cost_price ?? 0);
+
+                $monthQty += $qty;
+                $monthCost += $qty * $cost;
+            }
+
+            $months[] = date('M Y', $m);
+            $values[] = round($monthCost, 2);
+        }
+
+        return [
+            'labels' => $months,
+            'values' => $values,
+        ];
+    }
+
+    /**
+     * On-hand quantity by warehouse chart data.
+     */
+    private function onHandByWarehouseChartData(): array
+    {
+        $warehouses = InventoryWarehouse::withCount('stock as total_stock')
+            ->get()
+            ->keyBy('id');
+
+        $data = [];
+        foreach ($warehouses as $warehouse) {
+            $total = (float) $warehouse->total_stock;
+            if ($total > 0) {
+                $data[] = [
+                    'label' => $warehouse->name,
+                    'value' => $total,
+                ];
+            }
+        }
+
+        usort($data, fn ($a, $b) => $b['value'] <=> $a['value']);
+
+        return [
+            'labels' => array_column($data, 'label'),
+            'values' => array_column($data, 'value'),
+            'max' => max(array_column($data, 'value', 'label')),
+        ];
     }
 
     /**

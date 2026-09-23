@@ -99,7 +99,7 @@
                                 <td class="font-semibold text-ink" colspan="4">Total stock value</td>
                                 <td class="text-right font-bold text-ink">{{ money($valuation->sum('value')) }}</td>
                             </tr>
-                        </tfoot>
+                        </tbody>
                     </table>
                 </div>
             @endif
@@ -172,6 +172,38 @@
                             @endforeach
                         </tbody>
                     </table>
+                </div>
+            @endif
+        </x-card>
+
+        <!-- New: Valuation Trend Chart -->
+        <x-card title="Valuation Trend" description="Monthly stock value over selected period" :padding="false">
+            @if (empty($stockChartData['labels']))
+                <x-empty-state icon="chart" title="No data" description="Stock valuation data available once movements are recorded for the period." />
+            @else
+                <div class="p-4">
+                    <x-base-chart
+                        :type="'line'"
+                        :data="$stockChartJson"
+                        :options="$stockOptionsJson"
+                        :height="400"
+                    />
+                </div>
+            @endif
+        </x-card>
+
+        <!-- New: On-Hand by Warehouse Chart -->
+        <x-card title="Stock by Warehouse" description="On-hand quantities across warehouses" :padding="false">
+            @if (empty($warehouseChartData['labels']))
+                <x-empty-state icon="building" title="No warehouse data" description="Warehouse stock data will appear here." />
+            @else
+                <div class="p-4">
+                    <x-base-chart
+                        :type="'bar'"
+                        :data="$warehouseChartJson"
+                        :options="$warehouseOptionsJson"
+                        :height="400"
+                    />
                 </div>
             @endif
         </x-card>

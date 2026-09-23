@@ -43,7 +43,7 @@ class SalesSeeder extends Seeder
             'mobile' => null,
             'address' => null,
             'price_list_id' => null,
-            'currency' => 'USD',
+            'currency' => 'PKR',
             'is_active' => true,
             'notes' => 'Demo customer created by SalesSeeder.',
         ]));
@@ -56,7 +56,7 @@ class SalesSeeder extends Seeder
             'issue_date' => now()->subDays(4)->toDateString(),
             'valid_until' => now()->addDays(26)->toDateString(),
             'status' => 'draft',
-            'currency' => 'USD',
+            'currency' => 'PKR',
             'notes' => 'Initial proposal for the annual tooling order.',
         ], $pick());
         $this->events($quote, 'draft');
@@ -67,7 +67,7 @@ class SalesSeeder extends Seeder
             'issue_date' => now()->subDays(10)->toDateString(),
             'valid_until' => now()->addDays(20)->toDateString(),
             'status' => 'accepted',
-            'currency' => 'USD',
+            'currency' => 'PKR',
             'notes' => 'Accepted by customer.',
         ], $pick());
         $this->events($quote2, 'draft');
@@ -80,7 +80,7 @@ class SalesSeeder extends Seeder
             'issue_date' => now()->subDays(14)->toDateString(),
             'valid_until' => now()->addDays(16)->toDateString(),
             'status' => 'converted',
-            'currency' => 'USD',
+            'currency' => 'PKR',
         ], $pick());
         $this->events($quote3, 'draft');
         $this->events($quote3, 'sent');
@@ -92,7 +92,7 @@ class SalesSeeder extends Seeder
             'issue_date' => now()->subDays(6)->toDateString(),
             'expected_delivery_date' => now()->addDays(2)->toDateString(),
             'status' => 'confirmed',
-            'currency' => 'USD',
+            'currency' => 'PKR',
             'shipping_address' => '1210 Warehouse Ave, Chicago',
             'notes' => 'Confirm stock before packing.',
         ], $pick());
@@ -106,7 +106,7 @@ class SalesSeeder extends Seeder
             'issue_date' => now()->subDays(14)->toDateString(),
             'expected_delivery_date' => now()->subDays(1)->toDateString(),
             'status' => 'delivered',
-            'currency' => 'USD',
+            'currency' => 'PKR',
             'shipping_address' => '10 Fleet Street, London',
             'notes' => 'Converted from quote '.$quote3->number.'.',
         ], $quote3->items()->get(['product_id', 'description', 'qty', 'unit_price', 'discount_percent', 'tax_percent', 'line_total'])->toArray());
@@ -123,7 +123,7 @@ class SalesSeeder extends Seeder
             'issue_date' => now()->subDays(12)->toDateString(),
             'due_date' => now()->addDays(3)->toDateString(),
             'status' => 'paid',
-            'currency' => 'USD',
+            'currency' => 'PKR',
             'notes' => 'Order '.$order2->number,
         ], $order2->items()->get(['product_id', 'description', 'qty', 'unit_price', 'discount_percent', 'tax_percent', 'line_total'])->toArray());
         SalesPayment::create([
@@ -134,7 +134,7 @@ class SalesSeeder extends Seeder
             'payment_date' => now()->subDays(2)->toDateString(),
             'method' => 'bank_transfer',
             'reference' => 'TRF-881234',
-            'currency' => 'USD',
+            'currency' => 'PKR',
         ]);
         $inv1->update(['paid_amount' => $inv1->total]);
         $this->events($inv1, 'sent');
@@ -146,7 +146,7 @@ class SalesSeeder extends Seeder
             'issue_date' => now()->subDays(20)->toDateString(),
             'due_date' => now()->subDays(5)->toDateString(),
             'status' => 'partially_paid',
-            'currency' => 'USD',
+            'currency' => 'PKR',
         ], $pick());
         $partial = round((float) $inv2->total * 0.4, 2);
         SalesPayment::create([
@@ -157,7 +157,7 @@ class SalesSeeder extends Seeder
             'payment_date' => now()->subDays(10)->toDateString(),
             'method' => 'cash',
             'reference' => 'POS-4477',
-            'currency' => 'USD',
+            'currency' => 'PKR',
         ]);
         $inv2->update(['paid_amount' => $partial]);
         $this->events($inv2, 'sent');
@@ -169,7 +169,7 @@ class SalesSeeder extends Seeder
             'issue_date' => now()->subDays(45)->toDateString(),
             'due_date' => now()->subDays(15)->toDateString(),
             'status' => 'overdue',
-            'currency' => 'USD',
+            'currency' => 'PKR',
             'notes' => 'Chase payment on this invoice.',
         ], $pick());
         $this->events($inv3, 'sent');
@@ -181,7 +181,7 @@ class SalesSeeder extends Seeder
             'customer_id' => $inv2->customer_id,
             'issue_date' => now()->subDays(3)->toDateString(),
             'reason' => 'Damaged goods returned',
-            'currency' => 'USD',
+            'currency' => 'PKR',
         ], $pick());
         $note->update(['applied_amount' => round((float) $note->total * 0.5, 2)]);
 
@@ -224,7 +224,7 @@ class SalesSeeder extends Seeder
             'frequency' => 'monthly',
             'next_run_date' => now()->startOfMonth()->addMonth()->toDateString(),
             'day_of_cycle' => 1,
-            'currency' => 'USD',
+            'currency' => 'PKR',
             'is_active' => true,
             'notes' => 'Billed on the first of every month.',
         ]);
@@ -251,7 +251,7 @@ class SalesSeeder extends Seeder
             'amount' => $inv1->total,
             'tax_rate_percent' => 5,
             'tax_amount' => round((float) $inv1->total * 0.05, 2),
-            'currency' => 'USD',
+            'currency' => 'PKR',
             'notes' => '5% withholding retained per tax office directive.',
         ]);
     }

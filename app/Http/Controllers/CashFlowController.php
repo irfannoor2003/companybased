@@ -39,12 +39,58 @@ class CashFlowController extends Controller
         $inflowsMonth = (float) $allInflows->filter(fn ($r) => $r['date'] >= $monthStart && $r['date'] <= $monthEnd)->sum('amount_base');
         $outflowsMonth = (float) $allOutflows->filter(fn ($r) => $r['date'] >= $monthStart && $r['date'] <= $monthEnd)->sum('amount_base');
 
+        // Chart data: daily cash flow for the last 30 days
+        $cashFlowChartData = $this->cashFlowChartData($sixtyDaysAgo, $monthEnd);
+
         $activity = $allInflows->concat($allOutflows)
             ->sortByDesc('date')
             ->take(12)
             ->values();
 
-        return view('cash_flow.overview', compact('cashBalance', 'receivables', 'payables', 'inflowsMonth', 'outflowsMonth', 'activity'));
+        return view('cash_flow.overview', compact('cashBalance', 'receivables', 'payables', 'inflowsMonth', 'outflowsMonth', 'activity', 'cashFlowChartData'));
+    }
+
+    /**
+     * Daily cash flow data for chart (last 30 days).
+     */
+    private function cashFlowChartData(string $from, string $to): array
+    {
+        $allInflows = $this->inflowRows($from, $to);
+        $allOutflows = $this->outflowRows($from, $to);
+
+        // Group by day
+        $daily = [];
+        for ($d = strtotime($from); $d <= strtotime($to); $d = strtotime('+1 day', $d)) {
+            $dayKey = date('Y-m-d', $d);
+            $dayIn = 0;
+            $dayOut = 0;
+
+            foreach ($allInflows as $row) {
+                if ($row['date'] === $dayKey) $dayIn += (float) $row['amount_base'];
+            }
+            foreach ($allOutflows as $row) {
+                if ($row['date'] === $dayKey) $dayOut += (float) $row['amount_base'];
+            }
+
+            $daily[$dayKey] = [
+                'date' => $dayKey,
+                'in' => round($dayIn, 2),
+                'out' => round($dayOut, 2),
+                'net' => round($dayIn - $dayOut, 2),
+            ];
+        }
+
+        $labels = array_keys($daily);
+        $inData = array_map(fn ($d) => $d['in'], $daily);
+        $outData = array_map(fn ($d) => $d['out'], $daily);
+        $netData = array_map(fn ($d) => $d['net'], $daily);
+
+        return [
+            'labels' => $labels,
+            'in' => $inData,
+            'out' => $outData,
+            'net' => $netData,
+        ];
     }
 
     public function inflows(Request $request): View

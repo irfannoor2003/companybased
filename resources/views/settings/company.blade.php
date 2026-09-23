@@ -162,7 +162,7 @@
                     checked="{{ settings('notifications.email_enabled', '1') === '1' }}" />
 
                 <div class="max-w-sm">
-                    <x-input name="email_from" label="Sender address" type="email" value="{{ old('email_from', settings('notifications.email_from', 'no-reply@companybased.test')) }}" />
+                    <x-input name="email_from" label="Sender address" type="email" value="{{ old('email_from', settings('notifications.email_from', 'no-reply@nexosdigital.test')) }}" />
                 </div>
 
                 <div class="flex justify-end border-t border-line pt-4">
@@ -188,7 +188,7 @@
 
                 <div class="max-w-md">
                     <x-input name="qr_code_text" label="QR Code Text" required
-                        value="{{ old('qr_code_text', settings('company.qr_code_text', 'COMPANYBASE-OFFICE-ATTENDANCE-2026')) }}"
+                        value="{{ old('qr_code_text', settings('company.qr_code_text', 'NEXOSDIGITAL-OFFICE-ATTENDANCE-2026')) }}"
                         hint="Text encoded in the office QR code. Employees must scan this exact code." />
                 </div>
 

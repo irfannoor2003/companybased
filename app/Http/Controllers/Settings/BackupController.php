@@ -147,7 +147,7 @@ class BackupController extends Controller
         $connection = config('database.connections.mysql');
         $mysql = $this->resolveDbBinary('MYSQL_CLIENT_PATH', 'mysql');
 
-        $tempPath = $request->file('backup')->store('tmp/restore-'.Str::random(8).'.sql', 'local');
+        $tempPath = $request->file('backup')->store('backups/tmp/restore-'.Str::random(8).'.sql', 'backups');
 
         $command = array_values(array_filter([
             $mysql,
@@ -155,10 +155,11 @@ class BackupController extends Controller
             $connection['password'] ? ('-p'.$connection['password']) : null,
             '-h', $connection['host'],
             '-P', (string) $connection['port'],
+            '--default-character-set=utf8mb4',
             $connection['database'],
         ]));
 
-        $process = new Process($command, null, null, fopen(storage_path('app/'.$tempPath), 'r'), 600);
+        $process = new Process($command, null, null, fopen(storage_path('app/backups/'.$tempPath), 'r'), 600);
 
         try {
             $process->mustRun();
@@ -167,7 +168,9 @@ class BackupController extends Controller
 
             return back()->with('toasts', [['type' => 'error', 'message' => 'Restore failed: '.Str::limit($process->getErrorOutput(), 200)]]);
         } finally {
-            Storage::delete($tempPath);
+            if (Storage::disk('backups')->exists($tempPath)) {
+                Storage::disk('backups')->delete($tempPath);
+            }
         }
 
         return back()->with('toasts', [['type' => 'success', 'message' => 'Database restored successfully.']]);

@@ -50,6 +50,10 @@
                                 <td class="text-ink-soft">{{ $report->created_at->format('Y-m-d') }}</td>
                                 <td class="text-right">
                                     <div class="flex items-center justify-end gap-1">
+                                        <a href="{{ route('reports.custom.show', $report->id) }}"
+                                           class="btn-ghost btn-icon btn-sm" title="View report">
+                                            <x-icon name="eye" class="size-4" />
+                                        </a>
                                         <a href="{{ route('reports.custom.create', ['from' => $report->id]) }}"
                                            class="btn-ghost btn-icon btn-sm" title="Duplicate & Edit">
                                             <x-icon name="edit" class="size-4" />

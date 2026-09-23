@@ -17,15 +17,15 @@ class UsersSeeder extends Seeder
             'HR', 'Salesman', 'Inventory Manager', 'Employee',
         ];
 
-        $superAdminUser = $this->makeUser('Super Admin', 'superadmin@companybased.test', 'Password123!');
+        $superAdminUser = $this->makeUser('Super Admin', 'superadmin@nexosdigital.test', 'Password123!');
         $superAdminUser->syncRoles([$superAdmin]);
 
-        $adminUser = $this->makeUser('Admin', 'admin@companybased.test', 'Password123!');
+        $adminUser = $this->makeUser('Admin', 'admin@nexosdigital.test', 'Password123!');
         $adminUser->syncRoles([$admin]);
 
         foreach ($sampleRoles as $roleName) {
             $slug = strtolower(str_replace(' ', '-', $roleName));
-            $user = $this->makeUser($roleName, "{$slug}@companybased.test", 'Password123!');
+            $user = $this->makeUser($roleName, "{$slug}@nexosdigital.test", 'Password123!');
             $user->syncRoles([Role::where('name', $roleName)->firstOrFail()]);
         }
 

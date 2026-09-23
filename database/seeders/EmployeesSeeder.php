@@ -49,16 +49,16 @@ class EmployeesSeeder extends Seeder
 
         $employees = [];
         $staff = [
-            ['Amina', 'Diallo', 'EMP-001', 'Human Resources', 'HR Manager', 'hr@companybased.test'],
+            ['Amina', 'Diallo', 'EMP-001', 'Human Resources', 'HR Manager', 'hr@nexosdigital.test'],
             ['Kwame', 'Osei', 'EMP-002', 'Engineering', 'Senior Engineer', null],
             ['Lena', 'Meyer', 'EMP-003', 'Engineering', 'Software Engineer', null],
-            ['Omar', 'Haddad', 'EMP-004', 'Sales', 'Sales Representative', 'salesman@companybased.test'],
-            ['Priya', 'Sharma', 'EMP-005', 'Finance', 'Accountant', 'accountant@companybased.test'],
+            ['Omar', 'Haddad', 'EMP-004', 'Sales', 'Sales Representative', 'salesman@nexosdigital.test'],
+            ['Priya', 'Sharma', 'EMP-005', 'Finance', 'Accountant', 'accountant@nexosdigital.test'],
             ['Tom', 'Brooks', 'EMP-006', 'Operations', 'Operations Supervisor', null],
             ['Sofia', 'Reyes', 'EMP-007', 'Sales', 'Sales Representative', null],
             ['David', 'Kim', 'EMP-008', 'Finance', 'Financial Analyst', null],
-            ['Alex', 'Taylor', 'EMP-009', 'Operations', 'General Staff', 'employee@companybased.test'],
-            ['Jordan', 'Lee', 'EMP-010', 'Operations', 'Inventory Clerk', 'inventory-manager@companybased.test'],
+            ['Alex', 'Taylor', 'EMP-009', 'Operations', 'General Staff', 'employee@nexosdigital.test'],
+            ['Jordan', 'Lee', 'EMP-010', 'Operations', 'Inventory Clerk', 'inventory-manager@nexosdigital.test'],
         ];
 
         foreach ($staff as [$firstName, $lastName, $code, $dept, $title, $email]) {
@@ -68,7 +68,7 @@ class EmployeesSeeder extends Seeder
                     'user_id' => $email ? ($userByEmail[$email] ?? null) : null,
                     'first_name' => $firstName,
                     'last_name' => $lastName,
-                    'email' => $email ?: strtolower($firstName).'.'.strtolower($lastName).'@companybased.test',
+                    'email' => $email ?: strtolower($firstName).'.'.strtolower($lastName).'@nexosdigital.test',
                     'phone' => '+1 555 '.str_pad((string) mt_rand(0, 9999), 4, '0', STR_PAD_LEFT),
                     'date_of_birth' => Carbon::now()->subYears(mt_rand(24, 50))->subMonths(mt_rand(0, 11))->subDays(mt_rand(0, 27)),
                     'date_hired' => Carbon::now()->subMonths(mt_rand(6, 60)),
@@ -122,8 +122,8 @@ class EmployeesSeeder extends Seeder
             'total_gross' => '0.00',
             'total_deductions' => '0.00',
             'total_net' => '0.00',
-            'currency' => settings('company.currency', 'USD'),
-            'prepared_by' => $userByEmail['hr@companybased.test'] ?? null,
+            'currency' => settings('company.currency', 'PKR'),
+            'prepared_by' => $userByEmail['hr@nexosdigital.test'] ?? null,
             'notes' => 'Seeded payroll for the previous month.',
         ]);
 
@@ -138,7 +138,7 @@ class EmployeesSeeder extends Seeder
             'file_path' => 'employee-documents/seeded-contract.txt',
             'original_name' => 'employment-contract.txt',
             'notes' => 'Seeded placeholder document.',
-            'uploaded_by' => $userByEmail['hr@companybased.test'] ?? null,
+            'uploaded_by' => $userByEmail['hr@nexosdigital.test'] ?? null,
         ]);
     }
 

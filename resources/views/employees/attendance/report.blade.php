@@ -11,25 +11,42 @@
 
     <div class="mt-6">
         <x-card :padding="false">
-            <form method="GET" action="{{ route('employees.attendance.report') }}" class="border-b border-line px-5 py-4">
-                <x-report-filter :default="request('period', 'monthly')">
-                    <x-slot name="filters">
-                        <div class="w-48">
-                            <x-select name="department_id" label="Department" size="sm">
-                                <option value="">All departments</option>
-                                @foreach ($departments as $department)
-                                    <option value="{{ $department->id }}" @selected($departmentId == $department->id)>{{ $department->name }}</option>
-                                @endforeach
-                            </x-select>
-                        </div>
-                    </x-slot>
-                    <x-slot name="actions">
-                        @if (auth()->user()->can('employees.attendance.export'))
-                            <x-button href="{{ route('employees.attendance.report.export', array_merge(request()->query(), ['format' => 'csv'])) }}" variant="secondary" size="sm" icon="download">CSV</x-button>
-                            <x-button href="{{ route('employees.attendance.report.export', array_merge(request()->query(), ['format' => 'json'])) }}" variant="secondary" size="sm" icon="download">JSON</x-button>
-                        @endif
-                    </x-slot>
-                </x-report-filter>
+            <form method="GET" action="{{ route('employees.attendance.report') }}" class="flex flex-wrap items-end gap-3 border-b border-line px-5 py-4">
+                @php $currentPeriod = request('period', 'monthly'); @endphp
+                <input type="hidden" name="period" value="{{ $currentPeriod }}">
+
+                <div class="flex items-center gap-1 rounded-lg border border-line bg-surface p-1">
+                    @foreach (['daily' => 'Daily', 'weekly' => 'Weekly', 'monthly' => 'Monthly', 'custom' => 'Custom'] as $value => $label)
+                        <button type="button"
+                            onclick="this.form.elements.period.value='{{ $value }}'; this.form.submit();"
+                            class="rounded-md px-3 py-1.5 text-sm font-medium transition-colors {{ $currentPeriod === $value ? 'bg-primary text-white shadow-sm' : 'text-ink-soft hover:text-ink' }}">
+                            {{ $label }}
+                        </button>
+                    @endforeach
+                </div>
+
+                <div class="{{ $currentPeriod === 'custom' ? '' : 'hidden' }}" id="custom-dates">
+                    <div class="flex items-end gap-3">
+                        <x-input name="from" label="From" type="date" :value="request('from')" size="sm" />
+                        <x-input name="to" label="To" type="date" :value="request('to')" size="sm" />
+                    </div>
+                </div>
+
+                <div>
+                    <x-select name="department_id">
+                        <option value="">All departments</option>
+                        @foreach ($departments as $department)
+                            <option value="{{ $department->id }}" @selected($departmentId == $department->id)>{{ $department->name }}</option>
+                        @endforeach
+                    </x-select>
+                </div>
+
+                <x-button type="submit" size="md" icon="reports">Run report</x-button>
+
+                @if (auth()->user()->can('employees.attendance.export'))
+                    <x-button href="{{ route('employees.attendance.report.export', array_merge(request()->query(), ['format' => 'csv'])) }}" variant="secondary" size="sm" icon="download">CSV</x-button>
+                    <x-button href="{{ route('employees.attendance.report.export', array_merge(request()->query(), ['format' => 'json'])) }}" variant="secondary" size="sm" icon="download">JSON</x-button>
+                @endif
             </form>
         </x-card>
     </div>

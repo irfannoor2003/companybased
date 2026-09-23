@@ -52,7 +52,7 @@ class AccountingSeeder extends Seeder
 
         foreach ($accounts as $definition) {
             $saved[$definition['code']] = Account::create(array_merge([
-                'currency' => 'USD',
+                'currency' => 'PKR',
                 'is_active' => true,
                 'description' => null,
             ], $definition));
@@ -114,7 +114,7 @@ class AccountingSeeder extends Seeder
             'expense_type' => 'travel',
             'merchant' => 'Delta Air',
             'amount' => '185.50',
-            'currency' => 'USD',
+            'currency' => 'PKR',
             'status' => 'approved',
             'notes' => 'Client visit to Springfield.',
             'reviewed_by' => 1,
@@ -128,7 +128,7 @@ class AccountingSeeder extends Seeder
             'expense_type' => 'meals',
             'merchant' => 'Golden Fork',
             'amount' => '64.25',
-            'currency' => 'USD',
+            'currency' => 'PKR',
             'status' => 'pending',
         ]);
 
@@ -139,7 +139,7 @@ class AccountingSeeder extends Seeder
             'expense_type' => 'software',
             'merchant' => 'DesignSuite Pro',
             'amount' => '49.00',
-            'currency' => 'USD',
+            'currency' => 'PKR',
             'status' => 'reimbursed',
             'reviewed_by' => 1,
             'reviewed_at' => now()->subDays(12),
@@ -154,7 +154,7 @@ class AccountingSeeder extends Seeder
             'due_date' => now()->addDays(23)->toDateString(),
             'amount' => '1240.00',
             'paid_amount' => '0.00',
-            'currency' => 'USD',
+            'currency' => 'PKR',
             'status' => 'open',
             'reference' => 'NLL-88231',
             'notes' => 'Freight for July shipments.',
@@ -170,7 +170,7 @@ class AccountingSeeder extends Seeder
             'due_date' => now()->subDays(10)->toDateString(),
             'amount' => '850.00',
             'paid_amount' => '850.00',
-            'currency' => 'USD',
+            'currency' => 'PKR',
             'status' => 'paid',
             'reference' => 'WI-5510',
             'notes' => 'Office furniture.',
@@ -192,7 +192,7 @@ class AccountingSeeder extends Seeder
             'status' => 'paid',
             'filed_at' => '2026-07-18',
             'paid_at' => '2026-07-25',
-            'currency' => 'USD',
+            'currency' => 'PKR',
             'notes' => 'Q2 sales tax filing.',
         ]);
 
@@ -208,14 +208,14 @@ class AccountingSeeder extends Seeder
             'tax_credits' => '0.00',
             'tax_due' => '0.00',
             'status' => 'draft',
-            'currency' => 'USD',
+            'currency' => 'PKR',
             'notes' => 'Q3 sales tax filing.',
         ]);
 
         $budget = Budget::create([
             'name' => 'FY2026 Operating',
             'fiscal_year' => '2026',
-            'currency' => 'USD',
+            'currency' => 'PKR',
             'description' => 'Annual operating budget for the current fiscal year.',
             'status' => 'active',
         ]);
