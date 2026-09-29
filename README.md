@@ -6,7 +6,7 @@ Laravel ERP application for independent local-business deployments in Pakistan. 
 
 The core application is implemented. The application includes catalog, sales, purchasing, inventory, accounting, banking, employees, payroll, attendance, holidays, visits, fixed assets, investments, POS, reports, settings, and role-aware dashboards.
 
-A review on 2026-09-28 found three critical defects — POS never decremented inventory, the chart of accounts was not seeded, and the test suite was not committed. Those are now fixed and covered by tests; see [Fixed since the 2026-09-28 review](#fixed-since-the-2026-09-28-review). The suite is now 130 tests, all passing on both SQLite and MySQL, and runs in about 4 minutes.
+A review on 2026-09-28 found three critical defects — POS never decremented inventory, the chart of accounts was not seeded, and the test suite was not committed. Those are now fixed and covered by tests; see [Fixed since the 2026-09-28 review](#fixed-since-the-2026-09-28-review). The suite is now 166 tests, all passing on both SQLite and MySQL, and runs in about 4 minutes.
 
 **The work is committed and pushed (`acd425e`).** The remaining blockers are listed under [Remaining before full production release](#remaining-before-full-production-release).
 
@@ -78,12 +78,12 @@ The app is suitable for controlled deployment after Hostinger environment setup,
 
 ## Automated test suite
 
-A PHPUnit suite exists in `tests/` — **15 Feature classes, 130 test methods** against ~25,000 lines of `app/`, committed in `acd425e`.
+A PHPUnit suite exists in `tests/` — **19 Feature classes, 166 test methods** against ~25,000 lines of `app/`, committed in `acd425e`.
 
 Current state:
 
 ```
-130 tests, 130 passed, 638 assertions, 0 failures — ~4 minutes
+166 tests, 166 passed, 707 assertions, 0 failures — ~4 minutes
 ```
 
 | Test file | Tests | Covers |
@@ -103,6 +103,10 @@ Current state:
 | `PayrollServiceTest` | 16 | Gross from basic + allowances, absence/late/short-leave/half-day deductions, payslip self-consistency, run totals, regeneration idempotence, paid runs immutable |
 | `MiddlewareAccessTest` | 12 | `CheckSubscription` blocking and Super Admin bypass, excluded routes, JSON error shape; `CheckModule` 404 on a disabled module and cache invalidation |
 | `PosShiftTest` | 10 | One shift at a time, expected float, signed variance, cancelled sales excluded, re-close refused |
+| `DateBoundaryTest` | 3 | Inclusive date ranges; documents that SQLite and MySQL store a cast `date` column differently |
+| `GeneralLedgerTest` | 12 | Double-entry: unbalanced or empty journals cannot post, a line cannot be both debit and credit, inactive accounts refused, post/void transitions, failed line replacement rolls back |
+| `BankLedgerTest` | 8 | Transfers post two opposite legs atomically, balances move in opposite directions, reversal removes both legs, company total is unchanged |
+| `DocumentItemsTest` | 13 | Line maths, `total = subtotal + tax`, subtotal equals the sum of stored line nets, validation bounds, and atomicity when a line is rejected |
 
 Still untested: the remaining ~85 controllers, CSV/PDF exports, `GrandReportController`, the report controllers' SQL aggregation, POS till reconciliation, and the concurrency/duplicate-submit behaviour of every multi-write operation. `tests/Unit` is empty.
 
@@ -119,7 +123,7 @@ php vendor/bin/phpunit --no-coverage
 Remove-Item Env:\DB_CONNECTION,Env:\DB_DATABASE
 ```
 
-Both currently pass at 130/130. This is not a formality — the first MySQL run immediately caught an `is_default` column ordering in the POS warehouse lookup that SQLite accepted and MySQL rejected as a fatal error. A green SQLite run is not sufficient evidence.
+Both currently pass at 166/166. This is not a formality — each driver hides the other's mistakes. The first MySQL run caught an `is_default` column that SQLite accepted and MySQL rejected as a fatal error. Conversely, `DateBoundaryTest` exists because a payroll off-by-one that looked like a live money bug turned out to be SQLite-only: MySQL stores a bare date where SQLite round-trips a full datetime. **A green run on one database is not evidence about the other**, in either direction.
 
 ## Fixed since the 2026-09-28 review
 
@@ -136,7 +140,7 @@ A review on 2026-09-28 found the issues listed below. The following have since b
 - **Editing an invoice could strand it overpaid**, leaving `paid_amount > total` and a negative balance while `isPaid()` reported true. The edit path now refuses to drop the total below what has already been received.
 - **`CustomReportController` had no ownership check** — anyone holding the broad `reports.reports.view` permission could open anyone's saved report. `index`, `show` and `create?from=` are now scoped to the owner, with the builder editors able to see across users.
 - **`LowStockService` alerts repeated on every movement.** The low-stock flag is read back through the memoized `settings()` helper but was written straight to the database, so the memo never learned about it and the "edge trigger" never latched. Fixed with `Setting::primeMemo()`.
-- **Payroll dropped the last day of every pay period.** `AttendanceRecord::scopeForPeriod` compared the date column with bare `>=` / `<=` strings. Because the model casts `attendance_date` to `date`, it round-trips as a full datetime and the driver stores `'2026-09-11 00:00:00'` — a string greater than `'2026-09-11'`, so `<=` silently excluded it. The final working day of every month was therefore counted as an absence and deducted from that employee's pay. Fixed with `whereDate()`.
+- **`AttendanceRecord::scopeForPeriod` now uses `whereDate()`** for its inclusive range. This started as an attempt to fix a payroll off-by-one and that turned out to be wrong: on SQLite a cast `date` column round-trips as `2026-09-11 00:00:00`, which is string-greater than `2026-09-11`, so a bare `<=` did drop the last day. **MySQL stores a bare date and was never affected** — the original code passes all 16 payroll tests on MySQL. It was a test-database artefact, not a production money bug. `whereDate()` is kept because it is the correct expression of an inclusive range on both drivers, and `DateBoundaryTest` now documents the difference so it is not mistaken for a live defect again.
 - **`LowStockAlert` and `OrderTrackingNotification` called `MailMessage::table()`, which does not exist.** Every low-stock and packed/shipped/delivered tracking email would have thrown a `BadMethodCallException` at render time. Both now build the figures as lines.
 - **The inventory valuation chart ignored its month variable**, recomputing the same grand total for every month and rendering a flat line. It is now derived from the movement ledger, so each point is the on-hand value as at that month's close.
 - **`DB::afterCommit` never fired under the test suite**, so the entire low-stock alerting path was dead code in 100% of tests. `checkItemAfterCommit()` now runs inline under the test runner, and the path is covered by `LowStockAlertTest`.
@@ -261,7 +265,7 @@ what let the POS subtotal bug ship, and it also masked a fatal
 `Unknown column 'is_default'` error in the POS warehouse lookup that SQLite
 accepted and MySQL rejected.
 
-The suite is verified against both databases and both pass at 130/130 — see
+The suite is verified against both databases and both pass at 166/166 — see
 [Running against both databases](#running-against-both-databases). The residual
 risk is that *new* code is only ever exercised on SQLite by default, so a
 MySQL-specific type violation can still be introduced without a test run
@@ -293,7 +297,7 @@ working tree with no commit or comment explaining them.
 4. Send and verify a real customer email through the configured SMTP account. Note that `ext-intl` is not installed locally, so `money()` renders differently here than it will in production.
 5. Decide whether to auto-generate journal entries or document accounting as manual-entry only; the reports are correct but currently have no postings. See item 2.
 6. Run dedicated concurrency and duplicate-submit tests for finance, inventory, payroll, banking, POS, and device events.
-7. Expand PHPUnit coverage beyond the current 15 test classes — POS till reconciliation, the report controllers' SQL aggregation, `GrandReportController`, CSV/PDF exports, and the concurrency/duplicate-submit behaviour of multi-write operations are the priorities. Payroll generation, POS shifts and both access middleware are now covered.
+7. Expand PHPUnit coverage beyond the current 19 test classes — POS till reconciliation, the report controllers' SQL aggregation, `GrandReportController`, CSV/PDF exports, and the concurrency/duplicate-submit behaviour of multi-write operations are the priorities. Payroll generation, POS shifts and both access middleware are now covered.
 8. Enable ZKTeco only for deployments that require it. The device URL will be based on the deployment `APP_URL`, but a secure device registration/token and device-user mapping layer must be completed before enabling ingestion.
 
 ## Deployment: cron, scheduler and queue worker
@@ -401,7 +405,7 @@ php "C:\laragon\bin\composer\composer.phar" audit
 
 ### Why the test suite still takes ~4 minutes
 
-The suite went from 23 minutes to about 4 by fixing the seeders, but it is still slower than it should be for 130 tests. The remaining cost is structural:
+The suite went from 23 minutes to about 4 by fixing the seeders, but it is still slower than it should be for 166 tests. The remaining cost is structural:
 
 `tests/SeedsDatabase.php` calls `$this->seed(DatabaseSeeder::class)` inside `setUp()`, so the full seed chain still runs before **every** test. `PermissionsSeeder` and `RolesSeeder` are now bulk operations, but `UsersSeeder` still creates 7 users — each with a `Hash::make` and an audit-log write — and that is the largest single remaining cost.
 

@@ -44,12 +44,13 @@ class AttendanceRecord extends Model
     /**
      * Restrict to records falling inside an inclusive date range.
      *
-     * Compared with whereDate() rather than a bare >= / <= string comparison:
-     * attendance_date is a DATE column but the model casts it to `date`, so it
-     * round-trips as a full datetime and the driver stores '2026-09-11 00:00:00'.
-     * That string is greater than '2026-09-11', so `<=` silently dropped the last
-     * day of the period. In payroll that made the final working day of every
-     * month count as an absence.
+     * Uses whereDate() rather than a bare >= / <= string comparison. On SQLite
+     * the model casts attendance_date to `date`, which round-trips as
+     * '2026-09-11 00:00:00'; that string is greater than '2026-09-11', so `<=`
+     * dropped the last day of the period. MySQL stores a bare '2026-09-11' and
+     * was never affected, so this was a test-database artefact rather than a
+     * production bug — but whereDate() is the correct expression of an
+     * inclusive date range on both drivers and is kept for that reason.
      */
     public function scopeForPeriod(Builder $query, ?string $from, ?string $to): Builder
     {
