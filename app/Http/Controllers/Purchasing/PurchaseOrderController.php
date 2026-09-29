@@ -8,16 +8,18 @@ use App\Models\Product;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseStatusEvent;
 use App\Models\Supplier;
+use App\Services\NotificationService;
 use App\Support\DocumentData;
 use App\Support\DocumentItems;
 use App\Support\ExportsCsv;
 use App\Support\InventoryLedger;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
-use Illuminate\Support\Facades\DB;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PurchaseOrderController extends Controller
@@ -70,6 +72,15 @@ class PurchaseOrderController extends Controller
         $totals = DocumentItems::sync($order, $request->input('items', []));
         $order->update(['subtotal' => $totals['subtotal'], 'tax_amount' => $totals['tax'], 'total' => $totals['total']]);
 
+        app(NotificationService::class)->notifyStaff(
+            'suppliers.purchase_orders.view',
+            'New purchase order',
+            $order->number.' was raised with '.($order->supplier?->company_name ?? 'a supplier').' for '.money($order->total, $order->currency).'.',
+            'info',
+            route('suppliers.purchase_orders.show', $order),
+            auth()->id(),
+        );
+
         return redirect()->route('suppliers.purchase_orders.index')
             ->with('toasts', [['type' => 'success', 'message' => "Purchase order {$order->number} created."]]);
     }
@@ -91,7 +102,7 @@ class PurchaseOrderController extends Controller
         return view('documents.show', DocumentData::build($order));
     }
 
-    public function pdf(PurchaseOrder $order): \Illuminate\Http\Response
+    public function pdf(PurchaseOrder $order): Response
     {
         $order->load(['supplier', 'items.product']);
 
@@ -104,7 +115,7 @@ class PurchaseOrderController extends Controller
 
     public function update(Request $request, PurchaseOrder $order): RedirectResponse
     {
-        if ($order->status === 'received' || $order->status === 'completed') {
+        if (in_array($order->status, ['partial_received', 'received', 'completed'], true)) {
             return back()->with('toasts', [['type' => 'danger', 'message' => 'Received orders are locked.']]);
         }
 
@@ -170,6 +181,88 @@ class PurchaseOrderController extends Controller
         return back()->with('toasts', [['type' => 'success', 'message' => "Purchase order {$order->number} confirmed."]]);
     }
 
+    public function receive(Request $request, PurchaseOrder $order): RedirectResponse
+    {
+        $data = $request->validate([
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.id' => ['required', 'integer'],
+            'items.*.received_qty' => ['required', 'numeric', 'min:0', 'decimal:0,3'],
+        ]);
+
+        try {
+            $received = DB::transaction(function () use ($data, $order): array {
+                $order = PurchaseOrder::query()->lockForUpdate()->findOrFail($order->id);
+                $items = $order->items()->lockForUpdate()->get()->keyBy('id');
+                $requested = collect($data['items'])->keyBy('id');
+                $deltas = [];
+
+                if (! in_array($order->status, ['confirmed', 'sent', 'partial_received', 'received'], true)) {
+                    throw new \DomainException('Only confirmed purchase orders can receive inventory.');
+                }
+
+                foreach ($requested as $itemId => $item) {
+                    $line = $items->get((int) $itemId);
+
+                    if (! $line) {
+                        throw new \DomainException('One of the received lines does not belong to this purchase order.');
+                    }
+
+                    $target = round((float) $item['received_qty'], 3);
+                    $current = round((float) $line->received_qty, 3);
+                    $ordered = round((float) $line->qty, 3);
+
+                    if ($target < $current || $target > $ordered) {
+                        throw new \DomainException('Received quantities must be between the current received quantity and the ordered quantity.');
+                    }
+
+                    $delta = round($target - $current, 3);
+                    if ($delta > 0) {
+                        $deltas[$line->id] = $delta;
+                        $line->update(['received_qty' => $target]);
+                    }
+                }
+
+                if ($deltas !== []) {
+                    $order->load('items');
+                    InventoryLedger::applyPurchaseReceipt($order, $deltas);
+                }
+
+                $fullyReceived = $order->items()->get()->every(fn ($line) => (float) $line->received_qty >= (float) $line->qty);
+                $newStatus = match (true) {
+                    $fullyReceived => 'received',
+                    $deltas !== [] => 'partial_received',
+                    default => $order->status,
+                };
+
+                if ($newStatus !== $order->status) {
+                    $this->transition($order, $newStatus, 'Purchase inventory received.');
+                }
+
+                return [$newStatus, $deltas];
+            });
+        } catch (\DomainException|\RuntimeException $e) {
+            return back()->withInput()
+                ->with('toasts', [['type' => 'danger', 'message' => $e->getMessage()]]);
+        }
+
+        $message = $received[1] === []
+            ? 'No new inventory was received; the recorded quantities were already up to date.'
+            : 'Inventory received and recorded.';
+
+        if ($received[1] !== []) {
+            app(NotificationService::class)->notifyStaff(
+                'inventory.items.view',
+                'Stock received on purchase order',
+                'Purchase order '.$order->number.' added stock to the warehouse, moving it to '.$received[0].'.',
+                'success',
+                route('suppliers.purchase_orders.show', $order),
+                auth()->id(),
+            );
+        }
+
+        return back()->with('toasts', [['type' => 'success', 'message' => $message]]);
+    }
+
     public function updateStatus(Request $request, PurchaseOrder $order): RedirectResponse
     {
         $data = $request->validate([
@@ -179,20 +272,15 @@ class PurchaseOrderController extends Controller
 
         $toStatus = $data['status'];
 
+        if (in_array($toStatus, ['partial_received', 'received'], true)) {
+            return back()->with('toasts', [['type' => 'danger', 'message' => 'Use Receive inventory to post partial or full receipts.']]);
+        }
+
         if (in_array($toStatus, ['received', 'completed'], true) && ! in_array($order->status, ['confirmed', 'partial_received', 'sent'], true)) {
             return back()->with('toasts', [['type' => 'danger', 'message' => 'Only confirmed purchase orders can be received.']]);
         }
 
         $this->transition($order, $toStatus, $data['note'] ?? null);
-
-        if (in_array($toStatus, ['received', 'completed'], true)) {
-            try {
-                InventoryLedger::applyPurchaseReceipt($order);
-                $order->items()->update(['received_qty' => DB::raw('qty')]);
-            } catch (\DomainException $e) {
-                return back()->with('toasts', [['type' => 'danger', 'message' => $e->getMessage()]]);
-            }
-        }
 
         return back()->with('toasts', [['type' => 'success', 'message' => "Purchase order {$order->number} marked as {$toStatus}."]]);
     }
@@ -209,6 +297,19 @@ class PurchaseOrderController extends Controller
         ]);
 
         $order->update(['status' => $toStatus]);
+
+        // Receipt transitions are reported by receive() as a stock movement,
+        // so only the commercial statuses notify the purchasing team here.
+        if (! in_array($toStatus, ['partial_received', 'received'], true)) {
+            app(NotificationService::class)->notifyStaff(
+                'suppliers.purchase_orders.view',
+                'Purchase order '.($toStatus === 'confirmed' ? 'confirmed' : "marked as {$toStatus}"),
+                'Order '.$order->number.' with '.($order->supplier?->company_name ?? 'a supplier').' is now '.$toStatus.'.',
+                $toStatus === 'cancelled' ? 'warning' : 'success',
+                route('suppliers.purchase_orders.show', $order),
+                auth()->id(),
+            );
+        }
     }
 
     private function validateData(Request $request): array

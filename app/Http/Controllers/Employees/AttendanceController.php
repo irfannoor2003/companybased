@@ -8,13 +8,9 @@ use App\Models\Employee;
 use App\Services\AttendanceService;
 use App\Support\ExportsCsv;
 use App\Support\ExportsJson;
-use Endroid\QrCode\Encoding\Utf8Encoding;
-use Endroid\QrCode\ErrorCorrectionLevel\ErrorCorrectionLevelHigh;
-use Endroid\QrCode\Label\LabelAlignment\LabelAlignmentCenter;
-use Endroid\QrCode\Label\LabelFactory;
+use Endroid\QrCode\Encoding\Encoding;
+use Endroid\QrCode\ErrorCorrectionLevel;
 use Endroid\QrCode\QrCode;
-use Endroid\QrCode\QrCodeInterface;
-use Endroid\QrCode\Writer\WriterInterface;
 use Endroid\QrCode\Writer\PngWriter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -28,9 +24,7 @@ class AttendanceController extends Controller
     use ExportsCsv;
     use ExportsJson;
 
-    public function __construct(private readonly AttendanceService $attendance)
-    {
-    }
+    public function __construct(private readonly AttendanceService $attendance) {}
 
     public function index(Request $request): View
     {
@@ -126,15 +120,17 @@ class AttendanceController extends Controller
     {
         $qrText = settings('company.qr_code_text', 'NEXOSDIGITAL-OFFICE-ATTENDANCE-2026');
 
-        $qrCode = QrCode::create($qrText)
-            ->setEncoding(new \Endroid\QrCode\Encoding\EncodingInterface('UTF-8'))
-            ->setErrorCorrectionLevel(new ErrorCorrectionLevelHigh())
-            ->setSize(300)
-            ->setMargin(10);
+        $qrCode = new QrCode(
+            data: $qrText,
+            encoding: new Encoding('UTF-8'),
+            errorCorrectionLevel: ErrorCorrectionLevel::High,
+            size: 300,
+            margin: 10,
+        );
 
-        $writer = new PngWriter();
+        $writer = new PngWriter;
         $result = $writer->write($qrCode);
-        $base64 = 'data:image/png;base64,' . base64_encode($result->getString());
+        $base64 = 'data:image/png;base64,'.base64_encode($result->getString());
 
         return view('employees.attendance.qr-code', compact('qrText', 'base64'));
     }
@@ -146,13 +142,15 @@ class AttendanceController extends Controller
     {
         $qrText = settings('company.qr_code_text', 'NEXOSDIGITAL-OFFICE-ATTENDANCE-2026');
 
-        $qrCode = QrCode::create($qrText)
-            ->setEncoding(new \Endroid\QrCode\Encoding\EncodingInterface('UTF-8'))
-            ->setErrorCorrectionLevel(new ErrorCorrectionLevelHigh())
-            ->setSize(400)
-            ->setMargin(10);
+        $qrCode = new QrCode(
+            data: $qrText,
+            encoding: new Encoding('UTF-8'),
+            errorCorrectionLevel: ErrorCorrectionLevel::High,
+            size: 400,
+            margin: 10,
+        );
 
-        $writer = new PngWriter();
+        $writer = new PngWriter;
         $result = $writer->write($qrCode);
 
         $fileName = 'office-attendance-qr-code.png';

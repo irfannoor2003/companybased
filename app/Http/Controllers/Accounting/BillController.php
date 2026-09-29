@@ -9,6 +9,7 @@ use App\Models\Supplier;
 use App\Support\ExportsCsv;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -159,20 +160,27 @@ class BillController extends Controller
             'paid_at' => ['required', 'date'],
         ]);
 
-        if (in_array($bill->status, ['paid', 'void'], true)) {
-            return back()->with('toasts', [['type' => 'danger', 'message' => 'This bill is already '.$bill->status.'.']]);
+        try {
+            DB::transaction(function () use ($data, $bill): void {
+                $bill = Bill::query()->lockForUpdate()->findOrFail($bill->id);
+
+                if (in_array($bill->status, ['paid', 'void'], true)) {
+                    throw new \RuntimeException('This bill is already '.$bill->status.'.');
+                }
+
+                if ((float) $data['amount'] > $bill->balance()) {
+                    throw new \RuntimeException('Payment exceeds the outstanding balance of '.money($bill->balance(), $bill->currency).'.');
+                }
+
+                $paidAmount = round((float) $bill->paid_amount + (float) $data['amount'], 2);
+                $bill->update([
+                    'paid_amount' => $paidAmount,
+                    'status' => $paidAmount >= (float) $bill->amount ? 'paid' : 'partially_paid',
+                ]);
+            });
+        } catch (\RuntimeException $e) {
+            return back()->with('toasts', [['type' => 'danger', 'message' => $e->getMessage()]]);
         }
-
-        $remaining = $bill->balance();
-
-        if ((float) $data['amount'] > $remaining) {
-            return back()->with('toasts', [['type' => 'danger', 'message' => 'Payment exceeds the outstanding balance of '.money($remaining, $bill->currency).'.']]);
-        }
-
-        $bill->update([
-            'paid_amount' => round((float) $bill->paid_amount + (float) $data['amount'], 2),
-            'status' => $bill->isPaid() ? 'paid' : 'partially_paid',
-        ]);
 
         return back()->with('toasts', [['type' => 'success', 'message' => 'Payment of '.money($data['amount'], $bill->currency).' recorded on '.$bill->number.'.']]);
     }

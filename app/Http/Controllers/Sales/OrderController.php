@@ -3,25 +3,27 @@
 namespace App\Http\Controllers\Sales;
 
 use App\Http\Controllers\Controller;
+use App\Models\Product;
 use App\Models\SalesCustomer;
 use App\Models\SalesOrder;
-use App\Models\SalesStatusEvent;
+use App\Services\NotificationService;
 use App\Services\TrackingService;
+use App\Support\DiscountLimit;
 use App\Support\DocumentData;
 use App\Support\DocumentItems;
-use App\Support\DiscountLimit;
 use App\Support\ExportsCsv;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class OrderController extends Controller
 {
-    use ExportsCsv;
     use DiscountLimit;
+    use ExportsCsv;
 
     public function index(Request $request): View
     {
@@ -43,7 +45,7 @@ class OrderController extends Controller
     public function create(): View
     {
         $customers = SalesCustomer::query()->orderBy('company_name')->get();
-        $products = \App\Models\Product::query()->where('is_active', true)->orderBy('name')->get();
+        $products = Product::query()->where('is_active', true)->orderBy('name')->get();
         $maxDiscount = $this->getMaxDiscountForUser();
 
         return view('sales.orders.create', compact('customers', 'products', 'maxDiscount'));
@@ -70,6 +72,19 @@ class OrderController extends Controller
         $totals = DocumentItems::sync($order, $request->input('items', []));
         $order->update(['subtotal' => $totals['subtotal'], 'tax_amount' => $totals['tax'], 'total' => $totals['total']]);
 
+        // Orders can be created already confirmed/packed (e.g. counter sales).
+        // Give them a tracking code and tell the customer straight away.
+        $this->syncInitialStatus($order, $data['status']);
+
+        app(NotificationService::class)->notifyStaff(
+            'sales.orders.view',
+            'New sales order',
+            $order->number.' was created and needs attention.',
+            'info',
+            route('sales.orders.show', $order),
+            auth()->id(),
+        );
+
         return redirect()->route('sales.orders.index')
             ->with('toasts', [['type' => 'success', 'message' => "Order {$order->number} created."]]);
     }
@@ -78,7 +93,7 @@ class OrderController extends Controller
     {
         $order->load(['customer', 'items.product', 'statusEvents.user', 'deliveryNotes']);
         $customers = SalesCustomer::query()->orderBy('company_name')->get();
-        $products = \App\Models\Product::query()->where('is_active', true)->orderBy('name')->get();
+        $products = Product::query()->where('is_active', true)->orderBy('name')->get();
         $maxDiscount = $this->getMaxDiscountForUser();
 
         return view('sales.orders.edit', compact('order', 'customers', 'products', 'maxDiscount'));
@@ -91,7 +106,7 @@ class OrderController extends Controller
         return view('documents.show', DocumentData::build($order));
     }
 
-    public function pdf(SalesOrder $order): \Illuminate\Http\Response
+    public function pdf(SalesOrder $order): Response
     {
         $order->load(['customer', 'items.product']);
 
@@ -182,11 +197,45 @@ class OrderController extends Controller
     {
         $tracking = app(TrackingService::class);
 
-        if ($toStatus === 'confirmed') {
+        // Any order that has left draft needs a public tracking code, otherwise
+        // the customer can never receive a status email or use /track/{code}.
+        if ($tracking->requiresTrackingCode($toStatus)) {
             $tracking->ensureTrackingCode($order);
         }
 
         $tracking->recordTransition($order, $toStatus, $note);
+
+        // Staff only care once an order moves off draft — the create-time
+        // notification already covered "a new order exists".
+        if ($toStatus !== 'draft') {
+            $label = $toStatus === 'confirmed' ? 'confirmed' : "marked as {$toStatus}";
+
+            app(NotificationService::class)->notifyStaff(
+                'sales.orders.view',
+                "Sales order {$label}",
+                "Order {$order->number} was {$label}.".($order->customer?->company_name ? ' — '.$order->customer->company_name : ''),
+                $toStatus === 'cancelled' ? 'warning' : 'success',
+                route('sales.orders.show', $order),
+                auth()->id(),
+            );
+        }
+    }
+
+    /**
+     * Orders can be saved with a non-draft status straight from the create/edit
+     * form. When that happens the order never passed through confirm(), so give
+     * it a tracking code and fire the matching customer notification here.
+     */
+    private function syncInitialStatus(SalesOrder $order, string $status): void
+    {
+        $tracking = app(TrackingService::class);
+
+        if ($status === 'draft' || ! $tracking->requiresTrackingCode($status)) {
+            return;
+        }
+
+        $tracking->ensureTrackingCode($order);
+        $tracking->notifyOrder($order, $status);
     }
 
     private function validateData(Request $request): array

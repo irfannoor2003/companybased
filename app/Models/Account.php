@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 
 class Account extends Model
 {
@@ -91,5 +92,34 @@ class Account extends Model
         $credits = (float) $this->journalItems()->whereHas('entry', fn ($q) => $q->where('status', 'posted'))->sum('credit');
 
         return round($debits - $credits, 2);
+    }
+
+    /**
+     * Net balance per account type, in one query.
+     *
+     * Summing Account::balance() per account costs two SUM queries each, so the
+     * chart-of-accounts index was running 5 + 2N queries. This aggregates in SQL
+     * and returns the same figures.
+     *
+     * @return array<string, float>
+     */
+    public static function balancesByType(): array
+    {
+        $rows = DB::table('accounts')
+            ->join('journal_entry_items', 'journal_entry_items.account_id', '=', 'accounts.id')
+            ->join('journal_entries', 'journal_entries.id', '=', 'journal_entry_items.journal_entry_id')
+            ->where('journal_entries.status', 'posted')
+            ->whereNull('accounts.deleted_at')
+            ->groupBy('accounts.type')
+            ->selectRaw('accounts.type as type, SUM(journal_entry_items.debit) - SUM(journal_entry_items.credit) as balance')
+            ->pluck('balance', 'type');
+
+        $totals = [];
+
+        foreach (static::typeOptions() as $type) {
+            $totals[$type] = round((float) ($rows[$type] ?? 0), 2);
+        }
+
+        return $totals;
     }
 }

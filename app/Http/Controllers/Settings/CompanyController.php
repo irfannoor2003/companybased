@@ -8,6 +8,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\Response;
 
 class CompanyController extends Controller
 {
@@ -16,12 +17,21 @@ class CompanyController extends Controller
         return view('settings.company');
     }
 
+    /**
+     * Update the company profile.
+     *
+     * Two separate forms on the settings screen post here — the profile form and
+     * the office-location form — so this is a *partial* update: anything the
+     * request omits keeps its stored value. Validating the profile fields as
+     * required would make saving office coordinates fail with "The name field is
+     * required", which is exactly what it used to do.
+     */
     public function updateCompany(Request $request): RedirectResponse
     {
         $this->authorizePermission('settings.company.manage');
 
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:120'],
+            'name' => ['nullable', 'string', 'max:120'],
             'tagline' => ['nullable', 'string', 'max:255'],
             'email' => ['nullable', 'email', 'max:255'],
             'phone' => ['nullable', 'string', 'max:60'],
@@ -29,35 +39,45 @@ class CompanyController extends Controller
             'address' => ['nullable', 'string', 'max:500'],
             'registration_number' => ['nullable', 'string', 'max:100'],
             'tax_number' => ['nullable', 'string', 'max:100'],
-            'currency' => ['required', 'string', 'size:3'],
+            'currency' => ['nullable', 'string', 'size:3'],
             'base_currency' => ['nullable', 'string', 'size:3'],
             'fiscal_year_start' => ['nullable', 'date'],
-            'timezone' => ['required', 'timezone'],
-            'date_format' => ['required', 'string', 'max:30'],
+            'timezone' => ['nullable', 'timezone'],
+            'date_format' => ['nullable', 'string', 'max:30'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'radius' => ['nullable', 'integer', 'min:50', 'max:10000'],
             'qr_code_text' => ['nullable', 'string', 'max:255'],
         ]);
 
+        // Which of the keys this particular form actually submitted.
+        $sent = array_keys($request->all());
+
+        $value = function (string $key, mixed $fallback) use ($sent, $data): mixed {
+            return in_array($key, $sent, true) ? ($data[$key] ?? null) : $fallback;
+        };
+
+        $currentCurrency = settings('company.currency', 'USD');
+        $currency = $value('currency', $currentCurrency) ?: $currentCurrency;
+
         Setting::setMany([
-            'company.name' => $data['name'],
-            'company.tagline' => $data['tagline'] ?? null,
-            'company.email' => $data['email'] ?? null,
-            'company.phone' => $data['phone'] ?? null,
-            'company.website' => $data['website'] ?? null,
-            'company.address' => $data['address'] ?? null,
-            'company.registration_number' => $data['registration_number'] ?? null,
-            'company.tax_number' => $data['tax_number'] ?? null,
-            'company.currency' => $data['currency'],
-            'base_currency' => $data['base_currency'] ?? $data['currency'],
-            'company.fiscal_year_start' => $data['fiscal_year_start'] ?? null,
-            'company.timezone' => $data['timezone'],
-            'company.date_format' => $data['date_format'],
-            'company.latitude' => $data['latitude'] ?? null,
-            'company.longitude' => $data['longitude'] ?? null,
-            'company.radius' => $data['radius'] ?? 500,
-            'company.qr_code_text' => $data['qr_code_text'] ?? null,
+            'company.name' => $value('name', settings('company.name', company_name())) ?: company_name(),
+            'company.tagline' => $value('tagline', settings('company.tagline')),
+            'company.email' => $value('email', settings('company.email')),
+            'company.phone' => $value('phone', settings('company.phone')),
+            'company.website' => $value('website', settings('company.website')),
+            'company.address' => $value('address', settings('company.address')),
+            'company.registration_number' => $value('registration_number', settings('company.registration_number')),
+            'company.tax_number' => $value('tax_number', settings('company.tax_number')),
+            'company.currency' => $currency,
+            'base_currency' => $value('base_currency', settings('base_currency')) ?: $currency,
+            'company.fiscal_year_start' => $value('fiscal_year_start', settings('company.fiscal_year_start')),
+            'company.timezone' => $value('timezone', settings('company.timezone', 'UTC')) ?: 'UTC',
+            'company.date_format' => $value('date_format', settings('company.date_format', 'M d, Y')) ?: 'M d, Y',
+            'company.latitude' => $value('latitude', settings('company.latitude')),
+            'company.longitude' => $value('longitude', settings('company.longitude')),
+            'company.radius' => $value('radius', settings('company.radius', 500)) ?: 500,
+            'company.qr_code_text' => $value('qr_code_text', settings('company.qr_code_text')),
         ]);
 
         return back()->with('toasts', [['type' => 'success', 'message' => 'Company profile updated.']]);
@@ -115,7 +135,7 @@ class CompanyController extends Controller
         return back()->with('toasts', [['type' => 'success', 'message' => 'Notification settings updated.']]);
     }
 
-    public function removeBranding(Request $request): \Symfony\Component\HttpFoundation\Response
+    public function removeBranding(Request $request): Response
     {
         $this->authorizePermission('settings.branding.manage');
 

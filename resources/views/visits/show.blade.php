@@ -28,9 +28,15 @@
                 @if ($visit->outcome)
                     <div class="flex justify-between"><dt class="text-ink-faint">Outcome</dt><dd><x-visits.status-badge :status="$visit->outcome" /></dd></div>
                 @endif
-                @if ($visit->notes)
-                    <div class="border-t border-line pt-3"><dt class="text-ink-faint">Notes</dt><dd class="mt-1 whitespace-pre-line text-ink-soft">{{ $visit->notes }}</dd></div>
-                @endif
+                 @if ($visit->outcome_notes)
+                     <div class="border-t border-line pt-3"><dt class="text-ink-faint">Conclusion</dt><dd class="mt-1 whitespace-pre-line text-ink-soft">{{ $visit->outcome_notes }}</dd></div>
+                 @endif
+                 @if ($visit->completion_image_path)
+                     <div class="border-t border-line pt-3"><dt class="text-ink-faint">Visit image</dt><dd class="mt-2"><a href="{{ route('visits.completion-image', $visit) }}" target="_blank" class="inline-flex items-center gap-1 text-sm text-primary"><x-icon name="eye" class="size-4" /> View image</a></dd></div>
+                 @endif
+                 @if ($visit->notes)
+                     <div class="border-t border-line pt-3"><dt class="text-ink-faint">Notes</dt><dd class="mt-1 whitespace-pre-line text-ink-soft">{{ $visit->notes }}</dd></div>
+                 @endif
             </dl>
         </x-card>
 
@@ -47,7 +53,7 @@
                             </form>
                         @endif
                         @if ($visit->status === 'started')
-                            <form method="POST" action="{{ route('visits.complete', $visit) }}" id="completeForm" class="flex flex-wrap items-end gap-3">
+                            <form method="POST" action="{{ route('visits.complete', $visit) }}" id="completeForm" enctype="multipart/form-data" class="flex flex-wrap items-end gap-3">
                                 @csrf
                                 <input type="hidden" name="latitude" :value="latitude" />
                                 <input type="hidden" name="longitude" :value="longitude" />
@@ -55,7 +61,11 @@
                                     <x-input name="distance_km" label="Distance (km)" type="number" step="0.01" min="0" required placeholder="e.g. 12.50" size="sm" :error="$errors->first('distance_km')" />
                                 </div>
                                 <div class="w-56">
-                                    <x-input name="note" label="Note" size="sm" placeholder="e.g. Met with procurement manager" :error="$errors->first('note')" />
+                                    <x-input name="note" label="Conclusion / reason" required size="sm" placeholder="Required conclusion for this visit" :error="$errors->first('note')" />
+                                </div>
+                                <div class="w-48">
+                                    <label class="label" for="completionImage">Image <span class="font-normal text-ink-faint">(optional)</span></label>
+                                    <input type="file" name="image" id="completionImage" accept="image/jpeg,image/png,image/webp" class="input" />
                                 </div>
                                 <div class="w-40">
                                     <x-select name="outcome" label="Outcome" size="sm" :error="$errors->first('outcome')">

@@ -60,6 +60,15 @@ class TrackingService
     }
 
     /**
+     * Whether a status represents real, committed work. Anything at or past
+     * "confirmed" is externally visible and must carry a tracking code.
+     */
+    public function requiresTrackingCode(string $status): bool
+    {
+        return ! in_array($status, ['draft', 'cancelled'], true);
+    }
+
+    /**
      * Dispatch the customer notification for an order status change, according
      * to the configured notification rules (see NotificationRule).
      */
@@ -75,7 +84,15 @@ class TrackingService
             return;
         }
 
-        $customer->notify(new OrderTrackingNotification($order, $toStatus ?? $order->status));
+        // Confirmation is a distinct, separately configurable event from the
+        // generic status change, so it gets its own notification rule.
+        $event = $toStatus === 'confirmed' ? 'order.confirmed' : 'order.status_changed';
+
+        try {
+            $customer->notify(new OrderTrackingNotification($order, $toStatus ?? $order->status, $event));
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     /**
@@ -96,6 +113,10 @@ class TrackingService
             return;
         }
 
-        $customer->notify(new OrderTrackingNotification($order, $toStatus, 'delivery.status_changed'));
+        try {
+            $customer->notify(new OrderTrackingNotification($order, $toStatus, 'delivery.status_changed'));
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 }

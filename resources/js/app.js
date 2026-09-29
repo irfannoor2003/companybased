@@ -1,7 +1,26 @@
 import Alpine from 'alpinejs';
 import collapse from '@alpinejs/collapse';
+import { Chart, registerables } from 'chart.js';
 
 window.Alpine = Alpine;
+window.Chart = Chart;
+Chart.register(...registerables);
+
+// This file is an ES module, so it runs after inline <script> blocks in the body
+// have already queued their charts. Flush the queue now that Chart is available.
+window.__cbFlushCharts = function () {
+    if (!window.__cbRenderCharts) return;
+    var queued = window.__cbRenderCharts;
+    window.__cbRenderCharts = [];
+    queued.forEach(function (fn) {
+        try {
+            fn();
+        } catch (error) {
+            console.error('[chart] render failed', error);
+        }
+    });
+};
+window.__cbFlushCharts();
 
 Alpine.plugin(collapse);
 
@@ -21,8 +40,130 @@ document.addEventListener('alpine:init', () => {
         },
     });
 
-    Alpine.data('currencyFromEntity', () => ({
-        initCurrencySelect() {
+    /**
+     * Global search box in the topbar.
+     *
+     * Queries /search/api, which scopes results server-side to the permissions
+     * and enabled modules of the signed-in user, so this component never has to
+     * decide what the user may see — it only renders what it is given.
+     */
+    Alpine.data('globalSearch', (config) => ({
+        endpoint: config.endpoint,
+        resultsUrl: config.resultsUrl,
+        q: '',
+        open: false,
+        loading: false,
+        results: [],
+        // Guards against a slow earlier request overwriting a newer one.
+        requestId: 0,
+        timer: null,
+
+        init() {
+            this.$watch('q', () => this.schedule());
+        },
+
+        schedule() {
+            clearTimeout(this.timer);
+
+            if (this.q.trim().length < 2) {
+                this.results = [];
+                this.loading = false;
+                this.open = this.q.trim().length > 0;
+                return;
+            }
+
+            this.open = true;
+            this.loading = true;
+
+            this.timer = setTimeout(() => this.fetchResults(), 220);
+        },
+
+        async fetchResults() {
+            const id = ++this.requestId;
+            const term = this.q.trim();
+
+            try {
+                const response = await fetch(`${this.endpoint}?q=${encodeURIComponent(term)}`, {
+                    headers: { Accept: 'application/json' },
+                    credentials: 'same-origin',
+                });
+
+                if (!response.ok) throw new Error(`Search failed (${response.status})`);
+
+                const data = await response.json();
+
+                if (id !== this.requestId) return;
+
+                this.results = data.results || [];
+            } catch (e) {
+                if (id !== this.requestId) return;
+                this.results = [];
+            } finally {
+                if (id === this.requestId) this.loading = false;
+            }
+        },
+
+        submit() {
+            if (this.q.trim().length < 2) return;
+            window.location.href = `${this.resultsUrl}?q=${encodeURIComponent(this.q.trim())}`;
+        },
+
+        select(result) {
+            if (result.url) {
+                window.location.href = result.url;
+            }
+        },
+
+        /**
+         * Escape the text, then wrap the matched term in <mark>.
+         *
+         * Built by walking the original string rather than escaping then
+         * re-inserting, so a record whose name contains markup cannot inject
+         * HTML into the dropdown.
+         */
+        highlight(text) {
+            if (!text) return '';
+
+            const term = this.q.trim();
+
+            if (term.length < 2) {
+                return this.escape(text);
+            }
+
+            const pattern = new RegExp(this.escapeRegExp(term), 'ig');
+            let html = '';
+            let lastIndex = 0;
+
+            text.replace(pattern, (match, offset) => {
+                html += this.escape(text.slice(lastIndex, offset));
+                html += `<mark>${this.escape(match)}</mark>`;
+                lastIndex = offset + match.length;
+                return match;
+            });
+
+            return html + this.escape(text.slice(lastIndex));
+        },
+
+        escapeRegExp(value) {
+            return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        },
+
+        escape(value) {
+            return document.createTextNode(String(value)).textContent;
+        },
+
+        handleKeydown(event) {
+            if (event.key === 'Escape') {
+                this.open = false;
+            }
+        },
+
+        focusInput() {
+            this.$refs.searchInput?.focus();
+        },
+    }));
+
+    Alpine.data('currencyFromEntity', () => ({        initCurrencySelect() {
             const sel = this.$el.querySelector('[name="customer_id"], [name="supplier_id"]');
             if (sel && sel.value) {
                 this.syncCurrency(sel);

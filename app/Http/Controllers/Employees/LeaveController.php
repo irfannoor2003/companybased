@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Employees;
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
+use App\Services\NotificationService;
 use App\Support\ExportsCsv;
 use App\Support\ExportsJson;
 use Illuminate\Http\RedirectResponse;
@@ -98,6 +99,15 @@ class LeaveController extends Controller
             'status' => 'pending',
         ]);
 
+        app(NotificationService::class)->notifyStaff(
+            'employees.leave_requests.approve',
+            'Leave request pending',
+            $employee->fullName().' submitted a '.$leave->leave_type.' leave request for '.$days.' day(s).',
+            'warning',
+            route('employees.leave.index'),
+            auth()->id(),
+        );
+
         return redirect()->route('employees.leave.my')
             ->with('toasts', [['type' => 'success', 'message' => "Leave request submitted for {$days} day(s)."]]);
     }
@@ -142,6 +152,14 @@ class LeaveController extends Controller
             'reviewed_at' => now(),
         ]);
 
+        app(NotificationService::class)->notifyUser(
+            $leave->employee?->user,
+            'Leave request approved',
+            'Your '.$leave->leave_type.' leave from '.$leave->start_date->format('d M Y').' to '.$leave->end_date->format('d M Y').' was approved.',
+            'success',
+            route('employees.leave.my'),
+        );
+
         return back()->with('toasts', [['type' => 'success', 'message' => "Leave request for {$leave->employee?->fullName()} approved."]]);
     }
 
@@ -161,6 +179,14 @@ class LeaveController extends Controller
             'reviewed_at' => now(),
             'review_notes' => $data['review_notes'],
         ]);
+
+        app(NotificationService::class)->notifyUser(
+            $leave->employee?->user,
+            'Leave request rejected',
+            'Your '.$leave->leave_type.' leave from '.$leave->start_date->format('d M Y').' to '.$leave->end_date->format('d M Y').' was rejected.',
+            'danger',
+            route('employees.leave.my'),
+        );
 
         return back()->with('toasts', [['type' => 'success', 'message' => 'Leave request rejected.']]);
     }
@@ -203,9 +229,7 @@ class LeaveController extends Controller
      */
     private function isManager(): bool
     {
-        $user = auth()->user();
-
-        return $user && ($user->isAdmin() || $user->hasRole('HR'));
+        return (bool) auth()->user()?->isHrManager();
     }
 
     private function currentEmployee(): ?Employee

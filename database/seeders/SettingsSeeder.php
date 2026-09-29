@@ -33,7 +33,17 @@ class SettingsSeeder extends Seeder
             'branding.favicon' => 'branding/favicon.ico',
             'branding.dark_mode' => 'system',
             'notifications.email_enabled' => '1',
-            'notifications.email_from' => 'no-reply@nexosdigital.test',
+
+            // Mail identity. MailIdentity derives no-reply@/info@ from the domain
+            // of these addresses; Super Admin can change them under
+            // Settings → Mail Server.
+            'mail.system_from_address' => 'no-reply@nexosdigital.test',
+            'mail.system_from_name' => 'Nexos Digital',
+            'mail.reply_to_address' => 'info@nexosdigital.test',
+            'mail.reply_to_name' => 'Nexos Digital',
+            'mail.personal_from_address' => 'info@nexosdigital.test',
+            'mail.personal_from_name' => 'Nexos Digital',
+            'mail.personal_use_shared_address' => '1',
         ], 'general');
 
         Setting::flushCache();

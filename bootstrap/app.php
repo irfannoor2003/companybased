@@ -3,12 +3,16 @@
 use App\Http\Middleware\CheckModule;
 use App\Http\Middleware\CheckSubscription;
 use App\Http\Middleware\EnsureUserIsActive;
+use App\Http\Middleware\RequireEmployeeProfile;
 use App\Http\Middleware\ShareAppSettings;
 use Dotenv\Dotenv;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Spatie\Permission\Middleware\PermissionMiddleware;
+use Spatie\Permission\Middleware\RoleMiddleware;
+use Spatie\Permission\Middleware\RoleOrPermissionMiddleware;
 
 $basePath = dirname(__DIR__);
 
@@ -57,9 +61,10 @@ return Application::configure(basePath: $basePath)
 
         $middleware->alias([
             'module' => CheckModule::class,
-            'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
-            'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
-            'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
+            'employee' => RequireEmployeeProfile::class,
+            'role' => RoleMiddleware::class,
+            'permission' => PermissionMiddleware::class,
+            'role_or_permission' => RoleOrPermissionMiddleware::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

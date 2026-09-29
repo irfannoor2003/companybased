@@ -4,67 +4,101 @@ namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
 use App\Models\Setting;
+use App\Support\Branding;
+use App\Support\MailIdentity;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\View\View;
 
 class MailSettingsController extends Controller
 {
     public function edit(): View
     {
-        $mail = [
-            'mailer' => settings('mail.mailer', env('MAIL_MAILER', 'smtp')),
-            'host' => settings('mail.host', env('MAIL_HOST', '127.0.0.1')),
-            'port' => settings('mail.port', env('MAIL_PORT', 587)),
-            'username' => settings('mail.username', env('MAIL_USERNAME', '')),
-            'password' => settings('mail.password', env('MAIL_PASSWORD', '')),
-            'encryption' => settings('mail.encryption', env('MAIL_ENCRYPTION', 'tls')),
-            'from_address' => settings('mail.from_address', env('MAIL_FROM_ADDRESS', '')),
-            'from_name' => settings('mail.from_name', env('MAIL_FROM_NAME', '')),
-        ];
-
-        return view('settings.mail', compact('mail'));
+        return view('settings.mail', ['mail' => $this->currentSettings()]);
     }
 
     public function update(Request $request): RedirectResponse
     {
         $data = $request->validate([
+            // Transport
             'mailer' => ['required', 'string', 'in:smtp,sendmail,ses,postmark,log'],
             'host' => ['required_with:mailer:smtp', 'nullable', 'string', 'max:255'],
             'port' => ['required_with:mailer:smtp', 'nullable', 'integer', 'min:1', 'max:65535'],
             'username' => ['nullable', 'string', 'max:255'],
-            'password' => ['nullable', 'string', 'max:255'],
+            'password' => ['nullable', 'string', 'min:4', 'max:255'],
             'encryption' => ['nullable', 'string', 'in:tls,ssl,null'],
-            'from_address' => ['required', 'email', 'max:255'],
-            'from_name' => ['required', 'string', 'max:255'],
+
+            // Automated mail identity (no-reply)
+            'system_from_address' => ['required', 'email', 'max:255'],
+            'system_from_name' => ['nullable', 'string', 'max:255'],
+
+            // Where replies to automated mail go
+            'reply_to_address' => ['required', 'email', 'max:255'],
+            'reply_to_name' => ['nullable', 'string', 'max:255'],
+
+            // Staff-sent mail identity (info@)
+            'personal_from_address' => ['required', 'email', 'max:255'],
+            'personal_from_name' => ['nullable', 'string', 'max:255'],
+            'personal_use_shared_address' => ['nullable', 'boolean'],
         ]);
+
+        // An empty password box means "keep the stored one" — the field is a
+        // write-only credential and is never rendered back. Everything else is
+        // taken at face value.
+        $password = filled($data['password'] ?? null)
+            ? $data['password']
+            : Setting::get('mail.password', env('MAIL_PASSWORD'));
+
+        $username = $data['username'] ?? null;
+
+        // Credentials are only meaningful for transports that authenticate.
+        $requiresAuth = in_array($data['mailer'], ['smtp', 'ses', 'postmark'], true);
+
+        if ($requiresAuth) {
+            $validator = Validator::make([], []);
+
+            if (blank($username)) {
+                $validator->errors()->add('username', 'The username field is required when using '.$data['mailer'].'.');
+            }
+
+            // A blank SMTP username is almost always a misconfiguration that
+            // silently stops every queued email, so refuse to save it.
+            if (blank($password)) {
+                $validator->errors()->add('password', 'The password field is required when using '.$data['mailer'].'.');
+            }
+
+            if ($validator->errors()->isNotEmpty()) {
+                return back()
+                    ->withInput($request->except('password'))
+                    ->withErrors($validator)
+                    ->with('toasts', [['type' => 'error', 'message' => 'Mail credentials are incomplete.']]);
+            }
+        }
 
         Setting::setMany([
             'mail.mailer' => $data['mailer'],
             'mail.host' => $data['host'] ?? null,
             'mail.port' => $data['port'] ?? null,
-            'mail.username' => $data['username'] ?? null,
-            'mail.password' => $data['password'] ?? null,
+            'mail.username' => $username,
+            'mail.password' => $password,
             'mail.encryption' => $data['encryption'] ?? null,
-            'mail.from_address' => $data['from_address'],
-            'mail.from_name' => $data['from_name'],
+
+            'mail.system_from_address' => $data['system_from_address'],
+            'mail.system_from_name' => $data['system_from_name'] ?: company_name(),
+
+            'mail.reply_to_address' => $data['reply_to_address'],
+            'mail.reply_to_name' => $data['reply_to_name'] ?: company_name(),
+
+            'mail.personal_from_address' => $data['personal_from_address'],
+            'mail.personal_from_name' => $data['personal_from_name'] ?: company_name(),
+            'mail.personal_use_shared_address' => $request->boolean('personal_use_shared_address') ? '1' : '0',
         ]);
 
-        $this->writeEnv([
-            'MAIL_MAILER' => $data['mailer'],
-            'MAIL_HOST' => $data['host'] ?? '',
-            'MAIL_PORT' => $data['port'] ?? '',
-            'MAIL_USERNAME' => $data['username'] ?? '',
-            'MAIL_PASSWORD' => $data['password'] ?? '',
-            'MAIL_ENCRYPTION' => $data['encryption'] ?? '',
-            'MAIL_FROM_ADDRESS' => $data['from_address'],
-            'MAIL_FROM_NAME' => $data['from_name'],
-        ]);
-
-        Artisan::call('config:clear');
-        Artisan::call('cache:clear');
-
+        // No .env rewrite and no `config:clear` here: MailConfigServiceProvider
+        // overlays these settings on top of the environment at runtime, so the
+        // change takes effect immediately and survives a config cache.
         return back()->with('toasts', [['type' => 'success', 'message' => 'Mail server settings updated.']]);
     }
 
@@ -74,44 +108,50 @@ class MailSettingsController extends Controller
             'test_email' => ['required', 'email', 'max:255'],
         ]);
 
-        try {
-            $to = $data['test_email'];
+        $to = $data['test_email'];
 
-            \Mail::raw('This is a test email from ' . settings('company.name', config('app.name')) . ' to verify your mail server configuration.', function ($message) use ($to) {
-                $message->to($to)
-                    ->subject('Mail Server Test — ' . settings('company.name', config('app.name')));
-            });
+        try {
+            Mail::html(
+                view('emails.test-mail', ['brand' => Branding::payload()])->render(),
+                function ($message) use ($to) {
+                    $message->to($to)
+                        ->from(MailIdentity::systemFromAddress(), MailIdentity::systemFromName())
+                        ->replyTo(...array_values(MailIdentity::replyTo()))
+                        ->subject('Mail Server Test — '.company_name());
+                }
+            );
 
             return back()->with('toasts', [['type' => 'success', 'message' => "Test email sent to {$to}. Check your inbox."]]);
         } catch (\Throwable $e) {
-            return back()->with('toasts', [['type' => 'error', 'message' => 'Failed to send test email: ' . $e->getMessage()]]);
+            return back()->with('toasts', [['type' => 'error', 'message' => 'Failed to send test email: '.$e->getMessage()]]);
         }
     }
 
-    protected function writeEnv(array $values): void
+    /**
+     * Settings-backed values for the form, falling back to the MAIL_* env
+     * values so the panel is populated on a fresh install.
+     *
+     * @return array<string, mixed>
+     */
+    private function currentSettings(): array
     {
-        $path = base_path('.env');
-        $contents = file_get_contents($path);
+        return [
+            'mailer' => settings('mail.mailer', env('MAIL_MAILER', 'smtp')),
+            'host' => settings('mail.host', env('MAIL_HOST', '127.0.0.1')),
+            'port' => settings('mail.port', env('MAIL_PORT', 587)),
+            'username' => settings('mail.username', env('MAIL_USERNAME', '')),
+            // Never send the stored password back to the browser.
+            'password' => null,
+            'password_is_set' => filled(settings('mail.password', env('MAIL_PASSWORD', ''))),
+            'encryption' => settings('mail.encryption', env('MAIL_ENCRYPTION', 'tls')),
 
-        foreach ($values as $key => $value) {
-            $value = (string) $value;
-
-            // Dotenv requires values with spaces or special characters to be quoted.
-            if ($value === '' || preg_match('/[^A-Za-z0-9_.\-@:\/]/', $value)) {
-                $value = '"' . str_replace('"', '\\"', $value) . '"';
-            }
-
-            $pattern = '/^' . preg_quote($key, '/') . '=.*/m';
-
-            if (preg_match($pattern, $contents)) {
-                $contents = preg_replace_callback($pattern, function () use ($key, $value) {
-                    return $key . '=' . $value;
-                }, $contents);
-            } else {
-                $contents .= "\n" . $key . '=' . $value;
-            }
-        }
-
-        file_put_contents($path, $contents);
+            'system_from_address' => MailIdentity::systemFromAddress(),
+            'system_from_name' => MailIdentity::systemFromName(),
+            'reply_to_address' => MailIdentity::replyToAddress() ?: MailIdentity::systemFromAddress(),
+            'reply_to_name' => MailIdentity::replyToName() ?: company_name(),
+            'personal_from_address' => MailIdentity::personalFromAddress(),
+            'personal_from_name' => MailIdentity::personalFromName(),
+            'personal_use_shared_address' => MailIdentity::usesSharedPersonalAddress(),
+        ];
     }
 }

@@ -35,6 +35,10 @@
             {{ $attributes->merge([
                 'class' => trim("input {$base} {$leading} {$trailing}") . ($error ? ' !border-rose-400 focus:!ring-rose-200' : ''),
                 'id' => $attributes->get('id') ?? $attributes->get('name'),
+                // Mirror the prop onto the real attribute so the browser blocks
+                // empty submissions too. Server-side validation remains the
+                // authority — this is only a first line of defence.
+                'required' => $required ? true : null,
             ]) }}
         />
 

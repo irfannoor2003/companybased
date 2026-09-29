@@ -1,7 +1,11 @@
 <?php
 
+use App\Models\ExchangeRate;
 use App\Models\Module;
 use App\Models\Setting;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 if (! function_exists('settings')) {
     /**
@@ -40,9 +44,9 @@ if (! function_exists('money')) {
         $currency = $currency ?: (string) (settings('base_currency') ?: settings('company.currency') ?: 'USD');
         $amount = (float) ((string) ($amount ?? 0));
 
-        if (class_exists(\NumberFormatter::class)) {
-            $formatter = new \NumberFormatter(app()->getLocale() ?: 'en', \NumberFormatter::CURRENCY);
-            $formatter->setSymbol(\NumberFormatter::CURRENCY_SYMBOL, $currency);
+        if (class_exists(NumberFormatter::class)) {
+            $formatter = new NumberFormatter(app()->getLocale() ?: 'en', NumberFormatter::CURRENCY);
+            $formatter->setSymbol(NumberFormatter::CURRENCY_SYMBOL, $currency);
 
             return (string) $formatter->format($amount);
         }
@@ -76,7 +80,7 @@ if (! function_exists('exchange_rate_for')) {
             return 1.0;
         }
 
-        $rate = \App\Models\ExchangeRate::latestFor($currency, $effectiveDate)?->rate_to_base;
+        $rate = ExchangeRate::latestFor($currency, $effectiveDate)?->rate_to_base;
 
         return $rate !== null ? (float) $rate : 1.0;
     }
@@ -137,14 +141,35 @@ if (! function_exists('next_document_number')) {
     {
         $key = 'counters.'.$type;
 
-        do {
-            $next = ((int) Setting::get($key, 0)) + 1;
-            Setting::set($key, $next, 'counters');
+        return DB::transaction(function () use ($key, $prefix, $modelClass): string {
+            $setting = Setting::query()->where('key', $key)->lockForUpdate()->first();
 
-            $number = $prefix.'-'.now()->format('Y').'-'.str_pad((string) $next, 4, '0', STR_PAD_LEFT);
-        } while ($modelClass !== null && $modelClass::withTrashed()->where('number', $number)->exists());
+            if (! $setting) {
+                Setting::query()->insertOrIgnore([
+                    'key' => $key,
+                    'value' => '0',
+                    'group' => 'counters',
+                    'is_public' => false,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+                $setting = Setting::query()->where('key', $key)->lockForUpdate()->firstOrFail();
+            }
 
-        return $number;
+            $next = ((int) $setting->value) + 1;
+
+            Setting::flushCache();
+
+            do {
+                $number = $prefix.'-'.now()->format('Y').'-'.str_pad((string) $next, 4, '0', STR_PAD_LEFT);
+                $next++;
+                $setting->update(['value' => (string) $next]);
+            } while ($modelClass !== null && $modelClass::withTrashed()->where('number', $number)->exists());
+
+            Setting::flushCache();
+
+            return $number;
+        });
     }
 }
 
@@ -153,11 +178,11 @@ if (! function_exists('unique_slug')) {
      * Generate a URL-safe slug unique against a model's column, appending a
      * numeric suffix on collisions (optionally ignoring a given row id).
      *
-     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $model
+     * @param  class-string<Model>  $model
      */
     function unique_slug(string $model, string $value, string $column = 'slug', ?int $ignoreId = null): string
     {
-        $base = \Illuminate\Support\Str::slug($value) ?: 'item';
+        $base = Str::slug($value) ?: 'item';
         $slug = $base;
         $suffix = 1;
 

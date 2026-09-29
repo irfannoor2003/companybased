@@ -28,7 +28,7 @@
                 <div>
                     <label class="field-label">Apply to roles</label>
                     <div class="mt-1 space-y-2">
-                        @foreach (['Salesman', 'Employee', 'Inventory Manager'] as $role)
+                        @foreach ([config('roles.salesman'), config('roles.employee'), config('roles.inventory_manager')] as $role)
                             <label class="flex items-center gap-2">
                                 <input type="checkbox" name="roles[]" value="{{ $role }}" @checked(in_array($role, old('roles', $rule->roles ?? []))) class="rounded border-line text-primary focus:ring-primary">
                                 <span class="text-sm text-ink">{{ $role }}</span>

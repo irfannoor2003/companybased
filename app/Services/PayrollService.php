@@ -9,6 +9,7 @@ use App\Models\Payslip;
 use App\Models\SalaryStructure;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Generates payroll runs: gross pay from the employee's active salary
@@ -17,9 +18,7 @@ use Illuminate\Support\Collection;
  */
 class PayrollService
 {
-    public function __construct(private readonly AttendanceService $attendance)
-    {
-    }
+    public function __construct(private readonly AttendanceService $attendance) {}
 
     /**
      * (Re)generate payslips for every employee with an active salary structure
@@ -27,43 +26,49 @@ class PayrollService
      */
     public function generate(PayrollRun $run, ?Collection $employees = null): PayrollRun
     {
-        $rules = $this->attendance->rules();
-
-        $employees = $employees ?? Employee::with('salaryStructures')->get();
-
-        $workDates = $this->workingDates($run->period_start, $run->period_end, $rules);
-
-        $run->payslips()->delete();
-
-        $totals = ['gross' => 0.0, 'deductions' => 0.0, 'net' => 0.0];
-
-        foreach ($employees as $employee) {
-            $structure = $employee->activeSalaryStructure();
-
-            if (! $structure || $structure->effective_from->gt(Carbon::parse($run->period_end))) {
-                continue;
+        return DB::transaction(function () use ($run, $employees): PayrollRun {
+            $run = PayrollRun::query()->lockForUpdate()->findOrFail($run->id);
+            if ($run->status === 'paid') {
+                throw new \RuntimeException('Paid payroll runs cannot be regenerated.');
             }
 
-            $payslip = $this->buildPayslip($run, $employee, $structure, $workDates, $rules);
+            $rules = $this->attendance->rules();
+            $employees = ($employees ?? Employee::with('salaryStructures')->where('employment_status', 'active')->get())
+                ->filter(fn (Employee $employee) => $employee->employment_status === 'active');
 
-            if (! $payslip) {
-                continue;
+            $workDates = $this->workingDates($run->period_start, $run->period_end, $rules);
+            $run->payslips()->forceDelete();
+
+            $totals = ['gross' => 0.0, 'deductions' => 0.0, 'net' => 0.0];
+
+            foreach ($employees as $employee) {
+                $structure = $employee->activeSalaryStructure();
+
+                if (! $structure || $structure->effective_from->gt(Carbon::parse($run->period_end))) {
+                    continue;
+                }
+
+                $payslip = $this->buildPayslip($run, $employee, $structure, $workDates, $rules);
+
+                if (! $payslip) {
+                    continue;
+                }
+
+                $totals['gross'] = round($totals['gross'] + (float) $payslip->gross_pay, 2);
+                $totals['deductions'] = round($totals['deductions'] + (float) $payslip->total_deductions, 2);
+                $totals['net'] = round($totals['net'] + (float) $payslip->net_pay, 2);
             }
 
-            $totals['gross'] = round($totals['gross'] + (float) $payslip->gross_pay, 2);
-            $totals['deductions'] = round($totals['deductions'] + (float) $payslip->total_deductions, 2);
-            $totals['net'] = round($totals['net'] + (float) $payslip->net_pay, 2);
-        }
+            $run->update([
+                'total_gross' => (string) $totals['gross'],
+                'total_deductions' => (string) $totals['deductions'],
+                'total_net' => (string) $totals['net'],
+            ]);
 
-        $run->update([
-            'total_gross' => (string) $totals['gross'],
-            'total_deductions' => (string) $totals['deductions'],
-            'total_net' => (string) $totals['net'],
-        ]);
+            $run->load('payslips.employee');
 
-        $run->load('payslips.employee');
-
-        return $run;
+            return $run;
+        });
     }
 
     public function workingDates($start, $end, array $rules): Collection
@@ -72,7 +77,7 @@ class PayrollService
         $cursor = Carbon::parse($start)->copy();
 
         while ($cursor->lte(Carbon::parse($end))) {
-            if (! $this->attendance->isWeekend($cursor)) {
+            if ($this->attendance->isWorkingDay($cursor)) {
                 $dates->push($cursor->copy());
             }
             $cursor->addDay();
@@ -96,6 +101,7 @@ class PayrollService
 
             if (! $record || ! $record->check_in_at) {
                 $counts['absent']++;
+
                 continue;
             }
 

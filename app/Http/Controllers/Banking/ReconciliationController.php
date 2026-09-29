@@ -10,6 +10,8 @@ use App\Models\ReconciliationItem;
 use App\Support\ExportsCsv;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -139,28 +141,44 @@ class ReconciliationController extends Controller
                 return back()->with('toasts', [['type' => 'danger', 'message' => 'Cannot complete: the statement does not balance (difference '.money($reconciliation->difference(), $reconciliation->account?->currency).').']]);
             }
 
-            $reconciliation->items()->where('is_cleared', true)->with('transaction')->get()
-                ->each(function (ReconciliationItem $item) {
-                    if ($item->transaction) {
-                        $item->transaction->update(['is_reconciled' => true, 'reconciled_at' => now()]);
-                    }
-                });
-
-            $reconciliation->update(['status' => 'completed']);
+            $this->setTransactionsReconciled($reconciliation, true);
         } elseif ($toStatus === 'cancelled' && $reconciliation->isCompleted()) {
-            $reconciliation->items()->where('is_cleared', true)->with('transaction')->get()
-                ->each(function (ReconciliationItem $item) {
-                    if ($item->transaction) {
-                        $item->transaction->update(['is_reconciled' => false, 'reconciled_at' => null]);
-                    }
-                });
-
-            $reconciliation->update(['status' => 'cancelled']);
+            $this->setTransactionsReconciled($reconciliation, false);
         } else {
             $reconciliation->update(['status' => $toStatus]);
         }
 
         return back()->with('toasts', [['type' => 'success', 'message' => "Reconciliation {$reconciliation->number} marked as {$toStatus}."]]);
+    }
+
+    /**
+     * Flag (or unflag) every cleared transaction and move the reconciliation to
+     * the matching status — as one transaction.
+     *
+     * These are N separate row writes plus a status write. Running them
+     * individually meant a mid-loop failure left some transactions reconciled
+     * and the rest not, with the reconciliation still in `draft` and no way to
+     * detect the split. A single bulk update also removes the N+1.
+     */
+    private function setTransactionsReconciled(Reconciliation $reconciliation, bool $reconciled): void
+    {
+        DB::transaction(function () use ($reconciliation, $reconciled) {
+            $transactionIds = $reconciliation->items()
+                ->where('is_cleared', true)
+                ->whereNotNull('bank_transaction_id')
+                ->pluck('bank_transaction_id');
+
+            if ($transactionIds->isNotEmpty()) {
+                BankTransaction::query()
+                    ->whereIn('id', $transactionIds)
+                    ->update([
+                        'is_reconciled' => $reconciled,
+                        'reconciled_at' => $reconciled ? now() : null,
+                    ]);
+            }
+
+            $reconciliation->update(['status' => $reconciled ? 'completed' : 'cancelled']);
+        });
     }
 
     public function export(Request $request): StreamedResponse
@@ -196,7 +214,7 @@ class ReconciliationController extends Controller
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<int, BankTransaction>  $transactions
+     * @param  Collection<int, BankTransaction>  $transactions
      * @param  array<string, int>  $cleared
      */
     private function syncItems(Reconciliation $reconciliation, $transactions, array $cleared): void

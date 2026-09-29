@@ -3,6 +3,7 @@
         ['label' => 'Employees', 'route' => 'employees.employees.index', 'icon' => 'employees', 'permission' => 'employees.employees.view'],
         ['label' => 'Departments', 'route' => 'employees.departments.index', 'icon' => 'building', 'permission' => 'employees.departments.view'],
         ['label' => 'Attendance', 'route' => 'employees.attendance.index', 'icon' => 'clock', 'permission' => 'employees.attendance.view'],
+        ['label' => 'Holidays', 'route' => 'employees.holidays.index', 'icon' => 'calendar', 'permission' => 'employees.holidays.view'],
         ['label' => 'Attendance Reports', 'route' => 'employees.attendance.report', 'icon' => 'reports', 'permission' => 'employees.attendance.view'],
         ['label' => 'Salary Structures', 'route' => 'employees.salary_structures.index', 'icon' => 'money', 'permission' => 'employees.salary_structures.view'],
         ['label' => 'Leave Requests', 'route' => 'employees.leave.index', 'icon' => 'calendar', 'permission' => 'employees.leave_requests.view'],

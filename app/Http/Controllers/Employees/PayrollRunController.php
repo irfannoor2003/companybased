@@ -6,11 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\PayrollRun;
 use App\Models\Payslip;
+use App\Services\NotificationService;
 use App\Services\PayrollService;
 use App\Support\ExportsCsv;
 use App\Support\ExportsJson;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -20,9 +22,7 @@ class PayrollRunController extends Controller
     use ExportsCsv;
     use ExportsJson;
 
-    public function __construct(private readonly PayrollService $payroll)
-    {
-    }
+    public function __construct(private readonly PayrollService $payroll) {}
 
     public function index(Request $request): View
     {
@@ -95,7 +95,11 @@ class PayrollRunController extends Controller
             return back()->with('toasts', [['type' => 'danger', 'message' => 'Void payroll runs cannot be regenerated.']]);
         }
 
-        $this->payroll->generate($run);
+        try {
+            $this->payroll->generate($run);
+        } catch (\RuntimeException $e) {
+            return back()->with('toasts', [['type' => 'danger', 'message' => $e->getMessage()]]);
+        }
 
         return back()->with('toasts', [['type' => 'success', 'message' => 'Payslips regenerated.']]);
     }
@@ -106,7 +110,29 @@ class PayrollRunController extends Controller
             return back()->with('toasts', [['type' => 'danger', 'message' => 'Void payroll runs cannot be marked paid.']]);
         }
 
-        $run->update(['status' => 'paid', 'paid_at' => now()]);
+        $alreadyPaid = $run->status === 'paid';
+
+        DB::transaction(function () use ($run): void {
+            $run = PayrollRun::query()->lockForUpdate()->findOrFail($run->id);
+            if ($run->status === 'void') {
+                throw new \RuntimeException('Void payroll runs cannot be marked paid.');
+            }
+            if ($run->status === 'paid') {
+                return;
+            }
+            $run->update(['status' => 'paid', 'paid_at' => now()]);
+        });
+
+        if (! $alreadyPaid) {
+            app(NotificationService::class)->notifyStaff(
+                'employees.payroll_runs.view',
+                'Payroll run paid',
+                "Payroll {$run->number} for the period ending {$run->period_end->format('d M Y')} was paid out (".money($run->total_net, $run->currency).' net).',
+                'success',
+                route('employees.payroll.show', $run),
+                auth()->id(),
+            );
+        }
 
         return back()->with('toasts', [['type' => 'success', 'message' => "{$run->number} marked as paid."]]);
     }

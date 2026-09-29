@@ -3,16 +3,12 @@
 namespace App\Mail;
 
 use App\Models\Subscription;
-use Illuminate\Bus\Queueable;
-use Illuminate\Mail\Mailable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
-use Illuminate\Queue\SerializesModels;
 
-class SubscriptionExpiringSoon extends Mailable
+class SubscriptionExpiringSoon extends CompanyMailable implements ShouldQueue
 {
-    use Queueable, SerializesModels;
-
     public function __construct(
         public Subscription $subscription,
         public int $daysRemaining,
@@ -29,6 +25,10 @@ class SubscriptionExpiringSoon extends Mailable
     {
         return new Content(
             markdown: 'emails.subscription-expiring-soon',
+            with: array_merge($this->brandData(), [
+                'subscription' => $this->subscription,
+                'daysRemaining' => $this->daysRemaining,
+            ]),
         );
     }
 }

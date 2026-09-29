@@ -22,8 +22,17 @@
                 <x-input name="host" label="SMTP Host" placeholder="e.g. smtp.gmail.com" value="{{ old('host', $mail['host']) }}" hint="Ignored for non-SMTP drivers." />
                 <x-input name="port" label="SMTP Port" type="number" min="1" max="65535" placeholder="587" value="{{ old('port', $mail['port']) }}" />
 
-                <x-input name="username" label="Username" placeholder="e.g. user@gmail.com" value="{{ old('username', $mail['username']) }}" />
-                <x-input name="password" label="Password" type="password" placeholder="App password or SMTP password" value="{{ old('password', $mail['password']) }}" />
+                <x-input name="username" label="Username" placeholder="e.g. user@gmail.com" value="{{ old('username', $mail['username']) }}" @required($mail['mailer'] !== 'log') />
+                <x-input
+                    name="password"
+                    label="Password"
+                    type="password"
+                    @required(! $mail['password_is_set'])
+                    autocomplete="new-password"
+                    placeholder="{{ $mail['password_is_set'] ? '•••••••• (stored — leave blank to keep)' : 'Required — app password or SMTP password' }}"
+                    value=""
+                    hint="{{ $mail['password_is_set'] ? 'A password is already stored and is never shown. Leave this blank to keep it.' : 'Required for SMTP, SES and Postmark. Cannot be left empty.' }}"
+                />
 
                 <x-select name="encryption" label="Encryption">
                     @foreach (['tls' => 'TLS (recommended)', 'ssl' => 'SSL', '' => 'None'] as $val => $lbl)
@@ -34,10 +43,34 @@
             </div>
         </x-card>
 
-        <x-card title="From Address" description="The email address and name that appear on all outgoing emails.">
+        <x-card title="Automated Email (No-Reply)" description="Used for welcome emails, order status updates, low stock alerts and password resets. Replies are redirected to the Reply-To address below, so nothing gets lost.">
             <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                <x-input name="from_address" label="From email" type="email" required placeholder="e.g. noreply@yourcompany.com" value="{{ old('from_address', $mail['from_address']) }}" />
-                <x-input name="from_name" label="From name" required placeholder="e.g. Your Company" value="{{ old('from_name', $mail['from_name']) }}" />
+                <x-input name="system_from_address" label="From email" type="email" required placeholder="noreply@yourcompany.com" value="{{ old('system_from_address', $mail['system_from_address']) }}" />
+                <x-input name="system_from_name" label="From name" placeholder="{{ company_name() }}" value="{{ old('system_from_name', $mail['system_from_name']) }}" />
+            </div>
+        </x-card>
+
+        <x-card title="Reply-To (Team Mailbox)" description="Where replies to automated emails are delivered. Point this at the mailbox your team actually watches.">
+            <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                <x-input name="reply_to_address" label="Reply-To email" type="email" required placeholder="info@yourcompany.com" value="{{ old('reply_to_address', $mail['reply_to_address']) }}" />
+                <x-input name="reply_to_name" label="Reply-To name" placeholder="{{ company_name() }}" value="{{ old('reply_to_name', $mail['reply_to_name']) }}" />
+            </div>
+        </x-card>
+
+        <x-card title="Personal Email (Staff)" description="Used when a member of staff emails a customer directly from their record. Sending from the shared mailbox keeps the conversation on the company domain and working even if that person leaves.">
+            <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                <x-input name="personal_from_address" label="From email" type="email" required placeholder="info@yourcompany.com" value="{{ old('personal_from_address', $mail['personal_from_address']) }}" />
+                <x-input name="personal_from_name" label="From name" placeholder="{{ company_name() }}" value="{{ old('personal_from_name', $mail['personal_from_name']) }}" />
+
+                <div class="sm:col-span-2">
+                    <label class="flex items-start gap-3 rounded-lg border border-line bg-surface-muted p-3">
+                        <input type="checkbox" name="personal_use_shared_address" value="1" class="mt-0.5 rounded border-line" @checked(old('personal_use_shared_address', $mail['personal_use_shared_address']))>
+                        <span>
+                            <span class="block text-sm font-medium text-ink">Send staff email from the shared mailbox</span>
+                            <span class="block text-xs text-ink-soft">Recommended. Uncheck to send as the individual staff member's own address instead.</span>
+                        </span>
+                    </label>
+                </div>
             </div>
         </x-card>
 

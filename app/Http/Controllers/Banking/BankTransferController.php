@@ -9,6 +9,7 @@ use App\Support\BankLedger;
 use App\Support\ExportsCsv;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -110,28 +111,39 @@ class BankTransferController extends Controller
 
         $toStatus = $data['status'];
 
-        if ($toStatus === $transfer->status) {
-            return back()->with('toasts', [['type' => 'danger', 'message' => 'Transfer is already in that status.']]);
-        }
+        try {
+            DB::transaction(function () use ($transfer, $toStatus): void {
+                $transfer = BankTransfer::query()->lockForUpdate()->findOrFail($transfer->id);
 
-        if ($toStatus === 'completed') {
-            if (! $transfer->from_account_id || ! $transfer->to_account_id || $transfer->from_account_id === $transfer->to_account_id) {
-                return back()->with('toasts', [['type' => 'danger', 'message' => 'Choose two different accounts before completing the transfer.']]);
-            }
+                if ($toStatus === $transfer->status) {
+                    throw new \RuntimeException('Transfer is already in that status.');
+                }
 
-            $source = BankAccount::query()->find($transfer->from_account_id);
+                if ($toStatus === 'completed') {
+                    if (! $transfer->from_account_id || ! $transfer->to_account_id || $transfer->from_account_id === $transfer->to_account_id) {
+                        throw new \RuntimeException('Choose two different accounts before completing the transfer.');
+                    }
 
-            if ($source && $source->balance() < (float) $transfer->amount) {
-                return back()->with('toasts', [['type' => 'danger', 'message' => 'Insufficient balance on the source account for this transfer.']]);
-            }
+                    $accountIds = [$transfer->from_account_id, $transfer->to_account_id];
+                    sort($accountIds);
+                    BankAccount::query()->whereIn('id', $accountIds)->lockForUpdate()->get();
+                    $source = BankAccount::query()->find($transfer->from_account_id);
 
-            BankLedger::postTransfer($transfer);
-            $transfer->update(['status' => 'completed', 'completed_at' => now()]);
-        } elseif ($toStatus === 'cancelled' && $transfer->isCompleted()) {
-            BankLedger::reverseTransfer($transfer);
-            $transfer->update(['status' => 'cancelled', 'completed_at' => null]);
-        } else {
-            $transfer->update(['status' => $toStatus]);
+                    if (! $source || $source->balance() < (float) $transfer->amount) {
+                        throw new \RuntimeException('Insufficient balance on the source account for this transfer.');
+                    }
+
+                    BankLedger::postTransfer($transfer);
+                    $transfer->update(['status' => 'completed', 'completed_at' => now()]);
+                } elseif ($toStatus === 'cancelled' && $transfer->isCompleted()) {
+                    BankLedger::reverseTransfer($transfer);
+                    $transfer->update(['status' => 'cancelled', 'completed_at' => null]);
+                } else {
+                    $transfer->update(['status' => $toStatus]);
+                }
+            });
+        } catch (\RuntimeException $e) {
+            return back()->with('toasts', [['type' => 'danger', 'message' => $e->getMessage()]]);
         }
 
         return back()->with('toasts', [['type' => 'success', 'message' => "Transfer {$transfer->number} marked as {$toStatus}."]]);

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Accounting;
 
 use App\Http\Controllers\Controller;
 use App\Models\ExpenseClaim;
+use App\Services\NotificationService;
 use App\Support\ExportsCsv;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -54,6 +55,15 @@ class ExpenseClaimController extends Controller
             'status' => 'pending',
             'notes' => $data['notes'] ?? null,
         ]);
+
+        app(NotificationService::class)->notifyStaff(
+            'accounting.expense_claims.view',
+            'Expense claim submitted',
+            'Claim '.$claim->number.' from '.$claim->employee_name.' for '.money($claim->amount, $claim->currency).' needs approval.',
+            'info',
+            route('accounting.expense_claims.show', $claim),
+            auth()->id(),
+        );
 
         return redirect()->route('accounting.expense_claims.show', $claim)
             ->with('toasts', [['type' => 'success', 'message' => "Expense claim {$claim->number} created."]]);

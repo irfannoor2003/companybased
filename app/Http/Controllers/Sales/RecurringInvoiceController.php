@@ -9,8 +9,10 @@ use App\Models\SalesRecurringInvoice;
 use App\Support\DocumentData;
 use App\Support\DocumentItems;
 use App\Support\ExportsCsv;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -80,6 +82,18 @@ class RecurringInvoiceController extends Controller
         $recurringInvoice->load(['customer', 'items.product']);
 
         return view('documents.show', DocumentData::build($recurringInvoice));
+    }
+
+    public function pdf(SalesRecurringInvoice $recurringInvoice): Response
+    {
+        $this->preparePdf();
+        $recurringInvoice->load(['customer', 'items.product']);
+
+        $html = view('pdf.document', DocumentData::build($recurringInvoice))->render();
+
+        $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
+
+        return $pdf->stream('recurring-invoice-'.$recurringInvoice->number.'.pdf');
     }
 
     public function update(Request $request, SalesRecurringInvoice $recurringInvoice): RedirectResponse

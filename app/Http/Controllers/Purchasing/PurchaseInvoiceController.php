@@ -11,12 +11,14 @@ use App\Models\PurchaseOrder;
 use App\Models\PurchaseStatusEvent;
 use App\Models\Supplier;
 use App\Models\SupplierPayment;
+use App\Services\NotificationService;
 use App\Support\DocumentItems;
 use App\Support\ExportsCsv;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -82,6 +84,15 @@ class PurchaseInvoiceController extends Controller
         $invoice->update(['subtotal' => $totals['subtotal'], 'tax_amount' => $totals['tax'], 'total' => $totals['total']]);
 
         $this->recalculateStatus($invoice);
+
+        app(NotificationService::class)->notifyStaff(
+            'accounting.bills.view',
+            'Supplier invoice recorded',
+            'Purchase invoice '.$invoice->number.' from '.($invoice->supplier?->company_name ?? 'a supplier').' for '.money($invoice->total, $invoice->currency).' needs review.',
+            'info',
+            route('suppliers.purchase_invoices.show', $invoice),
+            auth()->id(),
+        );
 
         return redirect()->route('suppliers.purchase_invoices.index')
             ->with('toasts', [['type' => 'success', 'message' => "Purchase invoice {$invoice->number} created."]]);
@@ -199,29 +210,43 @@ class PurchaseInvoiceController extends Controller
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $remaining = $invoice->balance();
+        try {
+            DB::transaction(function () use ($data, $invoice): void {
+                $invoice = PurchaseInvoice::query()->lockForUpdate()->findOrFail($invoice->id);
+                if ((float) $data['amount'] > $invoice->balance()) {
+                    throw new \RuntimeException('Payment exceeds the outstanding balance of '.money($invoice->balance(), $invoice->currency).'.');
+                }
 
-        if ((float) $data['amount'] > $remaining) {
+                SupplierPayment::create([
+                    'number' => next_document_number('supplier_payment', 'SP', SupplierPayment::class),
+                    'invoice_id' => $invoice->id,
+                    'supplier_id' => $invoice->supplier_id,
+                    'bank_account_id' => $data['bank_account_id'] ?? null,
+                    'amount' => $data['amount'],
+                    'payment_date' => $data['payment_date'],
+                    'method' => $data['method'],
+                    'reference' => $data['reference'] ?? null,
+                    'currency' => $invoice->currency,
+                    'exchange_rate' => $invoice->exchange_rate ?? exchange_rate_for($invoice->currency, $data['payment_date']),
+                    'notes' => $data['notes'] ?? null,
+                ]);
+
+                $invoice->update(['paid_amount' => round((float) $invoice->paid_amount + (float) $data['amount'], 2)]);
+                $this->recalculateStatus($invoice);
+            });
+        } catch (\RuntimeException $e) {
             return back()->withInput()
-                ->with('toasts', [['type' => 'danger', 'message' => 'Payment exceeds the outstanding balance of '.money($remaining, $invoice->currency).'.']]);
+                ->with('toasts', [['type' => 'danger', 'message' => $e->getMessage()]]);
         }
 
-        SupplierPayment::create([
-            'number' => next_document_number('supplier_payment', 'SP', SupplierPayment::class),
-            'invoice_id' => $invoice->id,
-            'supplier_id' => $invoice->supplier_id,
-            'bank_account_id' => $data['bank_account_id'] ?? null,
-            'amount' => $data['amount'],
-            'payment_date' => $data['payment_date'],
-            'method' => $data['method'],
-            'reference' => $data['reference'] ?? null,
-            'currency' => $invoice->currency,
-            'exchange_rate' => $invoice->exchange_rate ?? exchange_rate_for($invoice->currency),
-            'notes' => $data['notes'] ?? null,
-        ]);
-
-        $invoice->update(['paid_amount' => round((float) $invoice->paid_amount + (float) $data['amount'], 2)]);
-        $this->recalculateStatus($invoice);
+        app(NotificationService::class)->notifyStaff(
+            'suppliers.purchase_invoices.view',
+            'Payment made to supplier',
+            money($data['amount'], $invoice->currency).' was paid against purchase invoice '.$invoice->number.' to '.($invoice->supplier?->company_name ?? 'a supplier').'.',
+            'info',
+            route('suppliers.purchase_invoices.show', $invoice),
+            auth()->id(),
+        );
 
         return back()->with('toasts', [['type' => 'success', 'message' => 'Payment of '.money($data['amount'], $invoice->currency).' recorded.']]);
     }

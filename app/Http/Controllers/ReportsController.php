@@ -11,6 +11,7 @@ class ReportsController extends Controller
         $customReportCount = CustomReport::count();
 
         $groups = collect([
+            ['key' => 'grand', 'label' => 'Grand Report', 'icon' => 'chart', 'route' => 'reports.grand', 'permission' => 'reports.grand.view', 'description' => 'One consolidated view of sales, purchasing, inventory, finance, people, POS, assets, investments and visits.', 'reports' => ['Daily', 'Weekly', 'Monthly', 'Yearly']],
             ['key' => 'financial', 'label' => 'Financial Reports', 'icon' => 'accounting', 'route' => 'reports.financial', 'permission' => 'reports.reports.view', 'description' => 'Profit & loss, balance sheet, trial balance and general ledger from posted journal entries.', 'reports' => ['Profit & Loss', 'Balance Sheet', 'Trial Balance', 'General Ledger']],
             ['key' => 'sales', 'label' => 'Sales Reports', 'icon' => 'sales', 'route' => 'sales.reports.salesman', 'permission' => 'sales.reports.view', 'description' => 'Confirmed orders attributed to each salesman, with period filtering.', 'reports' => ['Sales by Salesman']],
             ['key' => 'inventory', 'label' => 'Inventory Reports', 'icon' => 'inventory', 'route' => 'reports.inventory', 'permission' => 'reports.reports.view', 'description' => 'Stock levels, valuations, movements and reorder needs.', 'reports' => ['Stock on Hand', 'Inventory Valuation', 'Stock Movements', 'Reorder Alerts']],

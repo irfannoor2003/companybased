@@ -6,10 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\SalesCustomer;
 use App\Models\Visit;
+use App\Services\NotificationService;
 use App\Support\ExportsCsv;
 use App\Support\ExportsJson;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -69,6 +71,15 @@ class VisitsController extends Controller
             'status' => 'pending',
             'scheduled_at' => $data['scheduled_at'],
         ]);
+
+        app(NotificationService::class)->notifyStaff(
+            'visits.visits.view',
+            'Customer visit scheduled',
+            'Visit '.$visit->visit_number.' is scheduled for '.$visit->scheduled_at->format('d M Y').($visit->customer?->company_name ? ' with '.$visit->customer->company_name : '').'.',
+            'info',
+            route('visits.show', $visit),
+            auth()->id(),
+        );
 
         return redirect()->route('visits.show', $visit)
             ->with('toasts', [['type' => 'success', 'message' => "Visit {$visit->visit_number} created."]]);
@@ -132,11 +143,13 @@ class VisitsController extends Controller
             return back()->with('toasts', [['type' => 'danger', 'message' => $mismatch]]);
         }
 
+        [$lat, $lng] = $this->resolveLocation($request);
+
         $visit->update([
             'status' => 'started',
             'started_at' => now(),
-            'start_lat' => $request->latitude,
-            'start_lng' => $request->longitude,
+            'start_lat' => $lat,
+            'start_lng' => $lng,
         ]);
 
         return back()->with('toasts', [['type' => 'success', 'message' => "Visit {$visit->visit_number} started."]]);
@@ -150,10 +163,11 @@ class VisitsController extends Controller
             return back()->with('toasts', [['type' => 'danger', 'message' => 'Only started visits can be completed.']]);
         }
 
-        $request->validate([
+        $data = $request->validate([
             'outcome' => ['nullable', Rule::in(Visit::outcomeOptions())],
             'distance_km' => ['required', 'numeric', 'min:0', 'max:100000'],
-            'note' => ['nullable', 'string', 'max:5000'],
+            'note' => ['required', 'string', 'max:5000'],
+            'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
         ]);
 
         if ($mismatch = $this->locationMismatch($request)) {
@@ -163,10 +177,20 @@ class VisitsController extends Controller
         $visit->update([
             'status' => 'completed',
             'completed_at' => now(),
-            'outcome' => $request->filled('outcome') ? $request->outcome : null,
-            'outcome_notes' => $request->note ?? null,
-            'distance_km' => (string) $request->distance_km,
+            'outcome' => $data['outcome'] ?? null,
+            'outcome_notes' => $data['note'],
+            'completion_image_path' => $request->hasFile('image') ? $request->file('image')->store('visits/completion', 'public') : $visit->completion_image_path,
+            'distance_km' => (string) $data['distance_km'],
         ]);
+
+        app(NotificationService::class)->notifyStaff(
+            'visits.visits.view',
+            'Customer visit completed',
+            'Visit '.$visit->visit_number.' was completed with outcome: '.($data['outcome'] ?? 'not recorded').'.',
+            'success',
+            route('visits.show', $visit),
+            auth()->id(),
+        );
 
         return back()->with('toasts', [['type' => 'success', 'message' => "Visit {$visit->visit_number} completed."]]);
     }
@@ -189,6 +213,14 @@ class VisitsController extends Controller
         $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
 
         return $earthRadius * $c;
+    }
+
+    public function completionImage(Visit $visit): StreamedResponse
+    {
+        $this->authorizeVisitAccess($visit);
+        abort_unless($visit->completion_image_path, 404);
+
+        return Storage::disk('public')->response($visit->completion_image_path);
     }
 
     public function cancel(Request $request, Visit $visit): RedirectResponse
@@ -276,9 +308,7 @@ class VisitsController extends Controller
      */
     private function isSalesman(): bool
     {
-        $user = auth()->user();
-
-        return $user && ! $user->isAdmin() && $user->hasRole('Salesman');
+        return (bool) auth()->user()?->isSalesman();
     }
 
     /**
@@ -309,28 +339,60 @@ class VisitsController extends Controller
     }
 
     /**
-     * Validate the browser-provided geolocation and compare it against the
-     * company location set by the admin. Returns a "location mismatched"
-     * message when the salesman is outside the allowed radius, or null when
-     * the location matches.
+     * Resolve the coordinates to record for a visit.
+     *
+     * The browser geolocation is used when available. It frequently is not —
+     * the user denies the permission, the device has no GPS, or the request
+     * comes from the visit list rather than a geolocation-enabled screen — and
+     * the visit must still be startable. In that case the company location
+     * configured by the Super Admin is used, which is the same coordinate the
+     * radius check is measured against.
+     *
+     * @return array{0: float, 1: float, 2: bool} [lat, lng, fromBrowser]
+     */
+    private function resolveLocation(Request $request): array
+    {
+        $lat = $request->input('latitude');
+        $lng = $request->input('longitude');
+
+        if (is_numeric($lat) && is_numeric($lng)) {
+            return [(float) $lat, (float) $lng, true];
+        }
+
+        return [
+            (float) settings('company.latitude', 0),
+            (float) settings('company.longitude', 0),
+            false,
+        ];
+    }
+
+    /**
+     * Compare a visit's location against the company location set by the admin.
+     * Returns a "location mismatched" message when the salesman is outside the
+     * allowed radius, or null when the location matches.
+     *
+     * When the browser supplied no coordinates the company location is assumed,
+     * so the check passes rather than blocking a visit that has no coordinates
+     * to judge.
      */
     private function locationMismatch(Request $request): ?string
     {
-        $data = $request->validate([
-            'latitude' => ['required', 'numeric', 'between:-90,90'],
-            'longitude' => ['required', 'numeric', 'between:-180,180'],
-        ]);
+        [$lat, $lng, $fromBrowser] = $this->resolveLocation($request);
+
+        if (! $fromBrowser) {
+            return null;
+        }
 
         $officeLat = (float) settings('company.latitude', 0);
         $officeLng = (float) settings('company.longitude', 0);
         $radius = (float) settings('company.radius', 500);
 
-        $distance = $this->haversineDistance(
-            (float) $data['latitude'],
-            (float) $data['longitude'],
-            $officeLat,
-            $officeLng
-        );
+        // With no company location on file there is nothing to compare against.
+        if ($officeLat === 0.0 && $officeLng === 0.0) {
+            return null;
+        }
+
+        $distance = $this->haversineDistance($lat, $lng, $officeLat, $officeLng);
 
         if ($distance > $radius) {
             return 'Location mismatched. You are '.number_format($distance, 0).' m from the company location (allowed '.number_format($radius, 0).' m).';

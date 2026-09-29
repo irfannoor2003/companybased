@@ -43,7 +43,7 @@
             @if ($leave->status === 'pending')
                 <div class="mt-6">
                     @php
-                        $isManager = auth()->user()->isAdmin() || auth()->user()->hasRole('HR');
+                        $isManager = auth()->user()->isHrManager();
                         $isOwner = (int) $leave->employee_id === (int) auth()->user()?->employee?->id;
                     @endphp
                     @if ($isManager && auth()->user()->can('employees.leave_requests.approve'))

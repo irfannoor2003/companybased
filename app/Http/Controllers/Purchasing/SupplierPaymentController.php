@@ -5,13 +5,16 @@ namespace App\Http\Controllers\Purchasing;
 use App\Http\Controllers\Controller;
 use App\Models\BankAccount;
 use App\Models\PurchaseInvoice;
-use App\Models\PurchaseStatusEvent;
 use App\Models\Supplier;
 use App\Models\SupplierPayment;
+use App\Services\InvoicePaymentService;
 use App\Support\ExportsCsv;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -64,32 +67,46 @@ class SupplierPaymentController extends Controller
     {
         $data = $this->validateData($request);
 
-        if (! empty($data['invoice_id'])) {
-            $invoice = PurchaseInvoice::findOrFail($data['invoice_id']);
-            $remaining = $invoice->balance();
+        try {
+            $payment = DB::transaction(function () use ($data): SupplierPayment {
+                $service = app(InvoicePaymentService::class);
+                $invoice = null;
 
-            if ((float) $data['amount'] > $remaining) {
-                return back()->withInput()
-                    ->with('toasts', [['type' => 'danger', 'message' => 'Payment amount ('.money($data['amount'], $invoice->currency).') exceeds the outstanding balance of '.money($remaining, $invoice->currency).'.']]);
-            }
-        }
+                if (! empty($data['invoice_id'])) {
+                    $invoice = $service->lockAndGuard(
+                        PurchaseInvoice::query()->findOrFail($data['invoice_id']),
+                        (int) $data['supplier_id'],
+                        $data['currency'] ?? null,
+                        (float) $data['amount'],
+                    );
 
-        $payment = SupplierPayment::create([
-            'number' => next_document_number('supplier_payment', 'SP', SupplierPayment::class),
-            'invoice_id' => $data['invoice_id'] ?? null,
-            'supplier_id' => $data['supplier_id'],
-            'bank_account_id' => $data['bank_account_id'] ?? null,
-            'amount' => $data['amount'],
-            'payment_date' => $data['payment_date'],
-            'method' => $data['method'],
-            'reference' => $data['reference'] ?? null,
-            'currency' => $data['currency'] ?? null,
-            'exchange_rate' => exchange_rate_for($data['currency'] ?? null),
-            'notes' => $data['notes'] ?? null,
-        ]);
+                    $data['currency'] = $invoice->currency;
+                }
 
-        if ($payment->invoice_id) {
-            $this->applyToInvoice($payment, $data['amount']);
+                $payment = SupplierPayment::create([
+                    'number' => next_document_number('supplier_payment', 'SP', SupplierPayment::class),
+                    'invoice_id' => $invoice?->id,
+                    'supplier_id' => $invoice?->supplier_id ?? $data['supplier_id'],
+                    'bank_account_id' => $data['bank_account_id'] ?? null,
+                    'amount' => $data['amount'],
+                    'payment_date' => $data['payment_date'],
+                    'method' => $data['method'],
+                    'reference' => $data['reference'] ?? null,
+                    'currency' => $data['currency'] ?? null,
+                    'exchange_rate' => exchange_rate_for($data['currency'] ?? null, $data['payment_date']),
+                    'notes' => $data['notes'] ?? null,
+                ]);
+
+                if ($invoice) {
+                    $service->applyPaidAmount($invoice, (float) $data['amount']);
+                    $service->recalculateStatus($invoice);
+                }
+
+                return $payment;
+            });
+        } catch (\RuntimeException $e) {
+            return back()->withInput()
+                ->with('toasts', [['type' => 'danger', 'message' => $e->getMessage()]]);
         }
 
         return redirect()->route('suppliers.supplier_payments.index')
@@ -113,40 +130,58 @@ class SupplierPaymentController extends Controller
     {
         $data = $this->validateData($request);
 
-        $oldAmount = (float) $payment->amount;
-        $newAmount = (float) $data['amount'];
+        try {
+            DB::transaction(function () use ($data, $payment): void {
+                $service = app(InvoicePaymentService::class);
 
-        if (! empty($data['invoice_id']) && $newAmount !== $oldAmount) {
-            $invoice = PurchaseInvoice::findOrFail($data['invoice_id']);
-            $remaining = $invoice->balance() + $oldAmount;
+                $payment = SupplierPayment::query()->lockForUpdate()->findOrFail($payment->id);
+                $newInvoiceId = $data['invoice_id'] ?? null;
 
-            if ($newAmount > $remaining) {
-                return back()->withInput()
-                    ->with('toasts', [['type' => 'danger', 'message' => 'Payment amount ('.money($newAmount, $invoice->currency).') exceeds the outstanding balance of '.money($remaining, $invoice->currency).'.']]);
-            }
-        }
-
-        $payment->update([
-            'invoice_id' => $data['invoice_id'] ?? null,
-            'supplier_id' => $data['supplier_id'],
-            'bank_account_id' => $data['bank_account_id'] ?? null,
-            'amount' => $data['amount'],
-            'payment_date' => $data['payment_date'],
-            'method' => $data['method'],
-            'reference' => $data['reference'] ?? null,
-            'currency' => $data['currency'] ?? null,
-            'exchange_rate' => exchange_rate_for($data['currency'] ?? null),
-            'notes' => $data['notes'] ?? null,
-        ]);
-
-        if ($oldAmount !== $newAmount) {
-            if ($payment->invoice_id) {
-                $invoice = $payment->invoice()->first();
-                if ($invoice) {
-                    $invoice->update(['paid_amount' => max(0, round($invoice->paid_amount - $oldAmount + $newAmount, 2))]);
-                    $this->recalculateStatus($invoice);
+                if ((int) $newInvoiceId !== (int) $payment->invoice_id) {
+                    throw new \RuntimeException('A recorded payment cannot be reassigned to another invoice.');
                 }
+
+                $invoice = null;
+
+                if ($payment->invoice_id) {
+                    // Excludes this payment from the balance check so editing an
+                    // amount up to the full remaining total stays legal.
+                    $invoice = $service->lockAndGuard(
+                        PurchaseInvoice::query()->findOrFail($payment->invoice_id),
+                        (int) $data['supplier_id'],
+                        $data['currency'] ?? null,
+                        (float) $data['amount'],
+                        $payment->id,
+                    );
+                }
+
+                $payment->update([
+                    'invoice_id' => $payment->invoice_id,
+                    'supplier_id' => $invoice?->supplier_id ?? $data['supplier_id'],
+                    'bank_account_id' => $data['bank_account_id'] ?? null,
+                    'amount' => $data['amount'],
+                    'payment_date' => $data['payment_date'],
+                    'method' => $data['method'],
+                    'reference' => $data['reference'] ?? null,
+                    'currency' => $invoice?->currency ?? ($data['currency'] ?? null),
+                    'exchange_rate' => exchange_rate_for($invoice?->currency ?? ($data['currency'] ?? null), $data['payment_date']),
+                    'notes' => $data['notes'] ?? null,
+                ]);
+
+                if ($invoice) {
+                    $invoice->update([
+                        'paid_amount' => round((float) $invoice->payments()->sum('amount'), 2),
+                    ]);
+                    $service->recalculateStatus($invoice);
+                }
+            });
+        } catch (QueryException|\RuntimeException $e) {
+            if ($e instanceof QueryException) {
+                report($e);
             }
+
+            return back()->withInput()
+                ->with('toasts', [['type' => 'danger', 'message' => $e instanceof QueryException ? 'Could not update the payment. Please try again.' : $e->getMessage()]]);
         }
 
         $redirectTo = $request->input('redirect_to');
@@ -164,21 +199,32 @@ class SupplierPaymentController extends Controller
     {
         $number = $payment->number;
 
-        if ($payment->invoice_id) {
-            $invoice = $payment->invoice()->first();
-            if ($invoice) {
-                $invoice->update(['paid_amount' => max(0, round((float) $invoice->paid_amount - (float) $payment->amount, 2))]);
-                $this->recalculateStatus($invoice);
-            }
-        }
+        try {
+            DB::transaction(function () use ($payment): void {
+                $payment = SupplierPayment::query()->lockForUpdate()->findOrFail($payment->id);
+                $invoice = $payment->invoice_id
+                    ? PurchaseInvoice::query()->lockForUpdate()->findOrFail($payment->invoice_id)
+                    : null;
+                $payment->delete();
 
-        $payment->delete();
+                if ($invoice) {
+                    $invoice->update(['paid_amount' => round((float) $invoice->payments()->sum('amount'), 2)]);
+                    $this->recalculateStatus($invoice);
+                }
+            });
+        } catch (QueryException|\RuntimeException $e) {
+            if ($e instanceof QueryException) {
+                report($e);
+            }
+
+            return back()->with('toasts', [['type' => 'danger', 'message' => 'Could not delete the payment. Please try again.']]);
+        }
 
         return redirect()->route('suppliers.supplier_payments.index')
             ->with('toasts', [['type' => 'success', 'message' => "Payment {$number} deleted."]]);
     }
 
-    public function pdf(SupplierPayment $payment): \Illuminate\Http\Response
+    public function pdf(SupplierPayment $payment): Response
     {
         $this->preparePdf();
         $payment->load(['supplier', 'invoice']);
@@ -210,44 +256,6 @@ class SupplierPaymentController extends Controller
             $p->amount,
             $p->currency,
         ]));
-    }
-
-    private function applyToInvoice(SupplierPayment $payment, mixed $amount): void
-    {
-        $invoice = $payment->invoice()->first();
-
-        if (! $invoice) {
-            return;
-        }
-
-        $invoice->update(['paid_amount' => round((float) $invoice->paid_amount + (float) $amount, 2)]);
-        $this->recalculateStatus($invoice);
-    }
-
-    private function recalculateStatus(PurchaseInvoice $invoice): void
-    {
-        if ($invoice->status === 'cancelled') {
-            return;
-        }
-
-        $newStatus = $invoice->isPaid()
-            ? 'paid'
-            : ((float) $invoice->paid_amount > 0 ? 'partially_paid' : $invoice->status);
-
-        if ($newStatus === $invoice->status) {
-            return;
-        }
-
-        PurchaseStatusEvent::create([
-            'trackable_type' => PurchaseInvoice::class,
-            'trackable_id' => $invoice->id,
-            'from_status' => $invoice->status,
-            'to_status' => $newStatus,
-            'user_id' => auth()->id(),
-            'note' => 'Automatic status update',
-        ]);
-
-        $invoice->update(['status' => $newStatus]);
     }
 
     private function validateData(Request $request): array

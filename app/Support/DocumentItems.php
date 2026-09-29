@@ -3,13 +3,21 @@
 namespace App\Support;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Shared logic for parsing request line-items, computing money totals
- * (always decimal/round, never floats) and syncing them to a document.
+ * and syncing them to a document.
  *
  * Each document's items relation must be fillable with: product_id,
  * description, qty, unit_price, discount_percent, tax_percent, line_total.
+ *
+ * Note on precision: totals are PHP floats rounded to 2dp at each step, and the
+ * schema stores them as decimal(14,2). Values are therefore safe for addition
+ * and subtraction, but the inputs are parsed through (float) — this is a
+ * convention, not arbitrary-precision arithmetic. Callers that need exact
+ * decimal semantics should go through ext-bcmath.
  */
 class DocumentItems
 {
@@ -31,9 +39,12 @@ class DocumentItems
             $discount = (float) ($item['discount_percent'] ?? 0);
             $taxPercent = (float) ($item['tax_percent'] ?? 0);
             $description = trim((string) ($item['description'] ?? ''));
+            $numericFields = [$item['qty'] ?? 1, $item['unit_price'] ?? 0, $item['discount_percent'] ?? 0, $item['tax_percent'] ?? 0];
 
-            if ($description === '' || $qty <= 0) {
-                continue;
+            if ($description === '' || count(array_filter($numericFields, fn ($value) => ! is_numeric($value))) > 0 || $qty <= 0 || $unitPrice < 0 || $discount < 0 || $discount > 100 || $taxPercent < 0 || $taxPercent > 100) {
+                throw ValidationException::withMessages([
+                    'items' => 'Each item must have a description, a positive quantity, a non-negative price, and discount and tax percentages between 0 and 100.',
+                ]);
             }
 
             $lineSubtotal = round($qty * $unitPrice, 2);
@@ -55,8 +66,14 @@ class DocumentItems
             $tax += $lineTax;
         }
 
-        $document->items()->delete();
-        $document->items()->createMany($cleaned);
+        // Delete-then-insert is two statements, so a constraint violation on the
+        // insert would otherwise leave the document with zero line items while
+        // the caller still writes its header totals. Wrapping it here makes every
+        // one of the ~44 callsites atomic without each controller repeating it.
+        DB::transaction(function () use ($document, $cleaned) {
+            $document->items()->delete();
+            $document->items()->createMany($cleaned);
+        });
 
         $subtotal = round($subtotal, 2);
         $tax = round($tax, 2);

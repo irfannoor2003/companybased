@@ -27,14 +27,17 @@ use App\Http\Controllers\Employees\AttendanceRulesController;
 use App\Http\Controllers\Employees\DepartmentController;
 use App\Http\Controllers\Employees\EmployeeController;
 use App\Http\Controllers\Employees\EmployeeDocumentController;
+use App\Http\Controllers\Employees\HolidayController;
 use App\Http\Controllers\Employees\LeaveController;
 use App\Http\Controllers\Employees\MyAttendanceController;
 use App\Http\Controllers\Employees\PayrollRunController;
 use App\Http\Controllers\Employees\SalaryStructureController;
+use App\Http\Controllers\FinancialReportController;
 use App\Http\Controllers\FixedAsset\AssetController;
 use App\Http\Controllers\FixedAsset\DepreciationController;
 use App\Http\Controllers\FixedAsset\DisposalController;
 use App\Http\Controllers\FixedAsset\ReportController as AssetReportController;
+use App\Http\Controllers\GrandReportController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\Inventory\BillOfMaterialController;
 use App\Http\Controllers\Inventory\IncomingShipmentController;
@@ -43,11 +46,13 @@ use App\Http\Controllers\Inventory\ProductionOrderController;
 use App\Http\Controllers\Inventory\TransferController;
 use App\Http\Controllers\Inventory\WarehouseController;
 use App\Http\Controllers\Inventory\WriteOffController;
+use App\Http\Controllers\InventoryReportController;
 use App\Http\Controllers\Investment\DividendController;
 use App\Http\Controllers\Investment\PortfolioController;
 use App\Http\Controllers\Investment\ReportController as InvestmentReportController;
 use App\Http\Controllers\Investment\ReturnController;
 use App\Http\Controllers\Investment\TransactionController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Pos\PaymentMethodController as PosPaymentMethodController;
 use App\Http\Controllers\Pos\ReceiptController;
 use App\Http\Controllers\Pos\ReconciliationController as PosReconciliationController;
@@ -62,8 +67,6 @@ use App\Http\Controllers\Purchasing\PurchaseQuoteController;
 use App\Http\Controllers\Purchasing\SupplierController;
 use App\Http\Controllers\Purchasing\SupplierLedgerController;
 use App\Http\Controllers\Purchasing\SupplierPaymentController;
-use App\Http\Controllers\FinancialReportController;
-use App\Http\Controllers\InventoryReportController;
 use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\Sales\CreditNoteController;
 use App\Http\Controllers\Sales\CustomerController;
@@ -73,20 +76,23 @@ use App\Http\Controllers\Sales\OrderController;
 use App\Http\Controllers\Sales\PaymentController;
 use App\Http\Controllers\Sales\QuoteController;
 use App\Http\Controllers\Sales\RecurringInvoiceController;
+use App\Http\Controllers\Sales\SalesReportController;
 use App\Http\Controllers\Sales\StatementController;
 use App\Http\Controllers\Sales\TrackingController;
 use App\Http\Controllers\Sales\WithholdingTaxReceiptController;
+use App\Http\Controllers\SearchController;
 use App\Http\Controllers\Settings\AuditLogController;
-use App\Http\Controllers\Settings\DiscountRuleController;
 use App\Http\Controllers\Settings\BackupController;
 use App\Http\Controllers\Settings\CompanyController;
 use App\Http\Controllers\Settings\CurrencyController;
+use App\Http\Controllers\Settings\DashboardPreferenceController;
+use App\Http\Controllers\Settings\DiscountRuleController;
 use App\Http\Controllers\Settings\MailSettingsController;
-use App\Http\Controllers\Settings\SubscriptionController;
-use App\Http\Controllers\Settings\TemplateController;
 use App\Http\Controllers\Settings\ModuleController;
 use App\Http\Controllers\Settings\NotificationRuleController;
 use App\Http\Controllers\Settings\RoleController;
+use App\Http\Controllers\Settings\SubscriptionController;
+use App\Http\Controllers\Settings\TemplateController;
 use App\Http\Controllers\Settings\UserController;
 use App\Http\Controllers\Visits\VisitMapController;
 use App\Http\Controllers\Visits\VisitPitStopController;
@@ -104,6 +110,27 @@ Route::get('/track/{code}', [TrackController::class, 'show'])
     ->name('public.tracking');
 
 Route::middleware('auth')->group(function () {
+    Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])
+        ->name('notifications.read-all');
+    Route::post('/notifications/{notification}/read', [NotificationController::class, 'read'])
+        ->name('notifications.read');
+
+    // Global search. No blanket permission here: SearchRegistry scopes each
+    // entity to its own permission, so any signed-in user can search but only
+    // ever sees what they are allowed to see.
+    Route::get('/search', [SearchController::class, 'page'])
+        ->name('search');
+    Route::get('/search/api', [SearchController::class, 'index'])
+        ->middleware('throttle:60,1')
+        ->name('search.api');
+
+    Route::get('/dashboard/customize', [DashboardPreferenceController::class, 'personal'])
+        ->middleware(['verified', 'permission:dashboard.overview.view'])
+        ->name('dashboard.customize');
+    Route::put('/dashboard/customize', [DashboardPreferenceController::class, 'updatePersonal'])
+        ->middleware(['verified', 'permission:dashboard.overview.view'])
+        ->name('dashboard.customize.update');
+
     Route::get('/dashboard', DashboardController::class)
         ->middleware(['verified', 'permission:dashboard.overview.view'])
         ->name('dashboard');
@@ -111,6 +138,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/reports', [ReportsController::class, 'index'])
         ->middleware(['permission:reports.reports.view'])
         ->name('reports.index');
+
+    Route::get('/reports/grand', [GrandReportController::class, 'index'])
+        ->middleware('permission:reports.grand.view')
+        ->name('reports.grand');
 
     Route::prefix('reports/custom')->name('reports.custom.')->middleware('permission:reports.reports.view')->group(function () {
         Route::get('/', [CustomReportController::class, 'index'])->name('index');
@@ -269,14 +300,14 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:sales.invoices.view')->name('invoices.index');
         Route::get('/invoices/create', [InvoiceController::class, 'create'])
             ->middleware('permission:sales.invoices.create')->name('invoices.create');
+        Route::get('/invoices/export', [InvoiceController::class, 'export'])
+            ->middleware('permission:sales.invoices.export')->name('invoices.export');
         Route::get('/invoices/{invoice}/edit', [InvoiceController::class, 'edit'])
             ->middleware('permission:sales.invoices.edit')->name('invoices.edit');
         Route::get('/invoices/{invoice}', [InvoiceController::class, 'show'])
             ->middleware('permission:sales.invoices.view')->name('invoices.show');
         Route::get('/invoices/{invoice}/pdf', [InvoiceController::class, 'pdf'])
             ->middleware('permission:sales.invoices.view')->name('invoices.pdf');
-        Route::get('/invoices/export', [InvoiceController::class, 'export'])
-            ->middleware('permission:sales.invoices.export')->name('invoices.export');
         Route::post('/invoices', [InvoiceController::class, 'store'])
             ->middleware('permission:sales.invoices.create')->name('invoices.store');
         Route::put('/invoices/{invoice}', [InvoiceController::class, 'update'])
@@ -351,12 +382,14 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:sales.recurring_invoices.view')->name('recurring_invoices.index');
         Route::get('/recurring-invoices/create', [RecurringInvoiceController::class, 'create'])
             ->middleware('permission:sales.recurring_invoices.create')->name('recurring_invoices.create');
+        Route::get('/recurring-invoices/export', [RecurringInvoiceController::class, 'export'])
+            ->middleware('permission:sales.recurring_invoices.export')->name('recurring_invoices.export');
         Route::get('/recurring-invoices/{recurringInvoice}/edit', [RecurringInvoiceController::class, 'edit'])
             ->middleware('permission:sales.recurring_invoices.edit')->name('recurring_invoices.edit');
         Route::get('/recurring-invoices/{recurringInvoice}', [RecurringInvoiceController::class, 'show'])
             ->middleware('permission:sales.recurring_invoices.view')->name('recurring_invoices.show');
-        Route::get('/recurring-invoices/export', [RecurringInvoiceController::class, 'export'])
-            ->middleware('permission:sales.recurring_invoices.export')->name('recurring_invoices.export');
+        Route::get('/recurring-invoices/{recurringInvoice}/pdf', [RecurringInvoiceController::class, 'pdf'])
+            ->middleware('permission:sales.recurring_invoices.view')->name('recurring_invoices.pdf');
         Route::post('/recurring-invoices', [RecurringInvoiceController::class, 'store'])
             ->middleware('permission:sales.recurring_invoices.create')->name('recurring_invoices.store');
         Route::put('/recurring-invoices/{recurringInvoice}', [RecurringInvoiceController::class, 'update'])
@@ -375,14 +408,14 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:sales.withholding_tax_receipts.view')->name('withholding_tax_receipts.index');
         Route::get('/withholding-tax-receipts/create', [WithholdingTaxReceiptController::class, 'create'])
             ->middleware('permission:sales.withholding_tax_receipts.create')->name('withholding_tax_receipts.create');
+        Route::get('/withholding-tax-receipts/export', [WithholdingTaxReceiptController::class, 'export'])
+            ->middleware('permission:sales.withholding_tax_receipts.export')->name('withholding_tax_receipts.export');
         Route::get('/withholding-tax-receipts/{withholdingTaxReceipt}/edit', [WithholdingTaxReceiptController::class, 'edit'])
             ->middleware('permission:sales.withholding_tax_receipts.edit')->name('withholding_tax_receipts.edit');
         Route::get('/withholding-tax-receipts/{withholdingTaxReceipt}', [WithholdingTaxReceiptController::class, 'show'])
             ->middleware('permission:sales.withholding_tax_receipts.view')->name('withholding_tax_receipts.show');
         Route::get('/withholding-tax-receipts/{withholdingTaxReceipt}/pdf', [WithholdingTaxReceiptController::class, 'pdf'])
             ->middleware('permission:sales.withholding_tax_receipts.view')->name('withholding_tax_receipts.pdf');
-        Route::get('/withholding-tax-receipts/export', [WithholdingTaxReceiptController::class, 'export'])
-            ->middleware('permission:sales.withholding_tax_receipts.export')->name('withholding_tax_receipts.export');
         Route::post('/withholding-tax-receipts', [WithholdingTaxReceiptController::class, 'store'])
             ->middleware('permission:sales.withholding_tax_receipts.create')->name('withholding_tax_receipts.store');
         Route::put('/withholding-tax-receipts/{withholdingTaxReceipt}', [WithholdingTaxReceiptController::class, 'update'])
@@ -397,9 +430,9 @@ Route::middleware('auth')->group(function () {
         Route::get('/statements/{customer}/export', [StatementController::class, 'export'])
             ->middleware('permission:sales.statements.export')->name('statements.export');
 
-        Route::get('/reports/salesman', [\App\Http\Controllers\Sales\SalesReportController::class, 'index'])
+        Route::get('/reports/salesman', [SalesReportController::class, 'index'])
             ->middleware('permission:sales.reports.view')->name('reports.salesman');
-        Route::get('/reports/salesman/export', [\App\Http\Controllers\Sales\SalesReportController::class, 'export'])
+        Route::get('/reports/salesman/export', [SalesReportController::class, 'export'])
             ->middleware('permission:sales.reports.view')->name('reports.salesman.export');
     });
 
@@ -515,12 +548,12 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:inventory.incoming_shipments.view')->name('incoming_shipments.index');
         Route::get('/incoming-shipments/create', [IncomingShipmentController::class, 'create'])
             ->middleware('permission:inventory.incoming_shipments.create')->name('incoming_shipments.create');
+        Route::get('/incoming-shipments/export', [IncomingShipmentController::class, 'export'])
+            ->middleware('permission:inventory.incoming_shipments.export')->name('incoming_shipments.export');
         Route::get('/incoming-shipments/{shipment}', [IncomingShipmentController::class, 'show'])
             ->middleware('permission:inventory.incoming_shipments.view')->name('incoming_shipments.show');
         Route::get('/incoming-shipments/{shipment}/edit', [IncomingShipmentController::class, 'edit'])
             ->middleware('permission:inventory.incoming_shipments.edit')->name('incoming_shipments.edit');
-        Route::get('/incoming-shipments/export', [IncomingShipmentController::class, 'export'])
-            ->middleware('permission:inventory.incoming_shipments.export')->name('incoming_shipments.export');
         Route::post('/incoming-shipments', [IncomingShipmentController::class, 'store'])
             ->middleware('permission:inventory.incoming_shipments.create')->name('incoming_shipments.store');
         Route::put('/incoming-shipments/{shipment}', [IncomingShipmentController::class, 'update'])
@@ -590,6 +623,8 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:suppliers.purchase_orders.delete')->name('purchase_orders.destroy');
         Route::post('/purchase-orders/{order}/confirm', [PurchaseOrderController::class, 'confirm'])
             ->middleware('permission:suppliers.purchase_orders.confirm')->name('purchase_orders.confirm');
+        Route::post('/purchase-orders/{order}/receive', [PurchaseOrderController::class, 'receive'])
+            ->middleware('permission:suppliers.purchase_orders.update_status')->name('purchase_orders.receive');
         Route::patch('/purchase-orders/{order}/status', [PurchaseOrderController::class, 'updateStatus'])
             ->middleware('permission:suppliers.purchase_orders.update_status')->name('purchase_orders.status');
         Route::get('/purchase-orders/{order}', [PurchaseOrderController::class, 'show'])
@@ -601,14 +636,14 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:suppliers.purchase_invoices.view')->name('purchase_invoices.index');
         Route::get('/purchase-invoices/create', [PurchaseInvoiceController::class, 'create'])
             ->middleware('permission:suppliers.purchase_invoices.create')->name('purchase_invoices.create');
+        Route::get('/purchase-invoices/export', [PurchaseInvoiceController::class, 'export'])
+            ->middleware('permission:suppliers.purchase_invoices.export')->name('purchase_invoices.export');
         Route::get('/purchase-invoices/{invoice}/edit', [PurchaseInvoiceController::class, 'edit'])
             ->middleware('permission:suppliers.purchase_invoices.edit')->name('purchase_invoices.edit');
         Route::get('/purchase-invoices/{invoice}', [PurchaseInvoiceController::class, 'show'])
             ->middleware('permission:suppliers.purchase_invoices.view')->name('purchase_invoices.show');
         Route::get('/purchase-invoices/{invoice}/pdf', [PurchaseInvoiceController::class, 'pdf'])
             ->middleware('permission:suppliers.purchase_invoices.view')->name('purchase_invoices.pdf');
-        Route::get('/purchase-invoices/export', [PurchaseInvoiceController::class, 'export'])
-            ->middleware('permission:suppliers.purchase_invoices.export')->name('purchase_invoices.export');
         Route::post('/purchase-invoices', [PurchaseInvoiceController::class, 'store'])
             ->middleware('permission:suppliers.purchase_invoices.create')->name('purchase_invoices.store');
         Route::put('/purchase-invoices/{invoice}', [PurchaseInvoiceController::class, 'update'])
@@ -930,10 +965,19 @@ Route::middleware('auth')->group(function () {
         Route::delete('/attendance/{record}', [AttendanceController::class, 'destroy'])
             ->middleware('permission:employees.attendance.delete')->name('attendance.destroy');
 
+        Route::get('/holidays', [HolidayController::class, 'index'])
+            ->middleware('permission:employees.holidays.view')->name('holidays.index');
+        Route::post('/holidays', [HolidayController::class, 'store'])
+            ->middleware('permission:employees.holidays.manage')->name('holidays.store');
+        Route::put('/holidays/{holiday}', [HolidayController::class, 'update'])
+            ->middleware('permission:employees.holidays.manage')->name('holidays.update');
+        Route::delete('/holidays/{holiday}', [HolidayController::class, 'destroy'])
+            ->middleware('permission:employees.holidays.manage')->name('holidays.destroy');
+
         Route::get('/my-attendance', [MyAttendanceController::class, 'index'])
-            ->middleware('permission:employees.my_attendance.view')->name('my_attendance.index');
+            ->middleware(['permission:employees.my_attendance.view', 'employee'])->name('my_attendance.index');
         Route::post('/my-attendance/mark', [MyAttendanceController::class, 'mark'])
-            ->middleware('permission:employees.my_attendance.mark')->name('my_attendance.mark');
+            ->middleware(['permission:employees.my_attendance.mark', 'employee'])->name('my_attendance.mark');
         Route::get('/attendance/qr-code', [AttendanceController::class, 'qrCode'])
             ->middleware('permission:employees.attendance.view')->name('attendance.qr-code');
         Route::get('/attendance/qr-code/download', [AttendanceController::class, 'downloadQrCode'])
@@ -952,13 +996,13 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:employees.leave_requests.approve')->name('leave.reject');
         // My leave (self-service)
         Route::get('/my-leave', [LeaveController::class, 'my'])
-            ->middleware('permission:employees.my_leave.view')->name('leave.my');
+            ->middleware(['permission:employees.my_leave.view', 'employee'])->name('leave.my');
         Route::get('/my-leave/create', [LeaveController::class, 'myCreate'])
-            ->middleware('permission:employees.my_leave.create')->name('leave.my.create');
+            ->middleware(['permission:employees.my_leave.create', 'employee'])->name('leave.my.create');
         Route::post('/my-leave', [LeaveController::class, 'myStore'])
-            ->middleware('permission:employees.my_leave.create')->name('leave.my.store');
+            ->middleware(['permission:employees.my_leave.create', 'employee'])->name('leave.my.store');
         Route::post('/my-leave/{leave}/cancel', [LeaveController::class, 'myCancel'])
-            ->middleware('permission:employees.my_leave.cancel')->name('leave.my.cancel');
+            ->middleware(['permission:employees.my_leave.cancel', 'employee'])->name('leave.my.cancel');
 
         Route::get('/salary-structures', [SalaryStructureController::class, 'index'])
             ->middleware('permission:employees.salary_structures.view')->name('salary_structures.index');
@@ -1023,6 +1067,8 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:visits.visits.edit')->name('start');
         Route::post('/{visit}/complete', [VisitsController::class, 'complete'])
             ->middleware('permission:visits.visits.edit')->name('complete');
+        Route::get('/{visit}/completion-image', [VisitsController::class, 'completionImage'])
+            ->middleware('permission:visits.visits.view')->name('completion-image');
         Route::post('/{visit}/cancel', [VisitsController::class, 'cancel'])
             ->middleware('permission:visits.visits.edit')->name('cancel');
         Route::delete('/{visit}', [VisitsController::class, 'destroy'])
@@ -1230,7 +1276,10 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:pos.till_reconciliation.create')->name('reconciliations.store');
     });
 
-    Route::prefix('settings')->name('settings.')->group(function () {
+    // `settings` is a core module and cannot be disabled (ModuleController
+    // refuses it), so gating the group keeps the prefix consistent with every
+    // other module without introducing a lock-out path.
+    Route::prefix('settings')->name('settings.')->middleware('module:settings')->group(function () {
         Route::get('/company', [CompanyController::class, 'edit'])
             ->middleware('permission:settings.company.view')->name('company');
         Route::put('/company', [CompanyController::class, 'updateCompany'])
@@ -1251,6 +1300,13 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:settings.notifications.manage')->name('notification-rules.toggle');
         Route::delete('/notification-rules/{rule}', [NotificationRuleController::class, 'destroy'])
             ->middleware('permission:settings.notifications.manage')->name('notification-rules.destroy');
+
+        Route::get('/dashboards', [DashboardPreferenceController::class, 'overview'])
+            ->middleware('permission:settings.dashboard.view')->name('dashboards.index');
+        Route::get('/dashboards/{role}', [DashboardPreferenceController::class, 'index'])
+            ->middleware('permission:settings.dashboard.view')->name('dashboards.edit');
+        Route::put('/dashboards/{role}', [DashboardPreferenceController::class, 'update'])
+            ->middleware('permission:settings.dashboard.manage')->name('dashboards.update');
 
         Route::get('/modules', [ModuleController::class, 'index'])
             ->middleware('permission:settings.modules.view')->name('modules');

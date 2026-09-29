@@ -1,16 +1,22 @@
 @php
-    $navItems = collect(config('nav.items', []))->map(function ($item) use ($enabledModuleKeys) {
+    $attendanceTracked = auth()->user()->isAttendanceTracked();
+
+    $navItems = collect(config('nav.items', []))->map(function ($item) use ($enabledModuleKeys, $attendanceTracked) {
         $module = $item['module'] ?? null;
         $moduleEnabled = ! $module || in_array($module, $enabledModuleKeys, true);
 
         if (! empty($item['group'])) {
             $children = collect($item['items'] ?? [])
-                ->filter(function ($child) use ($enabledModuleKeys) {
+                ->filter(function ($child) use ($enabledModuleKeys, $attendanceTracked) {
                     $childModule = $child['module'] ?? null;
                     if ($childModule && ! in_array($childModule, $enabledModuleKeys, true)) {
                         return false;
                     }
                     if (($child['permission'] ?? null) && ! auth()->user()->can($child['permission'])) {
+                        return false;
+                    }
+                    // Self-service HR screens only exist for real employees.
+                    if (($child['employee_only'] ?? false) && ! $attendanceTracked) {
                         return false;
                     }
                     return true;
@@ -22,6 +28,9 @@
 
         $visible = $moduleEnabled;
         if (($item['permission'] ?? null) && ! auth()->user()->can($item['permission'])) {
+            $visible = false;
+        }
+        if (($item['employee_only'] ?? false) && ! $attendanceTracked) {
             $visible = false;
         }
 

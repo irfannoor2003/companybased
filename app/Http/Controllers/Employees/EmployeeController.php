@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Employees;
 
 use App\Http\Controllers\Controller;
+use App\Mail\EmployeeWelcome;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\Role;
@@ -12,6 +13,7 @@ use App\Support\ExportsJson;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -54,7 +56,7 @@ class EmployeeController extends Controller
     {
         $data = $this->validateData($request);
 
-        $user = $this->resolveLinkedUser($data, $request->string('password')->toString());
+        [$user, $generatedPassword] = $this->resolveLinkedUser($data, $request->string('password')->toString());
 
         $employee = Employee::create([
             'user_id' => $user?->id,
@@ -72,8 +74,24 @@ class EmployeeController extends Controller
             'attendance_enabled' => $request->boolean('attendance_enabled', true),
         ]);
 
+        $this->sendWelcomeEmail($employee, $generatedPassword);
+
         return redirect()->route('employees.employees.show', $employee)
             ->with('toasts', [['type' => 'success', 'message' => "Employee {$employee->fullName()} created."]]);
+    }
+
+    /**
+     * Send the new hire their welcome email, including the temporary password
+     * when a login account was created here. Queued so HR is not blocked on
+     * the mail server.
+     */
+    private function sendWelcomeEmail(Employee $employee, ?string $temporaryPassword): void
+    {
+        if (! filled($employee->email)) {
+            return;
+        }
+
+        Mail::to($employee->email)->queue(new EmployeeWelcome($employee, $temporaryPassword));
     }
 
     public function show(Employee $employee): View
@@ -101,7 +119,7 @@ class EmployeeController extends Controller
     {
         $data = $this->validateData($request, $employee);
 
-        $user = $this->resolveLinkedUser($data, $request->string('password')->toString());
+        [$user] = $this->resolveLinkedUser($data, $request->string('password')->toString());
 
         $employee->update([
             'user_id' => $user?->id,
@@ -183,31 +201,39 @@ class EmployeeController extends Controller
      *  - an existing account with that email gets linked, or
      *  - a new account is created (Employee role) so attendance/leave/self-service
      *    works straight after creating the employee.
+     *
+     * Returns the user plus any password this method generated, so the caller
+     * can hand the new hire their temporary credentials by email.
+     *
+     * @return array{0: ?User, 1: ?string}
      */
-    private function resolveLinkedUser(array $data, string $password = ''): ?User
+    private function resolveLinkedUser(array $data, string $password = ''): array
     {
         if (! empty($data['user_id'])) {
-            return User::find($data['user_id']);
+            return [User::find($data['user_id']), null];
         }
 
         if (empty($data['email'])) {
-            return null;
+            return [null, null];
         }
 
         $user = User::where('email', $data['email'])->first();
 
         if ($user) {
-            return $user;
+            return [$user, null];
         }
 
         $role = Role::where('name', 'Employee')->first();
+
+        // Only surface a password in the welcome email when we actually set one.
+        $generated = $password ?: Str::random(16);
 
         $user = User::create([
             'name' => trim(($data['first_name'] ?? '').' '.($data['last_name'] ?? '')),
             'first_name' => $data['first_name'] ?? null,
             'last_name' => $data['last_name'] ?? null,
             'email' => $data['email'],
-            'password' => Hash::make($password ?: Str::random(16)),
+            'password' => Hash::make($generated),
             'is_active' => true,
             'email_verified_at' => now(),
         ]);
@@ -216,6 +242,6 @@ class EmployeeController extends Controller
             $user->syncRoles([$role]);
         }
 
-        return $user;
+        return [$user, $generated];
     }
 }

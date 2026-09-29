@@ -8,21 +8,23 @@ use App\Models\Product;
 use App\Models\SalesCustomer;
 use App\Models\SalesOrder;
 use App\Models\SalesQuote;
+use App\Support\DiscountLimit;
 use App\Support\DocumentData;
 use App\Support\DocumentItems;
-use App\Support\DiscountLimit;
 use App\Support\ExportsCsv;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class QuoteController extends Controller
 {
-    use ExportsCsv;
     use DiscountLimit;
+    use ExportsCsv;
 
     public function index(Request $request): View
     {
@@ -102,7 +104,7 @@ class QuoteController extends Controller
         return view('documents.show', DocumentData::build($quote));
     }
 
-    public function pdf(SalesQuote $quote): \Illuminate\Http\Response
+    public function pdf(SalesQuote $quote): Response
     {
         $this->preparePdf();
         $quote->load(['customer', 'items.product']);
@@ -187,26 +189,34 @@ class QuoteController extends Controller
             return back()->with('toasts', [['type' => 'danger', 'message' => 'Quote already converted.']]);
         }
 
-        $order = SalesOrder::create([
-            'number' => next_document_number('order', 'SO'),
-            'quote_id' => $quote->id,
-            'customer_id' => $quote->customer_id,
-            'salesman_id' => auth()->id(),
-            'issue_date' => now()->toDateString(),
-            'status' => 'draft',
-            'currency' => $quote->currency,
-            'exchange_rate' => $quote->exchange_rate ?? exchange_rate_for($quote->currency),
-            'subtotal' => $quote->subtotal,
-            'discount_amount' => 0,
-            'tax_amount' => $quote->tax_amount,
-            'total' => $quote->total,
-            'shipping_address' => $quote->customer->address,
-            'notes' => 'Converted from quote '.$quote->number,
-        ]);
+        // Order, its line items and the quote's back-reference must all land
+        // together. Without a transaction a failure on createMany leaves an
+        // order with no items while the quote still reads as unconverted, which
+        // permits a second conversion.
+        $order = DB::transaction(function () use ($quote) {
+            $order = SalesOrder::create([
+                'number' => next_document_number('order', 'SO'),
+                'quote_id' => $quote->id,
+                'customer_id' => $quote->customer_id,
+                'salesman_id' => auth()->id(),
+                'issue_date' => now()->toDateString(),
+                'status' => 'draft',
+                'currency' => $quote->currency,
+                'exchange_rate' => $quote->exchange_rate ?? exchange_rate_for($quote->currency),
+                'subtotal' => $quote->subtotal,
+                'discount_amount' => 0,
+                'tax_amount' => $quote->tax_amount,
+                'total' => $quote->total,
+                'shipping_address' => $quote->customer?->address,
+                'notes' => 'Converted from quote '.$quote->number,
+            ]);
 
-        $order->items()->createMany($quote->items()->get(['product_id', 'description', 'qty', 'unit_price', 'discount_percent', 'tax_percent', 'line_total'])->toArray());
+            $order->items()->createMany($quote->items()->get(['product_id', 'description', 'qty', 'unit_price', 'discount_percent', 'tax_percent', 'line_total'])->toArray());
 
-        $quote->update(['converted_to_order_id' => $order->id, 'status' => 'converted']);
+            $quote->update(['converted_to_order_id' => $order->id, 'status' => 'converted']);
+
+            return $order;
+        });
 
         return redirect()->route('sales.orders.index')
             ->with('toasts', [['type' => 'success', 'message' => "Quote {$quote->number} converted to order {$order->number}."]]);

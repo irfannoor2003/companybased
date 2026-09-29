@@ -21,9 +21,10 @@ use Spatie\Permission\Traits\HasRoles;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable, HasRoles, SoftDeletes, Auditable;
+    use Auditable, HasFactory, HasRoles, Notifiable, SoftDeletes;
 
     protected string $auditModule = 'settings';
+
     protected $auditExclude = ['updated'];
 
     /**
@@ -43,12 +44,47 @@ class User extends Authenticatable
 
     public function isSuperAdmin(): bool
     {
-        return $this->hasRole('Super Admin');
+        return $this->hasRole(config('roles.super_admin'));
     }
 
     public function isAdmin(): bool
     {
-        return $this->isSuperAdmin() || $this->hasRole('Admin');
+        return $this->isSuperAdmin() || $this->hasRole(config('roles.admin'));
+    }
+
+    /**
+     * Whether the user holds any of the given canonical role keys.
+     *
+     * Accepts config keys (e.g. 'salesman') rather than display names, so a
+     * rename in config/roles.php propagates to every call site.
+     */
+    public function hasAnyRole(array $roleKeys): bool
+    {
+        foreach ($roleKeys as $key) {
+            if ($this->hasRole(config("roles.{$key}"))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * A front-line sales rep: a staff member who may only manage their own
+     * visits. Deliberately excludes admin and super admin, who supervise.
+     */
+    public function isSalesman(): bool
+    {
+        return ! $this->isAdmin() && $this->hasRole(config('roles.salesman'));
+    }
+
+    /**
+     * Whether the user may manage other people's records in a module (leave
+     * approval, HR actions).
+     */
+    public function isHrManager(): bool
+    {
+        return $this->isAdmin() || $this->hasRole(config('roles.hr'));
     }
 
     public function displayName(): string
@@ -63,6 +99,34 @@ class User extends Authenticatable
     public function employee(): HasOne
     {
         return $this->hasOne(Employee::class);
+    }
+
+    /**
+     * The employee profile linked to this login, if any.
+     */
+    public function employeeProfile(): ?Employee
+    {
+        return $this->employee;
+    }
+
+    /**
+     * Whether this login is a real, attendance-tracked employee.
+     *
+     * Super Admin and Admin are back-office accounts: they are not staff on the
+     * payroll, so they have no employee profile and must never appear in
+     * attendance, payroll or leave workflows.
+     */
+    public function isAttendanceTracked(): bool
+    {
+        if ($this->isAdmin()) {
+            return false;
+        }
+
+        $employee = $this->employeeProfile();
+
+        return $employee !== null
+            && (bool) $employee->attendance_enabled
+            && $employee->employment_status === 'active';
     }
 
     public function initials(): string

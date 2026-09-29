@@ -4,12 +4,13 @@ namespace App\Http\Controllers\Sales;
 
 use App\Http\Controllers\Controller;
 use App\Mail\CustomerEmail;
+use App\Mail\CustomerWelcome;
 use App\Models\PriceList;
 use App\Models\SalesCustomer;
 use App\Support\ExportsCsv;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Mail\Message;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -67,8 +68,23 @@ class CustomerController extends Controller
             'notes' => $data['notes'] ?? null,
         ]);
 
+        $this->sendWelcomeEmail($customer);
+
         return redirect()->route('sales.customers.show', $customer)
             ->with('toasts', [['type' => 'success', 'message' => "Customer \"{$customer->company_name}\" created."]]);
+    }
+
+    /**
+     * Let the customer know they are now on file. Queued, so a slow or
+     * unreachable mail server never blocks the create request.
+     */
+    private function sendWelcomeEmail(SalesCustomer $customer): void
+    {
+        if (! filled($customer->email)) {
+            return;
+        }
+
+        Mail::to($customer->email)->queue(new CustomerWelcome($customer));
     }
 
     public function show(SalesCustomer $customer): View
@@ -151,7 +167,7 @@ class CustomerController extends Controller
         return view('sales.customers.statement', compact('customer'));
     }
 
-    public function suggestShortCode(Request $request): \Illuminate\Http\JsonResponse
+    public function suggestShortCode(Request $request): JsonResponse
     {
         $prefix = strtoupper(substr(preg_replace('/[^a-zA-Z]/', '', $request->input('name', '')), 0, 8)) ?: 'CUST';
 
@@ -175,7 +191,7 @@ class CustomerController extends Controller
 
     public function sendEmail(Request $request, SalesCustomer $customer): RedirectResponse
     {
-        if (!$customer->email) {
+        if (! $customer->email) {
             return back()->withErrors(['email' => 'This customer has no email address on file.']);
         }
 
@@ -186,9 +202,15 @@ class CustomerController extends Controller
 
         $sender = $request->user();
 
-        Mail::to($customer->email)->send(
-            new CustomerEmail($customer, $sender, $data['subject'], $data['body'])
-        );
+        try {
+            Mail::to($customer->email)->send(
+                new CustomerEmail($customer, $sender, $data['subject'], $data['body'])
+            );
+        } catch (\Throwable $e) {
+            report($e);
+
+            return back()->withErrors(['email' => 'The email could not be sent. Please try again later.']);
+        }
 
         return back()->with('toasts', [['type' => 'success', 'message' => "Email sent to {$customer->company_name} ({$customer->email})."]]);
     }

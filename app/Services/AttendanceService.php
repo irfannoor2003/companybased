@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\AttendanceRecord;
 use App\Models\Employee;
+use App\Models\Holiday;
 use Carbon\Carbon;
 
 /**
@@ -62,6 +63,18 @@ class AttendanceService
         return in_array($day, $this->rules()['weekend_days'], true);
     }
 
+    public function isHoliday(Carbon|string $date): bool
+    {
+        $value = $date instanceof Carbon ? $date->toDateString() : Carbon::parse($date)->toDateString();
+
+        return Holiday::query()->whereDate('holiday_date', $value)->where('is_active', true)->exists();
+    }
+
+    public function isWorkingDay(Carbon|string $date): bool
+    {
+        return ! $this->isWeekend($date) && ! $this->isHoliday($date);
+    }
+
     /**
      * Record a clock-in/clock-out scan (QR, fingerprint device or manual).
      * Scans toggle: no record today => clock-in, existing record => clock-out.
@@ -73,6 +86,10 @@ class AttendanceService
         }
 
         $at = $at ?? now();
+
+        if ($this->isHoliday($at) && $method !== 'manual') {
+            return ['status' => 'error', 'message' => 'Attendance scanning is disabled on company holidays.'];
+        }
 
         $record = AttendanceRecord::withTrashed()
             ->firstOrNew([
@@ -100,7 +117,7 @@ class AttendanceService
             'check_in_at' => $at,
             'method' => $method,
             'notes' => $notes,
-            'is_weekend' => $this->isWeekend($at),
+            'is_weekend' => ! $this->isWorkingDay($at),
         ]);
         $this->applyRules($record, $at);
         $record->save();

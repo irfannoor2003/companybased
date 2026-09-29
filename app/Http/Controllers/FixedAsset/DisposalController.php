@@ -130,13 +130,13 @@ class DisposalController extends Controller
     private function validateData(Request $request, ?int $ignoreAssetId = null): array
     {
         $assets = FixedAsset::query()
-            ->when($ignoreAssetId, fn ($q) => $q->orWhere('id', $ignoreAssetId))
-            ->where('status', '!=', 'disposed')
+            ->where(function ($q) use ($ignoreAssetId) {
+                $q->where('status', '!=', 'disposed');
+                if ($ignoreAssetId) {
+                    $q->orWhere('id', $ignoreAssetId);
+                }
+            })
             ->pluck('id')
-            ->push($ignoreAssetId)
-            ->filter()
-            ->unique()
-            ->values()
             ->all();
 
         return $request->validate([

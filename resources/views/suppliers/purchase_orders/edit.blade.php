@@ -16,7 +16,7 @@
     <div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div class="lg:col-span-2">
             <x-card title="Order details">
-                @php $locked = in_array($order->status, ['received', 'completed']); @endphp
+                @php $locked = in_array($order->status, ['partial_received', 'received', 'completed']); @endphp
                 <form method="POST" action="{{ route('suppliers.purchase_orders.update', $order) }}" class="space-y-5">
                     @csrf
                     @method('PUT')
@@ -61,7 +61,20 @@
                         ])->all();
                     @endphp
 
-                    <x-suppliers.line-items-editor :products="$products" :initial-items="$initialItems" :currency="$order->currency" />
+                        @if (! $locked)
+                            <x-suppliers.line-items-editor :products="$products" :initial-items="$initialItems" :currency="$order->currency" />
+                        @else
+                            <div class="overflow-hidden rounded-lg border border-line">
+                                <table class="w-full text-left text-sm">
+                                    <thead class="bg-surface-muted/50 text-xs uppercase tracking-wide text-ink-faint"><tr><th class="px-3 py-2">Description</th><th class="px-3 py-2 text-right">Qty</th><th class="px-3 py-2 text-right">Received</th><th class="px-3 py-2 text-right">Remaining</th></tr></thead>
+                                    <tbody class="divide-y divide-line">
+                                        @foreach ($order->items as $item)
+                                            <tr><td class="px-3 py-2 text-ink">{{ $item->description }}</td><td class="px-3 py-2 text-right">{{ number_format((float) $item->qty, 3) }}</td><td class="px-3 py-2 text-right">{{ number_format((float) $item->received_qty, 3) }}</td><td class="px-3 py-2 text-right">{{ number_format(max(0, (float) $item->qty - (float) $item->received_qty), 3) }}</td></tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        @endif
 
                     <x-textarea name="notes" label="Notes" rows="3" :disabled="$locked">{{ old('notes', $order->notes) }}</x-textarea>
 
@@ -91,19 +104,45 @@
                             </form>
                         @endif
                     </div>
-                    @if ($order->status !== 'draft' && $order->status !== 'cancelled' && auth()->user()->can('suppliers.purchase_orders.update_status'))
-                        <form method="POST" action="{{ route('suppliers.purchase_orders.status', $order) }}" class="flex gap-2">
-                            @csrf
-                            @method('PATCH')
-                            <x-select name="status" size="sm" class="flex-1">
-                                @foreach (\App\Models\PurchaseOrder::statusOptions() as $status)
-                                    <option value="{{ $status }}" @selected($order->status === $status)>{{ ucfirst(str_replace('_', ' ', $status)) }}</option>
-                                @endforeach
-                            </x-select>
-                            <x-button type="submit" size="sm" variant="secondary">Update</x-button>
-                        </form>
-                        <p class="text-xs text-ink-faint">Marking as received adds the ordered stock to the selected warehouse.</p>
-                    @endif
+                     @if ($order->status !== 'draft' && $order->status !== 'cancelled' && auth()->user()->can('suppliers.purchase_orders.update_status'))
+                         <form method="POST" action="{{ route('suppliers.purchase_orders.status', $order) }}" class="flex gap-2">
+                             @csrf
+                             @method('PATCH')
+                             <x-select name="status" size="sm" class="flex-1">
+                                 @foreach (\App\Models\PurchaseOrder::statusOptions() as $status)
+                                     @continue(in_array($status, ['partial_received', 'received'], true))
+                                     <option value="{{ $status }}" @selected($order->status === $status)>{{ ucfirst(str_replace('_', ' ', $status)) }}</option>
+                                 @endforeach
+                             </x-select>
+                             <x-button type="submit" size="sm" variant="secondary">Update</x-button>
+                         </form>
+                         <p class="text-xs text-ink-faint">Use Receive inventory below to post partial or full receipts. Updating status does not change stock.</p>
+                     @endif
+
+                     @if (in_array($order->status, ['confirmed', 'sent', 'partial_received'], true) && auth()->user()->can('suppliers.purchase_orders.update_status'))
+                         <form method="POST" action="{{ route('suppliers.purchase_orders.receive', $order) }}" class="mt-4 space-y-3 border-t border-line pt-4">
+                             @csrf
+                             <div>
+                                 <p class="text-sm font-semibold text-ink">Receive inventory</p>
+                                 <p class="text-xs text-ink-faint">Enter cumulative received quantities. Repeating the same submission will not add stock twice.</p>
+                                 @if (! $order->warehouse_id)
+                                     <p class="mt-1 text-xs text-amber-700">No warehouse is selected; tracked products will not create stock movements.</p>
+                                 @endif
+                             </div>
+                             <div class="space-y-2">
+                                 @foreach ($order->items as $item)
+                                     <div class="grid grid-cols-3 gap-2 text-xs">
+                                         <span class="truncate text-ink">{{ $item->description }}</span>
+                                         <span class="text-right text-ink-faint">Ordered {{ number_format((float) $item->qty, 3) }}</span>
+                                         <label class="sr-only" for="received-{{ $item->id }}">Cumulative received quantity for {{ $item->description }}</label>
+                                         <input id="received-{{ $item->id }}" class="input" type="number" name="items[{{ $item->id }}][id]" value="{{ $item->id }}" hidden>
+                                         <input class="input" type="number" step="0.001" min="{{ $item->received_qty }}" max="{{ $item->qty }}" name="items[{{ $item->id }}][received_qty]" value="{{ old("items.{$item->id}.received_qty", $item->received_qty) }}" required>
+                                     </div>
+                                 @endforeach
+                             </div>
+                             <div class="flex justify-end"><x-button type="submit" size="sm" icon="check-circle">Receive</x-button></div>
+                         </form>
+                     @endif
                 </div>
             </x-card>
 

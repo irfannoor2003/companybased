@@ -26,12 +26,18 @@ class Module extends Model
         return $query->where('enabled', true);
     }
 
+    private static ?array $memo = null;
+
     /**
      * The list of enabled module keys, cached.
      */
     public static function enabledKeys(): array
     {
-        return Cache::remember('modules.enabled.keys', now()->addHour(), function () {
+        if (static::$memo !== null) {
+            return static::$memo;
+        }
+
+        return static::$memo = Cache::remember('modules.enabled.keys', now()->addHour(), function () {
             return static::query()->where('enabled', true)->pluck('key')->all();
         });
     }
@@ -43,6 +49,8 @@ class Module extends Model
 
     public static function flushCache(): void
     {
+        static::$memo = null;
+
         Cache::forget('modules.enabled.keys');
     }
 

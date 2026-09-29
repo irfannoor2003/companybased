@@ -42,6 +42,7 @@ return [
             'description' => 'Financial, sales, inventory and custom reports.',
             'permissions' => [
                 'reports' => ['view', 'export'],
+                'grand' => ['view', 'export'],
                 'custom_builder' => ['view', 'create', 'edit', 'delete'],
             ],
         ],
@@ -55,6 +56,7 @@ return [
             'permissions' => [
                 'company' => ['view', 'manage'],
                 'branding' => ['view', 'manage'],
+                'dashboard' => ['view', 'manage'],
                 'modules' => ['view', 'manage'],
                 'users' => ['view', 'manage'],
                 'roles' => ['view', 'manage'],
@@ -200,6 +202,7 @@ return [
                 'employees' => ['view', 'create', 'edit', 'delete', 'export'],
                 'departments' => ['view', 'create', 'edit', 'delete', 'export'],
                 'attendance' => ['view', 'create', 'edit', 'delete', 'export', 'mark'],
+                'holidays' => ['view', 'manage'],
                 'my_attendance' => ['view', 'mark'],
                 'salary_structures' => ['view', 'create', 'edit', 'delete', 'export'],
                 'payroll_runs' => ['view', 'create', 'edit', 'delete', 'export', 'approve'],

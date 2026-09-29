@@ -8,7 +8,6 @@
 {{ company_name() }}
 {{ $sender->email }}
 
-<x-mail::subfooter>
-This email was sent by {{ $sender->name }} from {{ company_name() }}.
-</x-mail::subfooter>
+<br>
+<small style="color:#718096;">This email was sent by {{ $sender->name }} from {{ company_name() }}.</small>
 </x-mail::message>

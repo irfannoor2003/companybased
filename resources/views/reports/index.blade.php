@@ -73,25 +73,30 @@
                             <x-icon name="chart-line" class="size-3" />
                             <span>Cash flow forecasting</span>
                         </div>
-    @elseif ($group['key'] === 'sales')
+                    @elseif ($group['key'] === 'sales')
                         <div class="flex items-center gap-2 text-xs text-ink-faint">
                             <x-icon name="chart-line" class="size-3" />
                             <span>Sales performance</span>
                         </div>
-    @elseif ($group['key'] === 'employees')
+                    @elseif ($group['key'] === 'hr')
                         <div class="flex items-center gap-2 text-xs text-ink-faint">
                             <x-icon name="calendar" class="size-3" />
                             <span>Attendance analytics</span>
                         </div>
-    @elseif ($group['key'] === 'assets')
+                    @elseif ($group['key'] === 'assets')
                         <div class="flex items-center gap-2 text-xs text-ink-faint">
                             <x-icon name="chart-pie" class="size-3" />
                             <span>Depreciation summary</span>
                         </div>
-    @elseif ($group['key'] === 'investments')
+                    @elseif ($group['key'] === 'investments')
                         <div class="flex items-center gap-2 text-xs text-ink-faint">
                             <x-icon name="chart-area" class="size-3" />
                             <span>Portfolio growth</span>
+                        </div>
+                    @elseif ($group['key'] === 'grand')
+                        <div class="flex items-center gap-2 text-xs text-ink-faint">
+                            <x-icon name="chart-bar" class="size-3" />
+                            <span>Consolidated revenue &amp; cash charts</span>
                         </div>
                     @endif
                 </div>

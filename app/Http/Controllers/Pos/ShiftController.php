@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Pos;
 
 use App\Http\Controllers\Controller;
 use App\Models\PosShift;
+use App\Services\NotificationService;
 use App\Support\ExportsCsv;
 use App\Support\ExportsJson;
 use Illuminate\Http\RedirectResponse;
@@ -71,15 +72,29 @@ class ShiftController extends Controller
         $expected = round((float) $shift->opening_cash + $shift->salesTotal(), 2);
         $counted = round((float) $data['counted_cash'], 2);
 
+        $variance = round($counted - $expected, 2);
+
         $shift->update([
             'status' => 'closed',
             'closed_by' => auth()->id(),
             'closed_at' => now(),
             'expected_cash' => (string) $expected,
             'counted_cash' => (string) $counted,
-            'variance' => (string) round($counted - $expected, 2),
+            'variance' => (string) $variance,
             'notes' => $data['notes'] ?? $shift->notes,
         ]);
+
+        // Only surface a variance — a clean close is not worth an interruption.
+        if (abs($variance) >= 0.01) {
+            app(NotificationService::class)->notifyStaff(
+                'pos.shifts.view',
+                'POS shift cash variance',
+                "Shift {$shift->shift_number} closed with a ".($variance < 0 ? 'shortage' : 'surplus').' of '.money(abs($variance)).' (counted '.money($counted).' vs expected '.money($expected).').',
+                'warning',
+                route('pos.shifts.index'),
+                auth()->id(),
+            );
+        }
 
         return redirect()->route('pos.shifts.index')
             ->with('toasts', [['type' => 'success', 'message' => "Shift {$shift->shift_number} closed."]]);

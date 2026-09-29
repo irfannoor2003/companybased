@@ -10,6 +10,7 @@ use App\Support\ExportsCsv;
 use App\Support\InventoryLedger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -48,16 +49,20 @@ class TransferController extends Controller
     {
         $data = $this->validateData($request);
 
-        $transfer = InventoryTransfer::create([
-            'number' => next_document_number('inventory_transfer', 'TRF'),
-            'from_warehouse_id' => $data['from_warehouse_id'],
-            'to_warehouse_id' => $data['to_warehouse_id'],
-            'transfer_date' => $data['transfer_date'],
-            'status' => $data['status'],
-            'note' => $data['note'] ?? null,
-        ]);
+        $transfer = DB::transaction(function () use ($data, $request) {
+            $transfer = InventoryTransfer::create([
+                'number' => next_document_number('inventory_transfer', 'TRF'),
+                'from_warehouse_id' => $data['from_warehouse_id'],
+                'to_warehouse_id' => $data['to_warehouse_id'],
+                'transfer_date' => $data['transfer_date'],
+                'status' => $data['status'],
+                'note' => $data['note'] ?? null,
+            ]);
 
-        $this->syncItems($transfer, $request->input('items', []));
+            $this->syncItems($transfer, $request->input('items', []));
+
+            return $transfer;
+        });
 
         return redirect()->route('inventory.transfers.index')
             ->with('toasts', [['type' => 'success', 'message' => "Transfer {$transfer->number} created."]]);
@@ -80,15 +85,17 @@ class TransferController extends Controller
 
         $data = $this->validateData($request);
 
-        $transfer->update([
-            'from_warehouse_id' => $data['from_warehouse_id'],
-            'to_warehouse_id' => $data['to_warehouse_id'],
-            'transfer_date' => $data['transfer_date'],
-            'status' => $data['status'],
-            'note' => $data['note'] ?? null,
-        ]);
+        DB::transaction(function () use ($data, $request, $transfer) {
+            $transfer->update([
+                'from_warehouse_id' => $data['from_warehouse_id'],
+                'to_warehouse_id' => $data['to_warehouse_id'],
+                'transfer_date' => $data['transfer_date'],
+                'status' => $data['status'],
+                'note' => $data['note'] ?? null,
+            ]);
 
-        $this->syncItems($transfer, $request->input('items', []));
+            $this->syncItems($transfer, $request->input('items', []));
+        });
 
         return back()->with('toasts', [['type' => 'success', 'message' => "Transfer {$transfer->number} updated."]]);
     }
@@ -108,11 +115,20 @@ class TransferController extends Controller
                 return back()->with('toasts', [['type' => 'error', 'message' => 'Add at least one item before completing this transfer.']]);
             }
 
+            // The stock movement and the status flip must commit together.
+            // applyTransfer() opens its own transaction, so without an outer one
+            // a failure between them would leave the transfer in 'draft' with
+            // stock already debited from the source warehouse.
             try {
-                InventoryLedger::applyTransfer($transfer);
+                DB::transaction(function () use ($transfer, $data) {
+                    InventoryLedger::applyTransfer($transfer);
+                    $transfer->update(['status' => $data['status']]);
+                });
             } catch (\DomainException $e) {
                 return back()->with('toasts', [['type' => 'error', 'message' => $e->getMessage()]]);
             }
+
+            return back()->with('toasts', [['type' => 'success', 'message' => "Transfer {$transfer->number} marked as {$data['status']}."]]);
         }
 
         $transfer->update(['status' => $data['status']]);

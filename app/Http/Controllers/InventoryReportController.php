@@ -119,36 +119,47 @@ class InventoryReportController extends Controller
 
     /**
      * Monthly valuation data for chart.
+     *
+     * `inventory_stock` is a current snapshot, so it cannot answer "what was the
+     * value in March". Each point is therefore rebuilt from the movement ledger:
+     * the running sum of `quantity_change` up to the end of that month, valued at
+     * the product's current cost price. Valuing at today's cost is an
+     * approximation, but it is the only cost available in the schema — there is
+     * no movement-level cost column — and it is consistent across the series.
      */
     private function stockValuationChartData(string $from, string $to): array
     {
-        $items = InventoryStock::query()
-            ->with(['item.product'])
-            ->get();
+        $costByItem = InventoryItem::query()
+            ->join('products', 'products.id', '=', 'inventory_items.product_id')
+            ->whereNotNull('products.cost_price')
+            ->pluck('products.cost_price', 'inventory_items.id')
+            ->map(fn ($cost) => (float) $cost);
 
         $months = [];
         $values = [];
 
         for ($m = strtotime($from); $m <= strtotime($to); $m = strtotime('+1 month', $m)) {
-            $monthStart = date('Y-m-01', $m);
-            $monthEnd = date('Y-m-t', $m);
+            $monthEnd = date('Y-m-t 23:59:59', $m);
 
-            $monthQty = 0;
-            $monthCost = 0;
+            // Running on-hand per item as at the close of this month.
+            $quantityByItem = InventoryMovement::query()
+                ->where('created_at', '<=', $monthEnd)
+                ->groupBy('item_id')
+                ->selectRaw('item_id, SUM(quantity_change) as qty')
+                ->pluck('qty', 'item_id');
 
-            foreach ($items as $row) {
-                $item = $row->item;
-                if (!$item?->product) continue;
+            $value = 0.0;
 
-                $qty = (float) $row->quantity;
-                $cost = (float) ($item->product->cost_price ?? 0);
+            foreach ($quantityByItem as $itemId => $qty) {
+                if (! isset($costByItem[$itemId])) {
+                    continue;
+                }
 
-                $monthQty += $qty;
-                $monthCost += $qty * $cost;
+                $value += (float) $qty * $costByItem[$itemId];
             }
 
             $months[] = date('M Y', $m);
-            $values[] = round($monthCost, 2);
+            $values[] = round($value, 2);
         }
 
         return [
@@ -182,14 +193,14 @@ class InventoryReportController extends Controller
         return [
             'labels' => array_column($data, 'label'),
             'values' => array_column($data, 'value'),
-            'max' => max(array_column($data, 'value', 'label')),
+            'max' => $data !== [] ? (float) max(array_column($data, 'value', 'label')) : 0,
         ];
     }
 
     /**
      * Valuation per item: on-hand quantity across warehouses × product cost.
      *
-     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     * @return Collection<int, array<string, mixed>>
      */
     private function valuation(): Collection
     {

@@ -10,6 +10,7 @@ use App\Models\SalesInvoice;
 use App\Models\SalesOrder;
 use App\Models\SalesPayment;
 use App\Models\SalesStatusEvent;
+use App\Services\NotificationService;
 use App\Support\DiscountLimit;
 use App\Support\DocumentItems;
 use App\Support\ExportsCsv;
@@ -17,6 +18,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -78,6 +80,15 @@ class InvoiceController extends Controller
 
         $this->recalculateStatus($invoice);
 
+        app(NotificationService::class)->notifyStaff(
+            'sales.invoices.view',
+            'Sales invoice issued',
+            'Invoice '.$invoice->number.' for '.money($invoice->total, $invoice->currency).' was issued to '.($invoice->customer?->company_name ?? 'a customer').'.',
+            'info',
+            route('sales.invoices.show', $invoice),
+            auth()->id(),
+        );
+
         return redirect()->route('sales.invoices.index')
             ->with('toasts', [['type' => 'success', 'message' => "Invoice {$invoice->number} created."]]);
     }
@@ -132,21 +143,40 @@ class InvoiceController extends Controller
         $data = $this->validateData($request);
         $this->validateDiscountLimits($request->input('items', []));
 
-        $invoice->update([
-            'order_id' => $data['order_id'] ?? null,
-            'customer_id' => $data['customer_id'],
-            'issue_date' => $data['issue_date'],
-            'due_date' => $data['due_date'] ?? null,
-            'status' => $data['status'],
-            'currency' => $data['currency'] ?? null,
-            'exchange_rate' => exchange_rate_for($data['currency'] ?? null),
-            'notes' => $data['notes'] ?? null,
-        ]);
-
         $totals = DocumentItems::sync($invoice, $request->input('items', []));
-        $invoice->update(['subtotal' => $totals['subtotal'], 'tax_amount' => $totals['tax'], 'total' => $totals['total']]);
 
-        $this->recalculateStatus($invoice);
+        // Editing an invoice must not strand it already overpaid. recordPayment
+        // refuses an amount above the balance, but an edit can push the total
+        // below what has already been received — leaving paid_amount > total,
+        // a negative balance, and isPaid() reporting true on the strength of it.
+        $paid = (float) $invoice->paid_amount;
+
+        if ($paid > $totals['total']) {
+            return back()
+                ->withInput()
+                ->with('toasts', [[
+                    'type' => 'danger',
+                    'message' => 'The new total ('.money($totals['total'], $invoice->currency).') is below the amount already paid ('.money($paid, $invoice->currency).'). Remove or refund a payment first.',
+                ]]);
+        }
+
+        DB::transaction(function () use ($invoice, $data, $totals) {
+            $invoice->update([
+                'order_id' => $data['order_id'] ?? null,
+                'customer_id' => $data['customer_id'],
+                'issue_date' => $data['issue_date'],
+                'due_date' => $data['due_date'] ?? null,
+                'status' => $data['status'],
+                'currency' => $data['currency'] ?? null,
+                'exchange_rate' => exchange_rate_for($data['currency'] ?? null),
+                'notes' => $data['notes'] ?? null,
+                'subtotal' => $totals['subtotal'],
+                'tax_amount' => $totals['tax'],
+                'total' => $totals['total'],
+            ]);
+
+            $this->recalculateStatus($invoice->fresh());
+        });
 
         return back()->with('toasts', [['type' => 'success', 'message' => "Invoice {$invoice->number} updated."]]);
     }
@@ -195,29 +225,43 @@ class InvoiceController extends Controller
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $remaining = $invoice->balance();
+        try {
+            DB::transaction(function () use ($data, $invoice): void {
+                $invoice = SalesInvoice::query()->lockForUpdate()->findOrFail($invoice->id);
+                if ((float) $data['amount'] > $invoice->balance()) {
+                    throw new \RuntimeException('Payment exceeds the outstanding balance of '.money($invoice->balance(), $invoice->currency).'.');
+                }
 
-        if ((float) $data['amount'] > $remaining) {
+                SalesPayment::create([
+                    'number' => next_document_number('sales_payment', 'RC'),
+                    'invoice_id' => $invoice->id,
+                    'customer_id' => $invoice->customer_id,
+                    'bank_account_id' => $data['bank_account_id'] ?? null,
+                    'amount' => $data['amount'],
+                    'payment_date' => $data['payment_date'],
+                    'method' => $data['method'],
+                    'reference' => $data['reference'] ?? null,
+                    'currency' => $invoice->currency,
+                    'exchange_rate' => $invoice->exchange_rate ?? exchange_rate_for($invoice->currency, $data['payment_date']),
+                    'notes' => $data['notes'] ?? null,
+                ]);
+
+                $invoice->update(['paid_amount' => round((float) $invoice->paid_amount + (float) $data['amount'], 2)]);
+                $this->recalculateStatus($invoice);
+            });
+        } catch (\RuntimeException $e) {
             return back()->withInput()
-                ->with('toasts', [['type' => 'danger', 'message' => 'Payment exceeds the outstanding balance of '.money($remaining, $invoice->currency).'.']]);
+                ->with('toasts', [['type' => 'danger', 'message' => $e->getMessage()]]);
         }
 
-        SalesPayment::create([
-            'number' => next_document_number('sales_payment', 'RC'),
-            'invoice_id' => $invoice->id,
-            'customer_id' => $invoice->customer_id,
-            'bank_account_id' => $data['bank_account_id'] ?? null,
-            'amount' => $data['amount'],
-            'payment_date' => $data['payment_date'],
-            'method' => $data['method'],
-            'reference' => $data['reference'] ?? null,
-            'currency' => $invoice->currency,
-            'exchange_rate' => $invoice->exchange_rate ?? exchange_rate_for($invoice->currency),
-            'notes' => $data['notes'] ?? null,
-        ]);
-
-        $invoice->update(['paid_amount' => round((float) $invoice->paid_amount + (float) $data['amount'], 2)]);
-        $this->recalculateStatus($invoice);
+        app(NotificationService::class)->notifyStaff(
+            'sales.invoices.view',
+            'Payment received',
+            money($data['amount'], $invoice->currency).' was received against invoice '.$invoice->number.' from '.($invoice->customer?->company_name ?? 'a customer').'.',
+            'success',
+            route('sales.invoices.show', $invoice),
+            auth()->id(),
+        );
 
         return back()->with('toasts', [['type' => 'success', 'message' => 'Payment of '.money($data['amount'], $invoice->currency).' recorded.']]);
     }

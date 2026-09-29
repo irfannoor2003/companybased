@@ -19,7 +19,7 @@ class Visit extends Model
     protected $fillable = [
         'visit_number', 'customer_id', 'sales_rep_id', 'purpose', 'notes',
         'status', 'scheduled_at', 'started_at', 'completed_at', 'distance_km',
-        'start_lat', 'start_lng', 'outcome', 'outcome_notes',
+        'start_lat', 'start_lng', 'outcome', 'outcome_notes', 'completion_image_path',
     ];
 
     protected function casts(): array

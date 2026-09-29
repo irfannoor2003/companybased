@@ -10,6 +10,7 @@ use App\Models\InventoryStock;
 use App\Models\InventoryTransfer;
 use App\Models\InventoryWriteOff;
 use App\Models\PurchaseOrder;
+use App\Services\LowStockService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 
@@ -23,7 +24,7 @@ final class InventoryLedger
     public const TYPES = [
         'initial', 'adjustment', 'transfer_in', 'transfer_out',
         'write_off', 'production_in', 'production_out', 'purchase_in',
-        'incoming_shipment',
+        'incoming_shipment', 'pos_sale',
     ];
 
     /**
@@ -72,10 +73,26 @@ final class InventoryLedger
                 return;
             }
 
-            $stock = InventoryStock::firstOrNew([
-                'item_id' => $itemId,
-                'warehouse_id' => $warehouseId,
-            ]);
+            $stock = InventoryStock::query()
+                ->where('item_id', $itemId)
+                ->where('warehouse_id', $warehouseId)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $stock) {
+                InventoryStock::query()->insertOrIgnore([
+                    'item_id' => $itemId,
+                    'warehouse_id' => $warehouseId,
+                    'quantity' => 0,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+                $stock = InventoryStock::query()
+                    ->where('item_id', $itemId)
+                    ->where('warehouse_id', $warehouseId)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+            }
 
             $newQty = round((float) $stock->quantity + $change, 3);
 
@@ -95,6 +112,10 @@ final class InventoryLedger
                 'reference_id' => $reference?->getKey(),
                 'note' => $note,
             ]);
+
+            // Evaluate the reorder level only once the movement is committed, so
+            // an alert can never be sent for stock that later rolls back.
+            app(LowStockService::class)->checkItemAfterCommit($itemId);
         });
     }
 
@@ -140,30 +161,33 @@ final class InventoryLedger
      * Only products tracked as inventory items and orders with a warehouse
      * post stock; all other lines are skipped.
      */
-    public static function applyPurchaseReceipt(PurchaseOrder $order): void
+    public static function applyPurchaseReceipt(PurchaseOrder $order, array $quantitiesByItemId): void
     {
         if (! $order->warehouse_id) {
             return;
         }
 
-        $items = InventoryItem::query()->whereIn('product_id', $order->items->pluck('product_id'))->get()->keyBy('product_id');
+        $items = InventoryItem::query()
+            ->whereIn('product_id', $order->items->pluck('product_id'))
+            ->get()
+            ->keyBy('product_id');
 
-        DB::transaction(function () use ($order, $items) {
-            foreach ($order->items as $line) {
-                if (! $line->product_id || ! isset($items[$line->product_id])) {
-                    continue;
-                }
+        foreach ($order->items as $line) {
+            $quantity = (float) ($quantitiesByItemId[$line->id] ?? 0);
 
-                static::adjust(
-                    $items[$line->product_id]->id,
-                    $order->warehouse_id,
-                    $line->qty,
-                    'purchase_in',
-                    $order,
-                    $order->number,
-                );
+            if ($quantity <= 0 || ! $line->product_id || ! isset($items[$line->product_id])) {
+                continue;
             }
-        });
+
+            self::adjust(
+                $items[$line->product_id]->id,
+                $order->warehouse_id,
+                $quantity,
+                'purchase_in',
+                $order,
+                $order->number,
+            );
+        }
     }
 
     /**

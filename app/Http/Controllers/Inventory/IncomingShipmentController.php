@@ -61,7 +61,7 @@ class IncomingShipmentController extends Controller
     {
         $data = $this->validateData($request);
 
-        $shipment = DB::transaction(function () use ($data) {
+        $shipment = DB::transaction(function () use ($data, $request) {
             $shipment = InventoryIncomingShipment::create([
                 'supplier_id' => $data['supplier_id'] ?? null,
                 'warehouse_id' => $data['warehouse_id'],

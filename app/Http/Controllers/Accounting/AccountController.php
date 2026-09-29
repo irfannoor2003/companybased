@@ -28,10 +28,8 @@ class AccountController extends Controller
             ->paginate(25)
             ->withQueryString();
 
-        $totals = collect(Account::typeOptions())->mapWithKeys(function (string $type) {
-            $sum = Account::query()->where('type', $type)->get()->sum(fn (Account $a) => $a->balance());
-            return [$type => round($sum, 2)];
-        });
+        // One grouped query instead of two SUM queries per account.
+        $totals = Account::balancesByType();
 
         return view('accounting.accounts.index', compact('accounts', 'totals'));
     }

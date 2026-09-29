@@ -9,6 +9,8 @@ use App\Support\ExportsCsv;
 use App\Support\GeneralLedger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -51,22 +53,30 @@ class JournalController extends Controller
             'reference' => ['nullable', 'string', 'max:120'],
             'description' => ['nullable', 'string', 'max:5000'],
             'lines' => ['required', 'array', 'min:2'],
-            'lines.*.account_id' => ['required', 'integer'],
+            'lines.*.account_id' => ['required', 'integer', Rule::exists('accounts', 'id')->where('is_active', true)],
             'lines.*.debit' => ['nullable', 'numeric', 'min:0'],
             'lines.*.credit' => ['nullable', 'numeric', 'min:0'],
             'lines.*.memo' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $entry = JournalEntry::create([
-            'number' => next_document_number('journal_entry', 'JE'),
-            'entry_date' => $data['entry_date'],
-            'reference' => $data['reference'] ?? null,
-            'description' => $data['description'] ?? null,
-            'status' => 'draft',
-            'created_by' => auth()->id(),
-        ]);
+        try {
+            $entry = DB::transaction(function () use ($data): JournalEntry {
+                $entry = JournalEntry::create([
+                    'number' => next_document_number('journal_entry', 'JE'),
+                    'entry_date' => $data['entry_date'],
+                    'reference' => $data['reference'] ?? null,
+                    'description' => $data['description'] ?? null,
+                    'status' => 'draft',
+                    'created_by' => auth()->id(),
+                ]);
 
-        GeneralLedger::replaceLines($entry, $data['lines']);
+                GeneralLedger::replaceLines($entry, $data['lines']);
+
+                return $entry;
+            });
+        } catch (\RuntimeException $e) {
+            return back()->withInput()->withErrors(['lines' => $e->getMessage()]);
+        }
 
         if (! $entry->isBalanced()) {
             return redirect()->route('accounting.journal.edit', $entry)
@@ -105,19 +115,26 @@ class JournalController extends Controller
             'reference' => ['nullable', 'string', 'max:120'],
             'description' => ['nullable', 'string', 'max:5000'],
             'lines' => ['required', 'array', 'min:2'],
-            'lines.*.account_id' => ['required', 'integer'],
+            'lines.*.account_id' => ['required', 'integer', Rule::exists('accounts', 'id')->where('is_active', true)],
             'lines.*.debit' => ['nullable', 'numeric', 'min:0'],
             'lines.*.credit' => ['nullable', 'numeric', 'min:0'],
             'lines.*.memo' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $entry->update([
-            'entry_date' => $data['entry_date'],
-            'reference' => $data['reference'] ?? null,
-            'description' => $data['description'] ?? null,
-        ]);
+        try {
+            DB::transaction(function () use ($entry, $data): void {
+                $entry = JournalEntry::query()->lockForUpdate()->findOrFail($entry->id);
+                $entry->update([
+                    'entry_date' => $data['entry_date'],
+                    'reference' => $data['reference'] ?? null,
+                    'description' => $data['description'] ?? null,
+                ]);
 
-        GeneralLedger::replaceLines($entry, $data['lines']);
+                GeneralLedger::replaceLines($entry, $data['lines']);
+            });
+        } catch (\RuntimeException $e) {
+            return back()->withInput()->withErrors(['lines' => $e->getMessage()]);
+        }
 
         $toast = $entry->isBalanced()
             ? ['type' => 'success', 'message' => "Journal entry {$entry->number} updated."]
@@ -151,6 +168,10 @@ class JournalController extends Controller
 
     public function destroy(JournalEntry $entry): RedirectResponse
     {
+        if ($entry->status !== 'draft') {
+            return back()->with('toasts', [['type' => 'error', 'message' => 'Posted or voided journal entries cannot be deleted. Void the entry instead.']]);
+        }
+
         $entry->delete();
 
         return redirect()->route('accounting.journal.index')

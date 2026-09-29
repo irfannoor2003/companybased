@@ -21,24 +21,28 @@ class GeneralLedger
     public static function replaceLines(JournalEntry $entry, array $lines): void
     {
         DB::transaction(function () use ($entry, $lines) {
+            $entry = JournalEntry::query()->lockForUpdate()->findOrFail($entry->id);
             $entry->items()->delete();
 
-            foreach ($lines as $line) {
-                if (! isset($line['account_id']) || (! $line['debit'] && ! $line['credit'])) {
-                    continue;
+            foreach ($lines as $index => $line) {
+                $debit = (float) ($line['debit'] ?? 0);
+                $credit = (float) ($line['credit'] ?? 0);
+                $accountId = $line['account_id'] ?? null;
+
+                if (! $accountId || ($debit <= 0 && $credit <= 0) || ($debit > 0 && $credit > 0)) {
+                    throw new \RuntimeException('Each journal line must contain a positive debit or credit, not both.');
                 }
 
-                $account = Account::find($line['account_id']);
-
+                $account = Account::find($accountId);
                 if (! $account || ! $account->is_active) {
-                    continue;
+                    throw new \RuntimeException('Journal line '.($index + 1).' references an invalid or inactive account.');
                 }
 
                 JournalEntryItem::create([
                     'journal_entry_id' => $entry->id,
                     'account_id' => $account->id,
-                    'debit' => (string) ($line['debit'] ?? 0),
-                    'credit' => (string) ($line['credit'] ?? 0),
+                    'debit' => number_format($debit, 2, '.', ''),
+                    'credit' => number_format($credit, 2, '.', ''),
                     'memo' => $line['memo'] ?? null,
                 ]);
             }
@@ -56,6 +60,7 @@ class GeneralLedger
     public static function post(JournalEntry $entry): void
     {
         DB::transaction(function () use ($entry) {
+            $entry = JournalEntry::query()->lockForUpdate()->findOrFail($entry->id);
             if ($entry->status !== 'draft') {
                 throw new \RuntimeException('Only draft entries can be posted.');
             }
@@ -74,6 +79,7 @@ class GeneralLedger
     public static function void(JournalEntry $entry): void
     {
         DB::transaction(function () use ($entry) {
+            $entry = JournalEntry::query()->lockForUpdate()->findOrFail($entry->id);
             if ($entry->status !== 'posted') {
                 throw new \RuntimeException('Only posted entries can be voided.');
             }

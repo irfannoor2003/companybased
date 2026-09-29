@@ -31,6 +31,7 @@ class SubscriptionReminder extends Command
 
         if ($subscriptions->isEmpty()) {
             $this->info("No packages expiring within {$days} days.");
+
             return self::SUCCESS;
         }
 
@@ -59,7 +60,7 @@ class SubscriptionReminder extends Command
 
     protected function recipient(): ?string
     {
-        $superAdmin = User::role('Super Admin')->first();
+        $superAdmin = User::role(config('roles.super_admin'))->first();
 
         if ($superAdmin && $superAdmin->email) {
             return $superAdmin->email;

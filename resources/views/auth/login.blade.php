@@ -22,7 +22,13 @@
                     </a>
                 @endif
             </div>
-            <x-text-input id="password" class="mt-1 block w-full" type="password" name="password" required autocomplete="current-password" />
+            <div x-data="{ visible: false }" class="relative">
+                <input id="password" :type="visible ? 'text' : 'password'" class="input mt-1 block w-full pr-11" name="password" required autocomplete="current-password">
+                <button type="button" @click="visible = !visible" class="absolute right-1.5 top-1/2 mt-0.5 flex size-8 -translate-y-1/2 items-center justify-center rounded-lg text-ink-faint transition hover:bg-surface-muted hover:text-ink" :aria-label="visible ? 'Hide password' : 'Show password'">
+                    <x-icon name="eye" class="size-4" x-show="!visible" />
+                    <x-icon name="eye-off" class="size-4" x-show="visible" x-cloak />
+                </button>
+            </div>
             <x-input-error :messages="$errors->get('password')" class="mt-2" />
         </div>
 

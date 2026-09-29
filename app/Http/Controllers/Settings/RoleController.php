@@ -18,7 +18,7 @@ class RoleController extends Controller
     public function index(): View
     {
         $roles = Role::query()
-            ->where('name', '!=', 'Super Admin')
+            ->where('name', '!=', config('roles.super_admin'))
             ->withCount(['users', 'permissions'])
             ->orderBy('name')
             ->get();
@@ -53,7 +53,7 @@ class RoleController extends Controller
 
         $role = Role::create([
             'name' => $data['name'],
-            'label' => $data['label'] ?: $data['name'],
+            'label' => ($data['label'] ?? null) ?: $data['name'],
             'description' => $data['description'] ?? null,
             'guard_name' => 'web',
             'is_system' => false,
@@ -69,7 +69,7 @@ class RoleController extends Controller
 
     public function edit(Role $role): View
     {
-        if ($role->name === 'Super Admin') {
+        if ($role->name === config('roles.super_admin')) {
             abort(403, 'The Super Admin role owns every permission and cannot be edited.');
         }
 
@@ -95,7 +95,7 @@ class RoleController extends Controller
 
         $role->update([
             'name' => $data['name'],
-            'label' => $data['label'] ?: $data['name'],
+            'label' => ($data['label'] ?? null) ?: $data['name'],
             'description' => $data['description'] ?? null,
         ]);
 
@@ -157,11 +157,21 @@ class RoleController extends Controller
     {
         $enabled = Module::enabledKeys();
 
-        return array_values(array_filter($permissions, function (string $permission) use ($enabled) {
+        $allowed = array_values(array_filter($permissions, function (string $permission) use ($enabled) {
             $module = explode('.', $permission)[0];
 
             return in_array($module, $enabled, true)
                 && ! in_array($module, static::SUPER_ADMIN_MODULES, true);
         }));
+
+        if ($allowed === []) {
+            return [];
+        }
+
+        return Permission::query()
+            ->where('guard_name', 'web')
+            ->whereIn('name', $allowed)
+            ->pluck('name')
+            ->all();
     }
 }

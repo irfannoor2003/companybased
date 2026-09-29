@@ -1,0 +1,47 @@
+/* Email-client-safe styles for company-branded mail.
+   __PRIMARY__ / __STRONG__ are replaced with the brand colours configured by
+   the Super Admin in Settings → Company Profile before the CSS is inlined. */
+
+@layer reset {
+  html { -webkit-text-size-adjust: none; }
+  body { margin: 0 !important; padding: 0 !important; width: 100% !important; background: #f1f5f9; }
+  table { border-collapse: collapse !important; }
+  img { border: 0; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic; }
+}
+
+a { color: __STRONG__; }
+
+.button { background: __PRIMARY__; border-radius: 8px; color: #ffffff !important; display: inline-block; overflow: hidden; text-decoration: none !important; }
+.button:hover { background: __STRONG__ !important; }
+
+table.button { width: 100%; }
+table.button a { display: block; padding: 13px 20px; }
+
+.header-cell { background: __PRIMARY__; padding: 24px; text-align: center; }
+.header-cell a { color: #ffffff !important; text-decoration: none; font-size: 19px; font-weight: 700; letter-spacing: -0.01em; }
+.header-logo { height: 40px; max-height: 40px; width: auto; border: 0; }
+
+h1 { color: #0f172a; font-size: 20px; font-weight: 700; line-height: 1.3; margin-top: 0; }
+h2 { color: #0f172a; font-size: 16px; font-weight: 600; }
+p, li, td { color: #334155; font-size: 16px; line-height: 1.6; }
+strong { color: #0f172a; font-weight: 600; }
+
+.panel { border-left: 4px solid __PRIMARY__; background: #f8fafc; margin: 21px 0; }
+.panel-content { padding: 16px; }
+.panel-content p { margin: 0; color: #475569; font-size: 14px; }
+
+table.data th { background: __PRIMARY__; color: #ffffff; font-size: 14px; text-align: left; padding: 8px 12px; }
+table.data td { border-bottom: 1px solid #e2e8f0; padding: 8px 12px; font-size: 14px; }
+
+.footer { border-top: 1px solid #e2e8f0; }
+.footer p { color: #94a3b8 !important; font-size: 12px; }
+
+@media only screen and (max-width: 600px) {
+  .inner-body { width: 100% !important; }
+  .footer { width: 100% !important; }
+  .content { padding: 8px !important; }
+}
+
+@media only screen and (max-width: 500px) {
+  .button { width: 100% !important; }
+}

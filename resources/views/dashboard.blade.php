@@ -1,137 +1,148 @@
-<x-app-layout :pageTitle="'Dashboard'">
+<x-app-layout page-title="Dashboard">
     <x-slot name="header">
         <x-page-header
-            title="{{ now()->format('g:i A') }} — Welcome back, {{ auth()->user()->displayName() }}"
-            description="{{ $appBrand['companyName'] }} · {{ now()->format('l, F j, Y') }}"
+            title="Welcome back, {{ auth()->user()->displayName() }}"
+            description="{{ $roleLabel }} workspace · {{ now()->format('l, F j, Y') }}"
             icon="dashboard"
         >
             <x-slot name="actions">
-                @if ($isAdmin)
-                    <x-button href="{{ route('settings.company') }}" variant="secondary" icon="settings">Company settings</x-button>
+                {{--
+                    Only Admins manage the per-role dashboard defaults. Super Admin
+                    is explicitly barred from settings.dashboards.* (see
+                    DashboardPreferenceController::ensureCompanyRole) because its
+                    own dashboard is fully customisable, so it only ever gets the
+                    personal "Customize mine" action.
+                --}}
+                @if ($isAdmin && ! auth()->user()->isSuperAdmin())
+                    <x-button href="{{ route('settings.dashboards.index') }}" variant="secondary" icon="settings">Manage role dashboards</x-button>
                 @endif
+                <x-button href="{{ route('dashboard.customize') }}" variant="primary" icon="settings">Customize mine</x-button>
             </x-slot>
         </x-page-header>
     </x-slot>
 
-    <div class="mt-6 space-y-6" x-data="{ loaded: false }" x-init="loaded = true">
-        {{-- Skeleton: stat cards --}}
-        <div x-show="!loaded" class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            @foreach (range(1, 4) as $i)
-                <div class="rounded-xl border border-line bg-surface p-5">
-                    <div class="h-3 w-20 animate-pulse rounded bg-surface-muted"></div>
-                    <div class="mt-3 h-7 w-16 animate-pulse rounded bg-surface-muted"></div>
+    <div class="space-y-6">
+        <section class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary via-primary-strong to-accent p-6 text-white shadow-lg shadow-primary/10 sm:p-8">
+            <div class="relative z-10 max-w-3xl">
+                <div class="flex flex-wrap items-center gap-2">
+                    <span class="rounded-full bg-white/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em]">{{ $roleLabel }}</span>
+                    <span class="rounded-full bg-white/10 px-3 py-1 text-xs text-white/80">{{ count($widgets) }} active widgets</span>
                 </div>
-            @endforeach
-        </div>
-        {{-- Skeleton: activity + modules --}}
-        <div x-show="!loaded" class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-            <div class="lg:col-span-2 rounded-xl border border-line bg-surface p-5">
-                <div class="h-4 w-32 animate-pulse rounded bg-surface-muted"></div>
-                <div class="mt-4 space-y-4">
-                    @foreach (range(1, 4) as $i)
-                        <div class="flex items-start gap-3">
-                            <div class="mt-0.5 size-4 shrink-0 animate-pulse rounded-full bg-surface-muted"></div>
-                            <div class="flex-1 space-y-2">
-                                <div class="h-3 w-3/4 animate-pulse rounded bg-surface-muted"></div>
-                                <div class="h-2 w-1/3 animate-pulse rounded bg-surface-muted"></div>
+                <h2 class="mt-4 text-2xl font-bold tracking-tight sm:text-3xl">Your operating cockpit</h2>
+                <p class="mt-2 max-w-2xl text-sm leading-6 text-white/80">{{ $roleDescription ?: 'A focused view of the work and information that matters most to your role.' }}</p>
+            </div>
+            <div class="pointer-events-none absolute -right-16 -top-20 size-64 rounded-full border-[28px] border-white/10"></div>
+            <div class="pointer-events-none absolute -bottom-28 right-24 size-72 rounded-full border-[40px] border-white/10"></div>
+        </section>
+
+        @if (count($widgets) === 0)
+            <x-card title="Your dashboard is ready to configure" description="An administrator needs to assign widgets to your role.">
+                <x-empty-state icon="dashboard" title="No widgets assigned" description="Ask an administrator to customize the dashboard for your role." />
+            </x-card>
+        @else
+            <div class="grid grid-cols-1 gap-6 xl:grid-cols-2">
+                @foreach ($widgets as $widget)
+                    @php
+                        $items = $widget['data']['items'] ?? [];
+                        $metrics = $widget['data']['metrics'] ?? [];
+                    @endphp
+
+                    @if ($widget['type'] === 'chart')
+                        <x-card title="{{ $widget['label'] }}" description="{{ $widget['description'] }}" class="h-full">
+                            <x-slot name="actions"><div class="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary"><x-icon :name="$widget['icon']" class="size-4" /></div></x-slot>
+                            <div class="h-72">
+                                <x-base-chart
+                                    type="line"
+                                    :data="json_encode($widget['data']['chart']['data'])"
+                                    :options="json_encode($widget['data']['chart']['options'])"
+                                    height="280"
+                                />
                             </div>
-                        </div>
-                    @endforeach
-                </div>
-            </div>
-            <div class="rounded-xl border border-line bg-surface p-5">
-                <div class="h-4 w-32 animate-pulse rounded bg-surface-muted"></div>
-                <div class="mt-4 space-y-3">
-                    @foreach (range(1, 5) as $i)
-                        <div class="flex items-center gap-3 rounded-lg px-2 py-1.5">
-                            <div class="size-8 animate-pulse rounded-lg bg-surface-muted"></div>
-                            <div class="h-3 flex-1 animate-pulse rounded bg-surface-muted"></div>
-                        </div>
-                    @endforeach
-                </div>
-            </div>
-        </div>
-
-        {{-- Real content --}}
-        <div x-show="loaded" x-cloak>
-        {{-- Stat cards --}}
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <x-stat-card label="Total users" :value="$stats['users']" icon="users" tone="primary" />
-            <x-stat-card label="Roles defined" :value="$stats['roles']" icon="roles" tone="info" />
-            <x-stat-card label="Modules enabled" :value="$stats['modulesEnabled'].' / '.$stats['modulesTotal']" icon="modules" tone="success" />
-            <x-stat-card label="Disabled modules" :value="$disabledModules" icon="archive" tone="warning"
-                href="{{ $isAdmin ? route('settings.modules') : null }}"
-                hint="{{ $disabledModules ? 'Review in Settings' : 'All modules active' }}" />
-        </div>
-
-        <div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-            {{-- Activity feed --}}
-            @if ($isSuperAdmin)
-            <x-card title="Recent activity" description="Latest changes across the company." class="lg:col-span-2">
-                @if ($recentActivity->isEmpty())
-                    <x-empty-state icon="activity" title="No activity yet" description="Actions you take across modules will show up here." />
-                @else
-                    <ol class="relative space-y-5 before:absolute before:inset-y-0 before:left-[7px] before:w-px before:bg-line">
-                        @foreach ($recentActivity as $log)
-                            <li class="relative flex items-start gap-3 pl-1">
-                                <span class="mt-0.5 flex size-[15px] shrink-0 items-center justify-center rounded-full border-2 border-surface bg-primary"></span>
-                                <div class="min-w-0">
-                                    <p class="text-sm text-ink">
-                                        <span class="font-semibold">{{ $log->user?->displayName() ?? 'System' }}</span>
-                                        {{ $log->event }} <span class="font-medium">{{ $log->module }}</span>
-                                        @if ($log->auditable_id)
-                                            <span class="text-ink-faint">#{{ $log->auditable_id }}</span>
-                                        @endif
-                                    </p>
-                                    @if ($log->description)
-                                        <p class="mt-0.5 truncate text-xs text-ink-faint">{{ $log->description }}</p>
-                                    @endif
-                                    <p class="mt-0.5 text-xs text-ink-faint">{{ $log->created_at?->diffForHumans() }}</p>
+                        </x-card>
+                    @elseif ($widget['type'] === 'metrics' || $widget['type'] === 'progress')
+                        <x-card title="{{ $widget['label'] }}" description="{{ $widget['description'] }}" class="h-full">
+                            <x-slot name="actions">
+                                <div class="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                                    <x-icon :name="$widget['icon']" class="size-4" />
                                 </div>
-                            </li>
-                        @endforeach
-                    </ol>
-                @endif
-
-                @if (auth()->user()->can('settings.audit.view'))
-                    <div class="mt-5 border-t border-line pt-4">
-                        <a href="{{ route('settings.audit-log') }}" class="link inline-flex items-center gap-1 text-sm">
-                            View full audit log
-                            <x-icon name="arrow-right" class="size-4" />
-                        </a>
-                    </div>
-                @endif
-            </x-card>
-            @endif
-
-            {{-- Module status --}}
-            <x-card title="Enabled modules" description="This company's active modules." class="{{ $isSuperAdmin ? '' : 'lg:col-span-3' }}">
-                <ul class="space-y-2.5">
-                    @foreach ($enabledModules as $module)
-                        <li class="flex items-center gap-3 rounded-lg px-2 py-1.5 transition-colors hover:bg-surface-muted">
-                            <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                                <x-icon :name="$module->icon" class="size-4" />
+                            </x-slot>
+                            <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                                @foreach ($items as $item)
+                                    @php
+                                        $toneClasses = [
+                                            'primary' => 'bg-primary/10 text-primary',
+                                            'success' => 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400',
+                                            'warning' => 'bg-amber-100 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400',
+                                            'danger' => 'bg-rose-100 text-rose-600 dark:bg-rose-500/15 dark:text-rose-400',
+                                            'info' => 'bg-sky-100 text-sky-600 dark:bg-sky-500/15 dark:text-sky-400',
+                                        ];
+                                    @endphp
+                                    <div class="rounded-xl border border-line bg-surface-muted/40 p-4">
+                                        <p class="text-lg font-bold tracking-tight text-ink">{{ $item['value'] }}</p>
+                                        <p class="mt-1 text-xs text-ink-soft">{{ $item['label'] }}</p>
+                                        <span class="mt-3 inline-flex size-2 rounded-full {{ $toneClasses[$item['tone'] ?? 'primary'] ?? $toneClasses['primary'] }}"></span>
+                                    </div>
+                                @endforeach
                             </div>
-                            <span class="min-w-0 flex-1 truncate text-sm font-medium text-ink">{{ $module->label }}</span>
-                            @if ($module->is_core)
-                                <x-badge color="info">Core</x-badge>
-                            @else
-                                <x-badge color="success">On</x-badge>
+                            @if ($widget['type'] === 'progress' && isset($widget['data']['total']))
+                                <div class="mt-5 flex items-center justify-between border-t border-line pt-4 text-xs">
+                                    <span class="text-ink-soft">Current workload</span>
+                                    <span class="font-semibold text-ink">{{ $widget['data']['total'] }} total</span>
+                                </div>
                             @endif
-                        </li>
-                    @endforeach
-                </ul>
-
-                @if (auth()->user()->can('settings.modules.view'))
-                    <div class="mt-4 border-t border-line pt-4">
-                        <a href="{{ route('settings.modules') }}" class="link inline-flex items-center gap-1 text-sm">
-                            Manage modules
-                            <x-icon name="arrow-right" class="size-4" />
-                        </a>
-                    </div>
-                @endif
-            </x-card>
-        </div>
-        </div> {{-- end real content --}}
+                            @if (! empty($widget['data']['href']))
+                                <div class="mt-5 border-t border-line pt-4">
+                                    <a href="{{ $widget['data']['href'] }}" class="link inline-flex items-center gap-1 text-sm">Open related workspace <x-icon name="arrow-right" class="size-4" /></a>
+                                </div>
+                            @endif
+                        </x-card>
+                    @elseif ($widget['type'] === 'actions')
+                        <x-card title="{{ $widget['label'] }}" description="{{ $widget['description'] }}" class="h-full">
+                            <x-slot name="actions"><x-icon :name="$widget['icon']" class="size-5 text-primary" /></x-slot>
+                            <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                @foreach ($items as $action)
+                                    <a href="{{ $action['href'] }}" class="group flex items-center gap-3 rounded-xl border border-line p-3 transition hover:border-primary/30 hover:bg-primary/5">
+                                        <span class="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary"><x-icon :name="$action['icon']" class="size-4" /></span>
+                                        <span class="flex-1 text-sm font-semibold text-ink">{{ $action['label'] }}</span>
+                                        <x-icon name="arrow-right" class="size-4 text-ink-faint transition group-hover:translate-x-0.5 group-hover:text-primary" />
+                                    </a>
+                                @endforeach
+                            </div>
+                        </x-card>
+                    @else
+                        <x-card title="{{ $widget['label'] }}" description="{{ $widget['description'] }}" class="h-full" :padding="false">
+                            <x-slot name="actions">
+                                <div class="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary"><x-icon :name="$widget['icon']" class="size-4" /></div>
+                            </x-slot>
+                            <div class="divide-y divide-line">
+                                @forelse ($items as $item)
+                                    <div class="flex items-center gap-3 px-5 py-3.5">
+                                        <div class="min-w-0 flex-1">
+                                            <p class="truncate text-sm font-semibold text-ink">{{ $item['title'] }}</p>
+                                            <p class="mt-0.5 truncate text-xs text-ink-faint">{{ $item['meta'] }}</p>
+                                        </div>
+                                        <span class="shrink-0 text-xs font-bold {{ ($item['tone'] ?? '') === 'danger' ? 'text-rose-500' : (($item['tone'] ?? '') === 'warning' ? 'text-amber-500' : 'text-ink') }}">{{ $item['value'] }}</span>
+                                    </div>
+                                @empty
+                                    <div class="px-5 py-8"><x-empty-state icon="{{ $widget['icon'] }}" title="Nothing to show yet" description="New activity will appear here." /></div>
+                                @endforelse
+                            </div>
+                            @if (count($metrics) > 0)
+                                <div class="flex flex-wrap gap-4 border-t border-line bg-surface-muted/30 px-5 py-3">
+                                    @foreach ($metrics as $metric)
+                                        <span class="text-xs text-ink-soft"><strong class="text-ink">{{ $metric['value'] }}</strong> {{ strtolower($metric['label']) }}</span>
+                                    @endforeach
+                                </div>
+                            @endif
+                            @if (! empty($widget['data']['href']))
+                                <div class="border-t border-line px-5 py-3">
+                                    <a href="{{ $widget['data']['href'] }}" class="link inline-flex items-center gap-1 text-sm">View all <x-icon name="arrow-right" class="size-4" /></a>
+                                </div>
+                            @endif
+                        </x-card>
+                    @endif
+                @endforeach
+            </div>
+        @endif
     </div>
 </x-app-layout>

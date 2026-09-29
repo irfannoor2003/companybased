@@ -8,7 +8,6 @@ use App\Support\ExportsCsv;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -54,7 +53,7 @@ class CategoryController extends Controller
         } catch (QueryException $e) {
             if ($e->errorInfo[1] == 1062) {
                 return back()->withInput()
-                    ->with('toasts', [['type' => 'danger', 'message' => 'A category with the name "' . $data['name'] . '" already exists. Please choose a different name.']]);
+                    ->with('toasts', [['type' => 'danger', 'message' => 'A category with the name "'.$data['name'].'" already exists. Please choose a different name.']]);
             }
             throw $e;
         }
@@ -74,7 +73,7 @@ class CategoryController extends Controller
     {
         $data = $this->validateData($request, $category->id);
 
-        if ((int) $data['parent_id'] === $category->id) {
+        if (($data['parent_id'] ?? null) !== null && (int) $data['parent_id'] === $category->id) {
             return back()->withErrors(['parent_id' => 'A category cannot be its own parent.']);
         }
 

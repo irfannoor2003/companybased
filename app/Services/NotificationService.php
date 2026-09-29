@@ -3,9 +3,11 @@
 namespace App\Services;
 
 use App\Models\NotificationRule;
-use App\Models\SalesOrder;
+use App\Models\User;
+use App\Notifications\SystemNotification;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification as NotificationFacade;
 
 /**
  * Channel-agnostic notification dispatcher. Rules are stored as data
@@ -57,6 +59,59 @@ class NotificationService
      * Notify a notifiable with a notification, running any pre/post hooks
      * (logging, provider fallback) around the dispatch.
      */
+    public function notifyStaff(string $permission, string $title, string $message, string $type = 'info', ?string $url = null, ?int $exceptUserId = null): void
+    {
+        // Resolve the permission in SQL rather than loading every user and
+        // running a permission check on each one.
+        $users = User::query()->permission($permission);
+
+        if ($exceptUserId !== null) {
+            $users->whereKeyNot($exceptUserId);
+        }
+
+        $users = $users->get();
+
+        if ($users->isEmpty()) {
+            return;
+        }
+
+        try {
+            NotificationFacade::send($users, new SystemNotification($title, $message, $type, $url));
+        } catch (\Throwable $e) {
+            $this->logFailure('staff', $title, $e);
+        }
+    }
+
+    /**
+     * Notify a single user directly, bypassing permission checks.
+     * Used for "your request was approved" style messages.
+     */
+    public function notifyUser(?User $user, string $title, string $message, string $type = 'info', ?string $url = null): void
+    {
+        if (! $user) {
+            return;
+        }
+
+        try {
+            $user->notify(new SystemNotification($title, $message, $type, $url));
+        } catch (\Throwable $e) {
+            $this->logFailure($user->email ?? (string) $user->id, $title, $e);
+        }
+    }
+
+    /**
+     * A notification is never important enough to fail the business action
+     * that triggered it, so every dispatch is guarded.
+     */
+    private function logFailure(string $target, string $title, \Throwable $e): void
+    {
+        Log::warning('Notification dispatch failed', [
+            'target' => $target,
+            'title' => $title,
+            'error' => $e->getMessage(),
+        ]);
+    }
+
     public function notify(object $notifiable, Notification $notification): void
     {
         try {

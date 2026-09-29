@@ -3,6 +3,9 @@
         ['label' => 'Company Profile', 'route' => 'settings.company', 'icon' => 'company', 'permission' => 'settings.company.view'],
         ['label' => 'Currencies', 'route' => 'settings.currencies', 'icon' => 'money', 'permission' => 'settings.currencies.view'],
         ['label' => 'Modules', 'route' => 'settings.modules', 'icon' => 'modules', 'permission' => 'settings.modules.view'],
+        // Super Admin personalises its own dashboard at /dashboard/customize and is
+        // barred from the per-role defaults, so the tab is hidden for that role.
+        ['label' => 'Dashboards', 'route' => 'settings.dashboards.index', 'icon' => 'dashboard', 'permission' => 'settings.dashboard.view', 'hide_for_super_admin' => true],
         ['label' => 'Notification Rules', 'route' => 'settings.notification-rules', 'icon' => 'bell', 'permission' => 'settings.notifications.view'],
         ['label' => 'Templates', 'route' => 'settings.templates.index', 'icon' => 'document', 'permission' => 'settings.templates.view'],
         ['label' => 'Discount Rules', 'route' => 'settings.discount-rules.index', 'icon' => 'discount', 'permission' => 'settings.discount_rules.view'],
@@ -13,7 +16,9 @@
         ['label' => 'Mail Server', 'route' => 'settings.mail', 'icon' => 'mail', 'permission' => 'settings.mail.view'],
         ['label' => 'Packages', 'route' => 'settings.subscription', 'icon' => 'package', 'permission' => 'settings.subscription.view'],
     ];
-    $visibleTabs = array_values(array_filter($tabs, fn ($t) => auth()->user()->can($t['permission'])));
+    $isSuperAdmin = auth()->user()->isSuperAdmin();
+    $visibleTabs = array_values(array_filter($tabs, fn ($t) => auth()->user()->can($t['permission'])
+        && ! ($isSuperAdmin && ($t['hide_for_super_admin'] ?? false))));
 @endphp
 
 @if (count($visibleTabs) > 1)

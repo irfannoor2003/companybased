@@ -2,34 +2,21 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\AuditLog;
-use App\Models\Module;
-use App\Models\Role;
-use App\Models\User;
+use App\Services\DashboardService;
+use Illuminate\View\View;
 
 class DashboardController extends Controller
 {
-    public function __invoke()
+    public function __construct(private readonly DashboardService $dashboard) {}
+
+    public function __invoke(): View
     {
-        $enabledModules = Module::query()->where('enabled', true)->orderBy('sort_order')->get();
-        $disabledModules = Module::query()->where('enabled', false)->count();
+        $user = auth()->user();
+        $dashboard = $this->dashboard->forUser($user);
 
-        $recentActivity = AuditLog::query()
-            ->with('user')
-            ->latest('id')
-            ->limit(10)
-            ->get();
-
-        $stats = [
-            'users' => User::count(),
-            'roles' => Role::where('name', '!=', 'Super Admin')->count(),
-            'modulesEnabled' => $enabledModules->count(),
-            'modulesTotal' => Module::count(),
-        ];
-
-        $isAdmin = auth()->user()->isAdmin();
-        $isSuperAdmin = auth()->user()->isSuperAdmin();
-
-        return view('dashboard', compact('enabledModules', 'disabledModules', 'recentActivity', 'stats', 'isAdmin', 'isSuperAdmin'));
+        return view('dashboard', array_merge($dashboard, [
+            'isAdmin' => $user->isAdmin(),
+            'isSuperAdmin' => $user->isSuperAdmin(),
+        ]));
     }
 }

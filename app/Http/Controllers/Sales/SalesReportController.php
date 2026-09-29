@@ -12,7 +12,7 @@ class SalesReportController extends Controller
 {
     public function index(Request $request): View
     {
-        $salesmen = User::whereHas('roles', fn ($q) => $q->where('name', 'Salesman'))->orderBy('name')->get();
+        $salesmen = User::whereHas('roles', fn ($q) => $q->where('name', config('roles.salesman')))->orderBy('name')->get();
 
         $query = SalesOrder::query()
             ->with('salesman')
