@@ -41,10 +41,20 @@ class AttendanceRecord extends Model
         return $this->belongsTo(Employee::class, 'employee_id');
     }
 
+    /**
+     * Restrict to records falling inside an inclusive date range.
+     *
+     * Compared with whereDate() rather than a bare >= / <= string comparison:
+     * attendance_date is a DATE column but the model casts it to `date`, so it
+     * round-trips as a full datetime and the driver stores '2026-09-11 00:00:00'.
+     * That string is greater than '2026-09-11', so `<=` silently dropped the last
+     * day of the period. In payroll that made the final working day of every
+     * month count as an absence.
+     */
     public function scopeForPeriod(Builder $query, ?string $from, ?string $to): Builder
     {
         return $query
-            ->when($from, fn ($q) => $q->where('attendance_date', '>=', $from))
-            ->when($to, fn ($q) => $q->where('attendance_date', '<=', $to));
+            ->when($from, fn ($q) => $q->whereDate('attendance_date', '>=', $from))
+            ->when($to, fn ($q) => $q->whereDate('attendance_date', '<=', $to));
     }
 }
