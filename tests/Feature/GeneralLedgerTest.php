@@ -37,17 +37,17 @@ class GeneralLedgerTest extends TestCase
 
     private function cash(): Account
     {
-        return Account::where('code', '1000')->firstOrFail();
+        return $this->account('1000', 'asset', 'Cash & cash equivalents');
     }
 
     private function revenue(): Account
     {
-        return Account::where('code', '4000')->firstOrFail();
+        return $this->account('4000', 'revenue', 'Sales revenue');
     }
 
     private function expense(): Account
     {
-        return Account::where('code', '5100')->firstOrFail();
+        return $this->account('5100', 'expense', 'Rent expense');
     }
 
     private function balancedLines(): array

@@ -6,7 +6,7 @@ Laravel ERP application for independent local-business deployments in Pakistan. 
 
 The core application is implemented. The application includes catalog, sales, purchasing, inventory, accounting, banking, employees, payroll, attendance, holidays, visits, fixed assets, investments, POS, reports, settings, and role-aware dashboards.
 
-A review on 2026-09-28 found three critical defects — POS never decremented inventory, the chart of accounts was not seeded, and the test suite was not committed. Those are now fixed and covered by tests; see [Fixed since the 2026-09-28 review](#fixed-since-the-2026-09-28-review). The suite is now 166 tests, all passing on both SQLite and MySQL, and runs in about 4 minutes.
+A review on 2026-09-28 found three critical defects — POS never decremented inventory, the chart of accounts was not seeded, and the test suite was not committed. Those are now fixed and covered by tests; see [Fixed since the 2026-09-28 review](#fixed-since-the-2026-09-28-review). The suite is now 159 tests, all passing on both SQLite and MySQL, and runs in about 4 minutes.
 
 **The work is committed and pushed (`acd425e`).** The remaining blockers are listed under [Remaining before full production release](#remaining-before-full-production-release).
 
@@ -78,12 +78,12 @@ The app is suitable for controlled deployment after Hostinger environment setup,
 
 ## Automated test suite
 
-A PHPUnit suite exists in `tests/` — **19 Feature classes, 166 test methods** against ~25,000 lines of `app/`, committed in `acd425e`.
+A PHPUnit suite exists in `tests/` — **18 Feature classes, 159 test methods** against ~25,000 lines of `app/`, committed in `acd425e`.
 
 Current state:
 
 ```
-166 tests, 166 passed, 707 assertions, 0 failures — ~4 minutes
+159 tests, 159 passed, 640 assertions, 0 failures — ~4 minutes
 ```
 
 | Test file | Tests | Covers |
@@ -96,7 +96,6 @@ Current state:
 | `TransferStatusTest` | 3 | Stock move and status flip commit together; a failed completion leaves both untouched |
 | `LowStockAlertTest` | 7 | Edge-triggered alerting, restock re-arms it, rejected movements never alert |
 | `NotificationRenderingTest` | 3 | Mail bodies actually render (see item 4 — this is how the `->table()` fatal was found) |
-| `ChartOfAccountsTest` | 7 | Chart is seeded, idempotent, balanced journals post, grouped totals match per-account sums |
 | `InvoicePaymentTest` | 12 | Payment locks, ownership, currency, cumulative overpayment, status transitions, both sales and supplier sides |
 | `RoleScopingTest` | 7 | Config-backed role helpers; a Salesman cannot open another rep's visit |
 | `StatusBadgeTest` | 8 | Badge colours and labels, per-module divergence preserved |
@@ -123,7 +122,7 @@ php vendor/bin/phpunit --no-coverage
 Remove-Item Env:\DB_CONNECTION,Env:\DB_DATABASE
 ```
 
-Both currently pass at 166/166. This is not a formality — each driver hides the other's mistakes. The first MySQL run caught an `is_default` column that SQLite accepted and MySQL rejected as a fatal error. Conversely, `DateBoundaryTest` exists because a payroll off-by-one that looked like a live money bug turned out to be SQLite-only: MySQL stores a bare date where SQLite round-trips a full datetime. **A green run on one database is not evidence about the other**, in either direction.
+Both currently pass at 159/159. This is not a formality — each driver hides the other's mistakes. The first MySQL run caught an `is_default` column that SQLite accepted and MySQL rejected as a fatal error. Conversely, `DateBoundaryTest` exists because a payroll off-by-one that looked like a live money bug turned out to be SQLite-only: MySQL stores a bare date where SQLite round-trips a full datetime. **A green run on one database is not evidence about the other**, in either direction.
 
 ## Fixed since the 2026-09-28 review
 
@@ -134,7 +133,7 @@ A review on 2026-09-28 found the issues listed below. The following have since b
 - **POS never touched inventory.** A till sale now decrements stock through `InventoryLedger` with a new `pos_sale` movement type, so on-hand can no longer drift upward after a sale. Overselling is refused by the ledger's existing negative-stock guard rather than silently accepted.
 - **POS had no transaction and could persist a receipt that did not add up.** The whole sale is now atomic, each line is rounded to 2dp *before* being summed so the header subtotal always equals the printed line totals, and a discount larger than the subtotal is rejected instead of storing a negative total.
 - **`TransferController::updateStatus` broke the stock invariant.** `applyTransfer()` committed its own transaction and the status write happened separately, so a failure in between left a `draft` transfer with stock already debited. Both now commit together.
-- **The chart of accounts was not seeded.** The deleted `AccountingSeeder` bundled the chart with demo data, so a new `ChartOfAccountsSeeder` restores it as structural configuration only — no demo transactions, consistent with the "no demo business data" policy. Without it the trial balance and financial statements render blank.
+- **The chart of accounts is deliberately not seeded.** It is company-specific bookkeeping an accountant sets up per deployment. A `ChartOfAccountsSeeder` was added and then removed again: it created 26 accounts against a ledger where nothing had ever been posted, implying the books were live when they are not. Accounts are created under Settings → Accounting; the financial statements stay empty until then.
 - **`DocumentItems::sync()` did delete-then-insert with no transaction**, so a constraint violation left a document with zero line items and stale header totals. It is now atomic, which fixes all ~44 callsites at once.
 - **`QuoteController::convert`, `Banking\ReconciliationController::updateStatus` and `Sales\InvoiceController::update` were multi-write without transactions.** All three are now atomic; the reconciliation update also became a single bulk query instead of N.
 - **Editing an invoice could strand it overpaid**, leaving `paid_amount > total` and a negative balance while `isPaid()` reported true. The edit path now refuses to drop the total below what has already been received.
@@ -168,18 +167,19 @@ A review on 2026-09-28 found the issues listed below. The following have since b
 Found by code review on 2026-09-28 and still outstanding. The critical item
 (untracked tests) was resolved in commit `acd425e`.
 
-### 1. No module generates journal entries — HIGH
+### 1. Accounting is manual-entry only, and starts empty — HIGH
 
-The chart of accounts is now seeded, so the trial balance and balance sheet have
-accounts to report on. But `GeneralLedger` is still invoked from exactly one
-place — `JournalController` (`:73`, `:133`, `:149`, `:161`). Sales, purchasing,
-banking, inventory and payroll never post to the ledger, so the books stay empty
-until someone journals by hand.
+Nothing generates journal entries. `GeneralLedger` is invoked from exactly one
+place — `JournalController` — so sales, purchasing, banking, inventory and
+payroll never post to the ledger. The chart of accounts is not seeded either, so
+a fresh deployment has neither accounts nor postings and the trial balance and
+balance sheet render empty.
 
-This is a design decision rather than a bug — the reports are correct, they
-simply have no postings. It needs either automatic journal generation for the
-document types that should feed accounting, or a documented decision that
-accounting is manual-entry only.
+This is a deliberate starting position rather than a bug: the reports are
+correct, they simply have no data. A deployment needs an accountant to create
+the chart of accounts under Settings → Accounting and either post journals by
+hand or have automatic posting implemented. Decide which before promising
+anyone usable financial reports.
 
 ### 2. Money arithmetic is `round()` on doubles, not decimals — MEDIUM
 
@@ -265,7 +265,7 @@ what let the POS subtotal bug ship, and it also masked a fatal
 `Unknown column 'is_default'` error in the POS warehouse lookup that SQLite
 accepted and MySQL rejected.
 
-The suite is verified against both databases and both pass at 166/166 — see
+The suite is verified against both databases and both pass at 159/159 — see
 [Running against both databases](#running-against-both-databases). The residual
 risk is that *new* code is only ever exercised on SQLite by default, so a
 MySQL-specific type violation can still be introduced without a test run
@@ -297,8 +297,53 @@ working tree with no commit or comment explaining them.
 4. Send and verify a real customer email through the configured SMTP account. Note that `ext-intl` is not installed locally, so `money()` renders differently here than it will in production.
 5. Decide whether to auto-generate journal entries or document accounting as manual-entry only; the reports are correct but currently have no postings. See item 2.
 6. Run dedicated concurrency and duplicate-submit tests for finance, inventory, payroll, banking, POS, and device events.
-7. Expand PHPUnit coverage beyond the current 19 test classes — POS till reconciliation, the report controllers' SQL aggregation, `GrandReportController`, CSV/PDF exports, and the concurrency/duplicate-submit behaviour of multi-write operations are the priorities. Payroll generation, POS shifts and both access middleware are now covered.
+7. Expand PHPUnit coverage beyond the current 18 test classes — POS till reconciliation, the report controllers' SQL aggregation, `GrandReportController`, CSV/PDF exports, and the concurrency/duplicate-submit behaviour of multi-write operations are the priorities. Payroll generation, POS shifts and both access middleware are now covered.
 8. Enable ZKTeco only for deployments that require it. The device URL will be based on the deployment `APP_URL`, but a secure device registration/token and device-user mapping layer must be completed before enabling ingestion.
+
+## What a fresh deployment is seeded with
+
+`php artisan db:seed` creates structural configuration only. Verified against a
+clean database:
+
+| Table | Rows | |
+|---|---|---|
+| `users` | 7 | login accounts |
+| `roles` | 7 | the role set |
+| `permissions` | 387 | the permission registry |
+| `role_has_permissions` | 716 | the role matrix |
+| `modules` | 16 | feature toggles |
+| `settings` | 8 | company name, currency, branding |
+| `employees` | 4 | one per staff login, so attendance works |
+
+Everything else is empty: no products, customers, invoices, warehouses, chart of
+accounts, journal entries, holidays, or notification rules. Each deployment
+configures its own under Settings.
+
+Every setting the application reads has a fallback, so nothing breaks when a
+value is unset — timezone defaults to UTC, currency to USD, and `MailIdentity`
+derives mail addresses from `APP_URL`.
+
+### Seeding the first account
+
+The 7 seeded logins all share the password `Password123!`. **Change them, or
+delete the ones you do not need, before the deployment is reachable.**
+
+## Deployment: production checklist
+
+1. **Upload the code and run `composer install --no-dev --optimize-autoloader`.**
+2. **Copy `.env.example` to `.env`** and set `APP_KEY` (via `php artisan
+   key:generate`), the MySQL credentials, and `APP_URL` to your real domain.
+3. **`php artisan migrate --force`** then **`php artisan db:seed --force`.**
+4. **`php artisan storage:link`** — the branding logo and uploaded documents are
+   served through it, and without it they 404.
+5. **`npm install && npm run build`.** `public/build` is gitignored, so assets
+   must be built on the server; the app cannot render without them.
+6. **`php artisan optimize`** to cache config, routes, events and views.
+7. **Set the document root to `public/`** where the host allows it. The committed
+   root `.htaccess` is a fallback for project-root document roots.
+8. **Install the cron entry** — see the next section. Without it no queued
+   notification is ever delivered, and the daily subscription reminder and
+   low-stock sweep never run.
 
 ## Deployment: cron, scheduler and queue worker
 
@@ -405,7 +450,7 @@ php "C:\laragon\bin\composer\composer.phar" audit
 
 ### Why the test suite still takes ~4 minutes
 
-The suite went from 23 minutes to about 4 by fixing the seeders, but it is still slower than it should be for 166 tests. The remaining cost is structural:
+The suite went from 23 minutes to about 4 by fixing the seeders, but it is still slower than it should be for 159 tests. The remaining cost is structural:
 
 `tests/SeedsDatabase.php` calls `$this->seed(DatabaseSeeder::class)` inside `setUp()`, so the full seed chain still runs before **every** test. `PermissionsSeeder` and `RolesSeeder` are now bulk operations, but `UsersSeeder` still creates 7 users — each with a `Hash::make` and an audit-log write — and that is the largest single remaining cost.
 

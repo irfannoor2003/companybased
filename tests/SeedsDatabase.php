@@ -2,6 +2,7 @@
 
 namespace Tests;
 
+use App\Models\Account;
 use App\Models\Employee;
 use App\Models\InventoryItem;
 use App\Models\InventoryWarehouse;
@@ -91,6 +92,41 @@ trait SeedsDatabase
             // address, is_active and the soft-delete timestamps.
             'code' => strtoupper(substr(md5($name), 0, 6)),
         ]);
+    }
+
+    /**
+     * Create (or fetch) a chart-of-accounts account.
+     *
+     * The chart of accounts is deliberately not seeded — it is company-specific
+     * bookkeeping an accountant sets up per deployment, and no module generates
+     * journal entries, so the statements stay empty until they do. Ledger tests
+     * therefore build the accounts they need rather than relying on seeded rows.
+     */
+    protected function account(string $code, string $type = 'asset', string $name = 'Test account'): Account
+    {
+        return Account::firstOrCreate(
+            ['code' => $code],
+            [
+                'name' => $name,
+                'type' => $type,
+                'currency' => 'USD',
+                'is_active' => true,
+            ],
+        );
+    }
+
+    /**
+     * A debit-normal account (cash) and a credit-normal account (revenue), the
+     * minimum pair needed to post a balanced journal.
+     *
+     * @return array{0: Account, 1: Account}
+     */
+    protected function ledgerAccounts(): array
+    {
+        return [
+            $this->account('1000', 'asset', 'Cash & cash equivalents'),
+            $this->account('4000', 'revenue', 'Sales revenue'),
+        ];
     }
 
     /**
