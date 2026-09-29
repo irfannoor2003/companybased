@@ -8,9 +8,9 @@ The core application is implemented. The application includes catalog, sales, pu
 
 A review on 2026-09-28 found three critical defects — POS never decremented inventory, the chart of accounts was not seeded, and the test suite was not committed. Those are now fixed and covered by tests; see [Fixed since the 2026-09-28 review](#fixed-since-the-2026-09-28-review). The suite is 92 tests, all passing, and runs in about 7 minutes.
 
-**The single most important thing left is to commit the work.** Everything described in this README currently exists only in the working tree. See [Known issues](#known-issues).
+**The work is committed and pushed (`acd425e`).** The remaining blockers are listed under [Remaining before full production release](#remaining-before-full-production-release).
 
-The app is suitable for controlled deployment after Hostinger environment setup, manual browser/mobile testing, persistent queue-worker setup, and optional ZKTeco enablement. The money and stock paths are now covered by tests, but no module generates journal entries, so the accounting reports render correctly but empty — see item 2.
+The app is suitable for controlled deployment after Hostinger environment setup, the cron entry, manual browser/mobile testing, and optional ZKTeco enablement. The money and stock paths are now covered by tests, but no module generates journal entries, so the accounting reports render correctly but empty — see item 1.
 
 ## Completed
 
@@ -157,13 +157,10 @@ A review on 2026-09-28 found the issues listed below. The following have since b
 
 ## Known issues
 
-Found by code review on 2026-09-28 and still outstanding.
+Found by code review on 2026-09-28 and still outstanding. The critical item
+(untracked tests) was resolved in commit `acd425e`.
 
-### 1. The test suite is untracked in git — CRITICAL
-
-`git status` reports `tests/` as untracked (`?? tests/`). All 92 tests, and every fix listed above, exist only in the working tree. There is no CI history, no review, and no blame. **Commit this first; nothing else matters until then.**
-
-### 2. No module generates journal entries — HIGH
+### 1. No module generates journal entries — HIGH
 
 The chart of accounts is now seeded, so the trial balance and balance sheet have
 accounts to report on. But `GeneralLedger` is still invoked from exactly one
@@ -176,7 +173,7 @@ simply have no postings. It needs either automatic journal generation for the
 document types that should feed accounting, or a documented decision that
 accounting is manual-entry only.
 
-### 3. Money arithmetic is `round()` on doubles, not decimals — MEDIUM
+### 2. Money arithmetic is `round()` on doubles, not decimals — MEDIUM
 
 Storage is genuinely safe: 187 `decimal()` columns, zero `float()`/`double()`,
 and every model casts to `decimal:2`, so values are strings. The problems are
@@ -194,7 +191,7 @@ at the arithmetic layer, and `ext-bcmath` is now declared but still unused in
 - `PayrollService.php:119-124` multiplies money by an integer and only rounds
   the final sum, with no per-rule breakdown column to audit the difference.
 
-### 4. Report controllers still aggregate in PHP — MEDIUM
+### 3. Report controllers still aggregate in PHP — MEDIUM
 
 `AccountController`'s N+1 is fixed (`Account::balancesByType()`). These are not:
 
@@ -207,7 +204,7 @@ at the arithmetic layer, and `ext-bcmath` is now declared but still unused in
 Both will fall over on real data volumes. The CRUD screens are fine — index
 controllers do eager-load properly; this is confined to reports.
 
-### 5. Authorization logic is still duplicated — MEDIUM
+### 4. Authorization logic is still duplicated — MEDIUM
 
 Route middleware, `resources/views/layouts/partials/sidebar.blade.php:1-59` (a
 59-line `@php` block re-implementing module filtering, permission filtering and
@@ -220,7 +217,7 @@ Related: `Controller::authorizePermission()`
 (`app/Http/Controllers/Controller.php:13-16`) is defined with a docblock
 claiming it prevents bypass, and is **still called from nowhere**.
 
-### 6. Architectural debt worth addressing, not blocking — LOW-MEDIUM
+### 5. Architectural debt worth addressing, not blocking — LOW-MEDIUM
 
 - **94 of 109 controllers bypass the service layer** and query Eloquent
   directly. `app/Http/Requests` holds 2 files for 607 routes, so validation is
@@ -252,7 +249,7 @@ claiming it prevents bypass, and is **still called from nowhere**.
   not installed here, so amounts render as `1234.56 PKR` locally but
   `PKR 1,234.56` in production. Only one path is ever exercised.
 
-### 7. SQLite does not enforce `DECIMAL` — MEDIUM
+### 6. SQLite does not enforce `DECIMAL` — MEDIUM
 
 `phpunit.xml` pins tests to SQLite `:memory:` for speed, but a `decimal(14,2)`
 column happily stores `"0.015"` there while MySQL rounds it to `0.02`. This is
@@ -268,7 +265,7 @@ catching it. Worth making the MySQL pass part of CI rather than a manual step.
 
 ### Suggested order of work
 
-1. Commit `tests/`.
+1. ~~Commit `tests/`.~~ Done in `acd425e`.
 2. Decide whether to auto-generate journal entries or document accounting as
    manual-entry only.
 3. Move `FinancialReportController` and `CashFlowController` aggregation into SQL.
@@ -286,15 +283,87 @@ working tree with no commit or comment explaining them.
 
 ## Remaining before full production release
 
-1. **Commit `tests/` and the fixes to version control.** All of it currently exists only in the working tree; see item 1 under [Known issues](#known-issues).
+1. ~~Commit `tests/` and the fixes to version control.~~ Done in `acd425e`.
 2. Run the complete manual browser/mobile test pass. The automated suite covers the stock ledger, POS sales, transfers, low-stock alerting, invoice payments, role scoping and badge rendering — but it does not replace clicking through the UI.
-3. Configure persistent `php artisan queue:work` on Hostinger. Both `LowStockAlert` and `OrderTrackingNotification` implement `ShouldQueue`, so without a worker these notifications are never delivered.
-4. Configure persistent `php artisan schedule:run` for subscription reminders and the daily low-stock sweep.
-5. Send and verify a real customer email through the configured SMTP account. Note that `ext-intl` is not installed locally, so `money()` renders differently here than it will in production.
-6. Decide whether to auto-generate journal entries or document accounting as manual-entry only; the reports are correct but currently have no postings. See item 2.
-7. Run dedicated concurrency and duplicate-submit tests for finance, inventory, payroll, banking, POS, and device events.
-8. Expand PHPUnit coverage beyond the current 10 test classes — payroll generation, POS shifts and till reconciliation, the `CheckModule` and `CheckSubscription` middleware branches, and CSV/PDF exports are the priorities.
-9. Enable ZKTeco only for deployments that require it. The device URL will be based on the deployment `APP_URL`, but a secure device registration/token and device-user mapping layer must be completed before enabling ingestion.
+3. Install the single cron entry for the scheduler and queue worker — see [Deployment](#deployment-cron-scheduler-and-queue-worker). **Without it no queued notification is ever delivered.** Confirm it with `php artisan queue:health`.
+4. Send and verify a real customer email through the configured SMTP account. Note that `ext-intl` is not installed locally, so `money()` renders differently here than it will in production.
+5. Decide whether to auto-generate journal entries or document accounting as manual-entry only; the reports are correct but currently have no postings. See item 2.
+6. Run dedicated concurrency and duplicate-submit tests for finance, inventory, payroll, banking, POS, and device events.
+7. Expand PHPUnit coverage beyond the current 12 test classes — payroll generation, POS shifts and till reconciliation, the `CheckModule` and `CheckSubscription` middleware branches, and CSV/PDF exports are the priorities.
+8. Enable ZKTeco only for deployments that require it. The device URL will be based on the deployment `APP_URL`, but a secure device registration/token and device-user mapping layer must be completed before enabling ingestion.
+
+## Deployment: cron, scheduler and queue worker
+
+Hostinger shared hosting has no Supervisor, so `queue:work` cannot run as a
+persistent daemon. Instead, **one** cron entry runs `schedule:run` every minute,
+and the queue worker is scheduled inside the app to drain the queue and exit
+cleanly. It is configured in `routes/console.php` — no supervisor config needed.
+
+### The cron entry
+
+hPanel → **Advanced → Cron Jobs** → add:
+
+| Field | Value |
+|---|---|
+| Type | **PHP** |
+| Command to run | `/opt/alt/php82/usr/bin/php /home/uXXXXXXX/domains/YOURDOMAIN/artisan schedule:run` |
+| Schedule | Every minute (`* * * * *`) |
+
+**Verify the PHP path first** in hTerminal. On Hostinger the CLI binary is
+`/opt/alt/php82/usr/bin/php`, *not* `/usr/bin/php` — a wrong path is the most
+common cause of silent failure. Run `php -v` and use whatever path it reports.
+
+### Two hPanel gotchas
+
+1. **The "PHP" cron type does not accept `>` or `&&`.** Entering
+   `>> /dev/null 2>&1` causes a parse error. You will get output emailed on every
+   run, which is noisy. For redirection, switch to a **Custom** cron job and call
+   a small `.sh` wrapper.
+2. **PHP CLI is a separate binary from web PHP** (see above).
+
+### What is scheduled
+
+| Task | Frequency | Purpose |
+|---|---|---|
+| `queue:work --stop-when-empty` | every minute | Drains queued mail and notifications |
+| `scheduler-heartbeat` | every minute | Writes a timestamp so health is observable |
+| `SubscriptionReminder` | daily | Package-expiry reminder mail |
+| `CheckLowStock` | daily at 07:15 | Backstop low-stock sweep |
+
+### Verifying it works
+
+A missing cron or wrong PHP path fails **silently** — no error, jobs simply never
+run and mail piles up. This command makes that visible:
+
+```bash
+php artisan queue:health
+```
+
+It reports the last scheduler run, pending jobs per queue, and failed jobs. A
+healthy deployment shows a heartbeat under a minute old and zero pending.
+
+```text
+Scheduler
+ last run: 4 seconds ago (2026-09-29 05:33:30)
+
+Queues
+ default: 0 pending
+ high:    0 pending
+
+Failed jobs
+ 0
+
+Queue health check passed.
+```
+
+### Throughput limits to be aware of
+
+- The worker drains at most **one batch per minute**, so a burst of queued mail
+  spreads over several minutes rather than going out at once.
+- `--timeout 90` is deliberately under the 120–300s CLI execution cap typical of
+  shared hosting; a longer value risks a job (e.g. a dompdf render) being killed
+  mid-flight.
+- `--max-time 240` bounds PHP memory growth between cron invocations.
 
 ## Environment
 
