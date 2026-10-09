@@ -209,15 +209,15 @@ class EmployeeController extends Controller
      */
     private function resolveLinkedUser(array $data, string $password = ''): array
     {
-        if (! empty($data['user_id'])) {
-            return [User::find($data['user_id']), null];
+        if (! empty($data['user_id'] ?? null)) {
+            return [User::find($data['user_id'] ?? null), null];
         }
 
-        if (empty($data['email'])) {
+        if (empty($data['email'] ?? null)) {
             return [null, null];
         }
 
-        $user = User::where('email', $data['email'])->first();
+        $user = User::where('email', $data['email'] ?? null)->first();
 
         if ($user) {
             return [$user, null];
@@ -232,7 +232,7 @@ class EmployeeController extends Controller
             'name' => trim(($data['first_name'] ?? '').' '.($data['last_name'] ?? '')),
             'first_name' => $data['first_name'] ?? null,
             'last_name' => $data['last_name'] ?? null,
-            'email' => $data['email'],
+            'email' => $data['email'] ?? null,
             'password' => Hash::make($generated),
             'is_active' => true,
             'email_verified_at' => now(),

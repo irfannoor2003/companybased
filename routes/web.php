@@ -4,7 +4,9 @@ use App\Http\Controllers\Accounting\AccountController;
 use App\Http\Controllers\Accounting\BillController;
 use App\Http\Controllers\Accounting\BudgetController;
 use App\Http\Controllers\Accounting\ExpenseClaimController;
+use App\Http\Controllers\Accounting\FiscalPeriodController;
 use App\Http\Controllers\Accounting\JournalController;
+use App\Http\Controllers\Accounting\TaxRateController;
 use App\Http\Controllers\Accounting\TaxReturnController;
 use App\Http\Controllers\Banking\BankAccountController;
 use App\Http\Controllers\Banking\BankTransactionController;
@@ -42,6 +44,7 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\Inventory\BillOfMaterialController;
 use App\Http\Controllers\Inventory\IncomingShipmentController;
 use App\Http\Controllers\Inventory\ItemController;
+  use App\Http\Controllers\Inventory\MaterialRequirementsController;
 use App\Http\Controllers\Inventory\ProductionOrderController;
 use App\Http\Controllers\Inventory\TransferController;
 use App\Http\Controllers\Inventory\WarehouseController;
@@ -272,6 +275,8 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:sales.quotes.view')->name('quotes.show');
         Route::get('/quotes/{quote}/pdf', [QuoteController::class, 'pdf'])
             ->middleware('permission:sales.quotes.view')->name('quotes.pdf');
+        Route::post('/quotes/{quote}/send-email', [QuoteController::class, 'sendEmail'])
+            ->middleware('permission:sales.quotes.view')->name('quotes.send_email');
 
         Route::get('/orders', [OrderController::class, 'index'])
             ->middleware('permission:sales.orders.view')->name('orders.index');
@@ -308,6 +313,8 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:sales.invoices.view')->name('invoices.show');
         Route::get('/invoices/{invoice}/pdf', [InvoiceController::class, 'pdf'])
             ->middleware('permission:sales.invoices.view')->name('invoices.pdf');
+        Route::post('/invoices/{invoice}/send-email', [InvoiceController::class, 'sendEmail'])
+            ->middleware('permission:sales.invoices.view')->name('invoices.send_email');
         Route::post('/invoices', [InvoiceController::class, 'store'])
             ->middleware('permission:sales.invoices.create')->name('invoices.store');
         Route::put('/invoices/{invoice}', [InvoiceController::class, 'update'])
@@ -524,7 +531,9 @@ Route::middleware('auth')->group(function () {
         Route::delete('/bill-of-materials/{billOfMaterial}', [BillOfMaterialController::class, 'destroy'])
             ->middleware('permission:inventory.bill_of_materials.delete')->name('bill_of_materials.destroy');
 
-        Route::get('/production-orders', [ProductionOrderController::class, 'index'])
+        Route::get('/material-requirements', [MaterialRequirementsController::class, 'index'])
+  ->middleware('permission:inventory.material_requirements.view')->name('material-requirements.index');
+  Route::get('/production-orders', [ProductionOrderController::class, 'index'])
             ->middleware('permission:inventory.production_orders.view')->name('production_orders.index');
         Route::get('/production-orders/create', [ProductionOrderController::class, 'create'])
             ->middleware('permission:inventory.production_orders.create')->name('production_orders.create');
@@ -540,6 +549,8 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:inventory.production_orders.edit')->name('production_orders.update');
         Route::patch('/production-orders/{order}/status', [ProductionOrderController::class, 'updateStatus'])
             ->middleware('permission:inventory.production_orders.update_status')->name('production_orders.status');
+        Route::post('/production-orders/{order}/labour', [ProductionOrderController::class, 'storeLabour'])
+            ->middleware('permission:inventory.production_orders.record_labour')->name('production_orders.labour.store');
         Route::delete('/production-orders/{order}', [ProductionOrderController::class, 'destroy'])
             ->middleware('permission:inventory.production_orders.delete')->name('production_orders.destroy');
 
@@ -631,6 +642,8 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:suppliers.purchase_orders.view')->name('purchase_orders.show');
         Route::get('/purchase-orders/{order}/pdf', [PurchaseOrderController::class, 'pdf'])
             ->middleware('permission:suppliers.purchase_orders.view')->name('purchase_orders.pdf');
+        Route::post('/purchase-orders/{order}/send-email', [PurchaseOrderController::class, 'sendEmail'])
+            ->middleware('permission:suppliers.purchase_orders.view')->name('purchase_orders.send_email');
 
         Route::get('/purchase-invoices', [PurchaseInvoiceController::class, 'index'])
             ->middleware('permission:suppliers.purchase_invoices.view')->name('purchase_invoices.index');
@@ -830,7 +843,45 @@ Route::middleware('auth')->group(function () {
         Route::post('/journal/{entry}/void', [JournalController::class, 'void'])
             ->middleware('permission:accounting.journal_entries.edit')->name('journal.void');
         Route::delete('/journal/{entry}', [JournalController::class, 'destroy'])
-            ->middleware('permission:accounting.journal_entries.delete')->name('journal.destroy');
+->middleware('permission:accounting.journal_entries.delete')->name('journal.destroy');
+
+        Route::get('/fiscal-periods', [FiscalPeriodController::class, 'index'])
+            ->middleware('permission:accounting.fiscal_periods.view')->name('fiscal_periods.index');
+        Route::post('/fiscal-periods/generate', [FiscalPeriodController::class, 'generate'])
+            ->middleware('permission:accounting.fiscal_periods.create')->name('fiscal_periods.generate');
+        Route::get('/fiscal-periods/create', [FiscalPeriodController::class, 'create'])
+            ->middleware('permission:accounting.fiscal_periods.create')->name('fiscal_periods.create');
+        Route::get('/fiscal-periods/{fiscalPeriod}', [FiscalPeriodController::class, 'show'])
+            ->middleware('permission:accounting.fiscal_periods.view')->name('fiscal_periods.show');
+        Route::post('/fiscal-periods', [FiscalPeriodController::class, 'store'])
+            ->middleware('permission:accounting.fiscal_periods.create')->name('fiscal_periods.store');
+        Route::get('/fiscal-periods/{fiscalPeriod}/edit', [FiscalPeriodController::class, 'edit'])
+            ->middleware('permission:accounting.fiscal_periods.edit')->name('fiscal_periods.edit');
+        Route::put('/fiscal-periods/{fiscalPeriod}', [FiscalPeriodController::class, 'update'])
+            ->middleware('permission:accounting.fiscal_periods.edit')->name('fiscal_periods.update');
+        Route::post('/fiscal-periods/{fiscalPeriod}/close', [FiscalPeriodController::class, 'close'])
+            ->middleware('permission:accounting.fiscal_periods.close')->name('fiscal_periods.close');
+        Route::post('/fiscal-periods/{fiscalPeriod}/lock', [FiscalPeriodController::class, 'lock'])
+            ->middleware('permission:accounting.fiscal_periods.lock')->name('fiscal_periods.lock');
+        Route::post('/fiscal-periods/{fiscalPeriod}/reopen', [FiscalPeriodController::class, 'reopen'])
+            ->middleware('permission:accounting.fiscal_periods.close')->name('fiscal_periods.reopen');
+        Route::delete('/fiscal-periods/{fiscalPeriod}', [FiscalPeriodController::class, 'destroy'])
+            ->middleware('permission:accounting.fiscal_periods.delete')->name('fiscal_periods.destroy');
+
+        Route::get('/tax-rates', [TaxRateController::class, 'index'])
+            ->middleware('permission:accounting.tax_rates.view')->name('tax_rates.index');
+        Route::get('/tax-rates/create', [TaxRateController::class, 'create'])
+            ->middleware('permission:accounting.tax_rates.manage')->name('tax_rates.create');
+        Route::post('/tax-rates', [TaxRateController::class, 'store'])
+            ->middleware('permission:accounting.tax_rates.manage')->name('tax_rates.store');
+        Route::get('/tax-rates/{taxRate}/edit', [TaxRateController::class, 'edit'])
+            ->middleware('permission:accounting.tax_rates.manage')->name('tax_rates.edit');
+        Route::put('/tax-rates/{taxRate}', [TaxRateController::class, 'update'])
+            ->middleware('permission:accounting.tax_rates.manage')->name('tax_rates.update');
+        Route::post('/tax-rates/{taxRate}/toggle', [TaxRateController::class, 'toggle'])
+            ->middleware('permission:accounting.tax_rates.manage')->name('tax_rates.toggle');
+        Route::delete('/tax-rates/{taxRate}', [TaxRateController::class, 'destroy'])
+            ->middleware('permission:accounting.tax_rates.manage')->name('tax_rates.destroy');
 
         Route::get('/expense-claims', [ExpenseClaimController::class, 'index'])
             ->middleware('permission:accounting.expense_claims.view')->name('expense_claims.index');
@@ -846,8 +897,16 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:accounting.expense_claims.create')->name('expense_claims.store');
         Route::put('/expense-claims/{claim}', [ExpenseClaimController::class, 'update'])
             ->middleware('permission:accounting.expense_claims.edit')->name('expense_claims.update');
-        Route::patch('/expense-claims/{claim}/status', [ExpenseClaimController::class, 'updateStatus'])
-            ->middleware('permission:accounting.expense_claims.edit')->name('expense_claims.status');
+Route::post('/expense-claims/{claim}/submit', [ExpenseClaimController::class, 'submit'])
+            ->middleware('permission:accounting.expense_claims.edit')->name('expense_claims.submit');
+        Route::post('/expense-claims/{claim}/approve', [ExpenseClaimController::class, 'approve'])
+            ->middleware('permission:accounting.expense_claims.approve')->name('expense_claims.approve');
+        Route::post('/expense-claims/{claim}/reject', [ExpenseClaimController::class, 'reject'])
+            ->middleware('permission:accounting.expense_claims.approve')->name('expense_claims.reject');
+        Route::post('/expense-claims/{claim}/withdraw', [ExpenseClaimController::class, 'withdraw'])
+            ->middleware('permission:accounting.expense_claims.edit')->name('expense_claims.withdraw');
+        Route::post('/expense-claims/{claim}/reimburse', [ExpenseClaimController::class, 'reimburse'])
+            ->middleware('permission:accounting.expense_claims.reimburse')->name('expense_claims.reimburse');
         Route::delete('/expense-claims/{claim}', [ExpenseClaimController::class, 'destroy'])
             ->middleware('permission:accounting.expense_claims.delete')->name('expense_claims.destroy');
 
@@ -1031,6 +1090,8 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:employees.payroll_runs.view')->name('payroll.show');
         Route::post('/payroll/{run}/generate', [PayrollRunController::class, 'generate'])
             ->middleware('permission:employees.payroll_runs.approve')->name('payroll.generate');
+        Route::post('/payroll/{run}/approve', [PayrollRunController::class, 'approve'])
+            ->middleware('permission:employees.payroll_runs.approve')->name('payroll.approve');
         Route::post('/payroll/{run}/mark-paid', [PayrollRunController::class, 'markPaid'])
             ->middleware('permission:employees.payroll_runs.approve')->name('payroll.mark-paid');
         Route::delete('/payroll/{run}', [PayrollRunController::class, 'destroy'])
@@ -1284,6 +1345,8 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:settings.company.view')->name('company');
         Route::put('/company', [CompanyController::class, 'updateCompany'])
             ->middleware('permission:settings.company.manage')->name('company.update');
+        Route::get('/company/attendance-qr-code', [CompanyController::class, 'attendanceQrCode'])
+            ->middleware('permission:settings.company.manage')->name('company.attendance-qr-code');
         Route::put('/branding', [CompanyController::class, 'updateBranding'])
             ->middleware('permission:settings.branding.manage')->name('branding.update');
         Route::delete('/branding', [CompanyController::class, 'removeBranding'])

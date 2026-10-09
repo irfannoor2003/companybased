@@ -3,6 +3,7 @@
     'initialItems' => [],
     'currency' => null,
     'maxDiscount' => null,
+    'taxHint' => null,
 ])
 
 @php
@@ -34,6 +35,8 @@
         <p class="text-sm font-semibold text-ink">Line items</p>
         <x-button type="button" size="sm" variant="secondary" icon="plus" x-on:click="addRow()">Add line</x-button>
     </div>
+
+    @include('components.partials.tax-rate-hint')
 
     <template x-if="items.length === 0">
         <p class="rounded-lg border border-dashed border-line px-4 py-6 text-center text-sm text-ink-faint">

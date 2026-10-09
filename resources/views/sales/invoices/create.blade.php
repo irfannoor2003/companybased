@@ -30,6 +30,31 @@
                                 Billing {{ $fromOrder->number }}
                             </a>
                         </div>
+
+                        {{-- Stated plainly, because "Invoice" on an order that is already
+                             billed should not lead anyone to expect a second one.
+
+                             The second notice is keyed off whether ANY live invoice
+                             exists, NOT off a comparison of line counts. Comparing
+                             counts is wrong the moment one order line is partially
+                             invoiced: one order line, one remaining line, counts
+                             match, and the notice silently disappears -- which is
+                             precisely the case a user most needs to be told about.
+
+                             The count shown is what is left, not what is gone,
+                             because "4 of 6 remain" is actionable and "2 have been
+                             invoiced" requires the user to subtract it themselves. --}}
+                        @if ($orderFullyInvoiced)
+                            <x-alert type="warning" class="mt-3">
+                                Order {{ $fromOrder->number }} has been invoiced in full
+                                ({{ money($fromOrder->total, $fromOrder->currency) }}).
+                            </x-alert>
+                        @elseif ($fromOrder->liveInvoices->isNotEmpty())
+                            <x-alert type="info" class="mt-3">
+                                {{ count($fromOrderLines) }} of {{ count($fromOrder->items) }} line(s) remain
+                                to be invoiced. Anything already invoiced is not shown below.
+                            </x-alert>
+                        @endif
                     @else
                         <x-select name="order_id" label="Related order">
                             <option value="">— None —</option>
@@ -43,6 +68,7 @@
                             <option value="{{ $status }}" @selected(old('status', 'sent') === $status)>{{ ucfirst(str_replace('_', ' ', $status)) }}</option>
                         @endforeach
                     </x-select>
+                    @include('documents.partials.reference-number', ['example' => 'INV-2026-0001'])
                     <x-input name="issue_date" label="Issue date" type="date" value="{{ old('issue_date', now()->toDateString()) }}" />
                     <x-input name="due_date" label="Due date" type="date" value="{{ old('due_date') }}" />
                     <x-select name="currency" label="Currency" x-ref="currency">
@@ -53,18 +79,18 @@
                     </x-select>
                 </div>
 
+                {{--
+                    Prefilled from SalesOrder::uninvoicedLines(), so an order delivered
+                    in parts bills only the remainder rather than re-billing what has
+                    already been invoiced.
+                --}}
                 @php
-                    $initialItems = $fromOrder ? $fromOrder->items->map(fn ($item) => [
-                        'product_id' => (string) ($item->product_id ?? ''),
-                        'description' => $item->description,
-                        'qty' => (float) $item->qty,
-                        'unit_price' => (float) $item->unit_price,
-                        'discount_percent' => (float) $item->discount_percent,
-                        'tax_percent' => (float) $item->tax_percent,
-                    ])->all() : [];
+                    $initialItems = $fromOrder
+                        ? $fromOrderLines
+                        : [];
                 @endphp
 
-                <x-sales.line-items-editor :products="$products" :initial-items="$initialItems" :currency="old('currency', $fromOrder?->currency ?? settings('company.currency', 'USD'))" :max-discount="$maxDiscount" />
+                <x-sales.line-items-editor :products="$products" :initial-items="$initialItems" :currency="old('currency', $fromOrder?->currency ?? settings('company.currency', 'USD'))" :max-discount="$maxDiscount" :tax-hint="$taxHint" />
 
                 <x-textarea name="notes" label="Notes" rows="3">{{ old('notes') }}</x-textarea>
 

@@ -21,7 +21,10 @@ class SupplierLedgerController extends Controller
         $suppliers = Supplier::query()
             ->withCount(['purchaseInvoices', 'payments'])
             ->with([
-                'purchaseInvoices' => fn ($q) => $q->whereIn('status', ['sent', 'partially_paid', 'overdue']),
+                // `paid` included, matching Supplier::balance(). Excluding it
+                // here while still subtracting the payments left every settled
+                // supplier showing a negative payable.
+                'purchaseInvoices' => fn ($q) => $q->whereIn('status', ['sent', 'partially_paid', 'overdue', 'paid']),
                 'payments',
                 'debitNotes',
             ])
@@ -44,11 +47,9 @@ class SupplierLedgerController extends Controller
 
     private function nativeBalance(Supplier $supplier): float
     {
-        $billed = (float) $supplier->purchaseInvoices->sum('total');
-        $paid = (float) $supplier->payments->sum('amount');
-        $credited = (float) $supplier->debitNotes->sum('applied_amount');
-
-        return round($billed - $paid - $credited, 2);
+        // Delegated to the model. A second implementation of the same formula is
+        // how the ledger index and the supplier page came to disagree.
+        return $supplier->balance();
     }
 
     /**

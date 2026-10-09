@@ -6,6 +6,7 @@ use App\Models\Account;
 use App\Models\JournalEntryItem;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 /**
@@ -21,18 +22,22 @@ class FinancialReportController extends Controller
         $to = $request->get('to') ?: now()->toDateString();
 
         $periodItems = $this->itemsBetween($from, $to);
-        $positionItems = $this->itemsUpTo($to);
 
-        $summary = $this->profitAndLoss($periodItems);
-        $balanceSheet = $this->balanceSheet($positionItems);
-        $trial = $this->trialBalance($positionItems);
+        // Positions as at $to come from one grouped query rather than a hydration
+        // of every posted line since the ledger began. Only the ledger listing
+        // below needs individual rows.
+        $positionBalances = $this->accountBalancesUpTo($to);
+
+        $summary = $this->profitAndLoss($from, $to);
+        $balanceSheet = $this->balanceSheet($positionBalances);
+        $trial = $this->trialBalance($positionBalances);
         $ledger = $periodItems;
 
         // Chart data for P&L trend (monthly totals for the period)
         $plChartData = $this->profitAndLossChartData($from, $to);
 
         // Chart data for asset/liquidity position
-        $bsChartData = $this->balanceSheetChartData($positionItems);
+        $bsChartData = $this->balanceSheetChartData($positionBalances);
 
         $plChartJson = json_encode([
             'labels' => $plChartData['labels'],
@@ -72,32 +77,41 @@ class FinancialReportController extends Controller
 
     /**
      * Monthly P&L data for chart.
+     *
+     * Grouped by month in SQL. This previously loaded every posted line in the
+     * period and then re-filtered that collection once per month in PHP, which is
+     * an extra full pass over the period's ledger for every month on the chart.
      */
     private function profitAndLossChartData(string $from, string $to): array
     {
-        $items = JournalEntryItem::query()
-            ->with(['entry', 'account'])
-            ->whereHas('entry', fn ($q) => $q->where('status', 'posted')->whereBetween('entry_date', [$from, $to]))
-            ->get();
+        $rows = JournalEntryItem::query()
+            ->join('accounts', 'accounts.id', '=', 'journal_entry_items.account_id')
+            ->join('journal_entries', 'journal_entries.id', '=', 'journal_entry_items.journal_entry_id')
+            ->where('journal_entries.status', 'posted')
+            ->whereBetween('journal_entries.entry_date', [$from, $to])
+            ->whereIn('accounts.type', ['revenue', 'expense'])
+            ->groupBy('accounts.type', DB::raw("DATE_FORMAT(journal_entries.entry_date, '%Y-%m')"))
+            ->selectRaw('accounts.type')
+            ->selectRaw("DATE_FORMAT(journal_entries.entry_date, '%Y-%m') AS period")
+            ->selectRaw('COALESCE(SUM(journal_entry_items.credit - journal_entry_items.debit), 0) AS credit_net')
+            ->selectRaw('COALESCE(SUM(journal_entry_items.debit - journal_entry_items.credit), 0) AS debit_net')
+            ->get()
+            ->keyBy(fn ($row) => $row->type.':'.$row->period);
 
         $months = [];
         $revenue = [];
         $expenses = [];
 
         for ($m = strtotime($from); $m <= strtotime($to); $m = strtotime('+1 month', $m)) {
-            $monthStart = date('Y-m-01', $m);
-            $monthEnd = date('Y-m-t', $m);
-
-            $monthItems = $items->filter(fn ($i) => $i->entry?->entry_date >= $monthStart && $i->entry?->entry_date <= $monthEnd);
-
-            $rev = $monthItems->filter(fn ($i) => $i->account?->type === 'revenue')
-                ->sum(fn ($i) => (float) $i->credit - (float) $i->debit);
-            $exp = $monthItems->filter(fn ($i) => $i->account?->type === 'expense')
-                ->sum(fn ($i) => (float) $i->debit - (float) $i->credit);
+            // Matched as a 'Y-m' key. Comparing the Carbon entry_date against a date
+            // string stringifies it to 'Y-m-d H:i:s', so the final day of the month
+            // compared greater than 'Y-m-d' and was silently dropped from every month
+            // of the trend.
+            $period = date('Y-m', $m);
 
             $months[] = date('M Y', $m);
-            $revenue[] = (float) $rev;
-            $expenses[] = (float) $exp;
+            $revenue[] = round((float) ($rows->get('revenue:'.$period)->credit_net ?? 0), 2);
+            $expenses[] = round((float) ($rows->get('expense:'.$period)->debit_net ?? 0), 2);
         }
 
         return [
@@ -109,12 +123,14 @@ class FinancialReportController extends Controller
 
     /**
      * Asset/liability position over time data for chart.
+     *
+     * @param  \Illuminate\Support\Collection<int, object>  $balances
      */
-    private function balanceSheetChartData(Collection $positionItems): array
+    private function balanceSheetChartData(Collection $balances): array
     {
-        $assets = round($this->netBalance($positionItems, ['asset']), 2);
-        $liabilities = round(-1 * $this->netBalance($positionItems, ['liability']), 2);
-        $equity = round(-1 * $this->netBalance($positionItems, ['equity']), 2);
+        $assets = round($this->netBalanceFromRows($balances, ['asset']), 2);
+        $liabilities = round(-1 * $this->netBalanceFromRows($balances, ['liability']), 2);
+        $equity = round(-1 * $this->netBalanceFromRows($balances, ['equity']), 2);
 
         return [
             'labels' => ['Assets', 'Liabilities', 'Equity'],
@@ -138,43 +154,98 @@ class FinancialReportController extends Controller
     }
 
     /**
-     * Posted journal lines dated on or before $to (used for positions).
+     * Revenue and expense totals for the period, aggregated in SQL.
      *
-     * @return \Illuminate\Support\Collection<int, JournalEntryItem>
+     * This used to filter and sum the hydrated line collection that `itemsBetween()`
+     * returns for the ledger listing. The two aggregates are the only thing the
+     * summary needs, and computing them in the database means the period's journal
+     * is walked once instead of being fully materialised and then walked twice more
+     * in PHP. The arithmetic is unchanged: revenue is credit less debit and expense
+     * is debit less credit, and an account carries exactly one type, so grouping by
+     * type is equivalent to filtering lines by type.
+     *
+     * @return array{revenue: float, expenses: float, net: float}
      */
-    private function itemsUpTo(string $to): Collection
+    private function profitAndLoss(string $from, string $to): array
+    {
+        $totals = JournalEntryItem::query()
+            ->join('accounts', 'accounts.id', '=', 'journal_entry_items.account_id')
+            ->join('journal_entries', 'journal_entries.id', '=', 'journal_entry_items.journal_entry_id')
+            ->where('journal_entries.status', 'posted')
+            ->whereBetween('journal_entries.entry_date', [$from, $to])
+            ->whereIn('accounts.type', ['revenue', 'expense'])
+            ->groupBy('accounts.type')
+            ->selectRaw('accounts.type')
+            ->selectRaw('COALESCE(SUM(journal_entry_items.credit - journal_entry_items.debit), 0) AS credit_net')
+            ->selectRaw('COALESCE(SUM(journal_entry_items.debit - journal_entry_items.credit), 0) AS debit_net')
+            ->get()
+            ->keyBy('type');
+
+        $revenue = (float) ($totals['revenue']->credit_net ?? 0);
+        $expenses = (float) ($totals['expense']->debit_net ?? 0);
+
+        return [
+            'revenue' => round($revenue, 2),
+            'expenses' => round($expenses, 2),
+            'net' => round($revenue - $expenses, 2),
+        ];
+    }
+
+    /**
+     * Per-account net balances for every posted entry on or before $to.
+     *
+     * The balance sheet, the trial balance and the position chart only ever need
+     * sums, but they were being fed a hydration of every posted journal line since
+     * the ledger began. On a real deployment that is the whole general ledger in
+     * memory on every request to this screen.
+     *
+     * One grouped query returns one row per account, from which the per-type totals
+     * are summed. The arithmetic is unchanged: balance is debit less credit, and
+     * each account carries exactly one type, so grouping by account and reading the
+     * type off the join is equivalent to filtering lines by type.
+     *
+     * @return \Illuminate\Support\Collection<int, object>
+     */
+    private function accountBalancesUpTo(string $to): Collection
     {
         return JournalEntryItem::query()
-            ->with(['account'])
-            ->whereHas('entry', fn ($q) => $q->where('status', 'posted')->where('entry_date', '<=', $to))
+            ->join('accounts', 'accounts.id', '=', 'journal_entry_items.account_id')
+            ->join('journal_entries', 'journal_entries.id', '=', 'journal_entry_items.journal_entry_id')
+            ->where('journal_entries.status', 'posted')
+            ->where('journal_entries.entry_date', '<=', $to)
+            ->groupBy(
+                'journal_entry_items.account_id',
+                'accounts.type',
+                'accounts.code',
+                'accounts.name',
+            )
+            ->selectRaw('journal_entry_items.account_id')
+            ->selectRaw('accounts.type')
+            ->selectRaw('accounts.code')
+            ->selectRaw('accounts.name')
+            ->selectRaw('COALESCE(SUM(journal_entry_items.debit - journal_entry_items.credit), 0) AS balance')
             ->get();
     }
 
     /**
-     * @return array{revenue: float, expenses: float, net: float}
+     * Net debit-less-credit balance across the given account types, from the
+     * grouped balances.
      */
-    private function profitAndLoss(Collection $items): array
+    private function netBalanceFromRows(Collection $balances, array $types): float
     {
-        $revenue = $items->filter(fn (JournalEntryItem $i) => $i->account?->type === 'revenue')
-            ->sum(fn (JournalEntryItem $i) => (float) $i->credit - (float) $i->debit);
-        $expenses = $items->filter(fn (JournalEntryItem $i) => $i->account?->type === 'expense')
-            ->sum(fn (JournalEntryItem $i) => (float) $i->debit - (float) $i->credit);
-
-        return [
-            'revenue' => round((float) $revenue, 2),
-            'expenses' => round((float) $expenses, 2),
-            'net' => round((float) $revenue - (float) $expenses, 2),
-        ];
+        return (float) $balances
+            ->filter(fn ($row) => in_array($row->type, $types, true))
+            ->sum(fn ($row) => (float) $row->balance);
     }
 
     /**
      * @return array{assets: float, liabilities: float, equity: float, retained: float}
      */
-    private function balanceSheet(Collection $items): array
+    private function balanceSheet(Collection $balances): array
     {
-        $assets = round($this->netBalance($items, ['asset']), 2);
-        $liabilities = round(-1 * $this->netBalance($items, ['liability']), 2);
-        $equity = round(-1 * $this->netBalance($items, ['equity']), 2);
+        $assets = round($this->netBalanceFromRows($balances, ['asset']), 2);
+        $liabilities = round(-1 * $this->netBalanceFromRows($balances, ['liability']), 2);
+        $equity = round(-1 * $this->netBalanceFromRows($balances, ['equity']), 2);
         $retained = round($assets - $liabilities - $equity, 2);
 
         return [
@@ -186,20 +257,19 @@ class FinancialReportController extends Controller
     }
 
     /**
-     * @return array{rows: Collection<int, array<string, mixed>>, total_debit: float, total_credit: float}
+     * @param  \Illuminate\Support\Collection<int, object>  $balances
+     * @return array{rows: \Illuminate\Support\Collection<int, array<string, mixed>>, total_debit: float, total_credit: float}
      */
-    private function trialBalance(Collection $items): array
+    private function trialBalance(Collection $balances): array
     {
-        $rows = $items
-            ->groupBy('account_id')
-            ->map(function (Collection $group) {
-                $account = $group->first()?->account;
-                $balance = round($group->sum(fn (JournalEntryItem $i) => (float) $i->debit - (float) $i->credit), 2);
+        $rows = $balances
+            ->map(function ($row) {
+                $balance = round((float) $row->balance, 2);
 
                 return [
-                    'code' => $account?->code,
-                    'name' => $account?->name,
-                    'type_label' => $account ? Account::typeLabel($account->type) : '—',
+                    'code' => $row->code,
+                    'name' => $row->name,
+                    'type_label' => Account::typeLabel($row->type),
                     'balance' => $balance,
                 ];
             })
@@ -226,14 +296,5 @@ class FinancialReportController extends Controller
             'total_debit' => $totalDebit,
             'total_credit' => $totalCredit,
         ];
-    }
-
-    /**
-     * Net debit-less-credit balance across the given account types.
-     */
-    private function netBalance(Collection $items, array $types): float
-    {
-        return (float) $items->filter(fn (JournalEntryItem $i) => $i->account && in_array($i->account->type, $types, true))
-            ->sum(fn (JournalEntryItem $i) => (float) $i->debit - (float) $i->credit);
     }
 }

@@ -9,6 +9,7 @@ use App\Models\PosSale;
 use App\Models\PosSaleItem;
 use App\Models\PosShift;
 use App\Models\Product;
+use App\Services\Accounting\LedgerPosting;
 use App\Support\InventoryLedger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -152,6 +153,20 @@ class SaleScreenController extends Controller
         } catch (\DomainException $e) {
             return back()->withInput()->with('toasts', [['type' => 'error', 'message' => $e->getMessage()]]);
         }
+
+        /**
+         * Post the sale to the ledger once it is safely recorded.
+         *
+         * Outside the transaction on purpose: the stock ledger already refused to
+         * go negative inside it, so the sale is committed. If the chart of accounts
+         * is missing, LedgerPosting skips with a logged warning and the till keeps
+         * trading -- a receipt that failed to print would be the far worse outcome.
+         */
+        $cashAccount = $sale->paymentMethod?->is_cash
+            ? LedgerPosting::CASH
+            : LedgerPosting::BANK;
+
+        app(LedgerPosting::class)->posSaleCompleted($sale->fresh(), $cashAccount);
 
         return redirect()->route('pos.receipts.show', $sale)
             ->with('toasts', [['type' => 'success', 'message' => "Receipt {$sale->receipt_number} issued."]]);

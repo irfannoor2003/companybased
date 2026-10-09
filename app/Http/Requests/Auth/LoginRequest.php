@@ -2,10 +2,12 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Models\User;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -36,19 +38,41 @@ class LoginRequest extends FormRequest
     /**
      * Attempt to authenticate the request's credentials.
      *
+     * The account's own state is checked here rather than left to
+     * EnsureUserIsActive, which runs on the *next* request: Auth::attempt() only
+     * matches the credentials, so a deactivated account completed a login, was
+     * issued a session, and was then bounced -- appearing authenticated for the
+     * remainder of that request.
+     *
+     * Every rejection returns the same generic auth.failed message. Distinguishing
+     * "wrong password" from "account disabled" or "access expired" tells an
+     * unauthenticated caller which addresses are registered.
+     *
      * @throws ValidationException
      */
     public function authenticate(): void
     {
         $this->ensureIsNotRateLimited();
 
-        if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
+        // Soft-deleted accounts are excluded by the SoftDeletes global scope.
+        $user = User::where('email', $this->string('email'))->first();
+
+        $passwordValid = $user !== null
+            && Hash::check($this->string('password'), (string) $user->password);
+
+        $accountUsable = $user !== null
+            && $user->is_active
+            && ($user->access_until === null || ! $user->access_until->isPast());
+
+        if (! $passwordValid || ! $accountUsable) {
             RateLimiter::hit($this->throttleKey());
 
             throw ValidationException::withMessages([
                 'email' => trans('auth.failed'),
             ]);
         }
+
+        Auth::login($user, $this->boolean('remember'));
 
         RateLimiter::clear($this->throttleKey());
     }

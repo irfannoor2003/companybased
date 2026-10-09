@@ -15,7 +15,7 @@ class BankTransfer extends Model
 
     protected $fillable = [
         'number', 'transfer_date', 'from_account_id', 'to_account_id',
-        'amount', 'description', 'status', 'completed_at',
+        'amount', 'description', 'status', 'completed_at', 'journal_entry_id',
     ];
 
     protected $auditModule = 'banking';

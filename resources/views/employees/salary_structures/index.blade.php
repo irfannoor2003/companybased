@@ -65,11 +65,23 @@
                                     <td class="text-right font-medium text-ink">{{ money($structure->gross()) }}</td>
                                     <td><x-badge :color="$structure->is_active ? 'success' : 'neutral'">{{ $structure->is_active ? 'Active' : 'Inactive' }}</x-badge></td>
                                     <td class="text-right">
-                                        @if (auth()->user()->can('employees.salary_structures.edit'))
-                                            <a href="{{ route('employees.salary_structures.edit', $structure) }}" class="btn-ghost btn-icon btn-sm" title="Edit">
-                                                <x-icon name="tag" class="size-4" />
-                                            </a>
-                                        @endif
+                                        <div class="inline-flex gap-1">
+                                            @if (auth()->user()->can('employees.salary_structures.edit'))
+                                                <a href="{{ route('employees.salary_structures.edit', $structure) }}" class="btn-ghost btn-icon btn-sm" title="Edit">
+                                                    <x-icon name="tag" class="size-4" />
+                                                </a>
+                                            @endif
+                                            @if (auth()->user()->can('employees.salary_structures.delete'))
+                                                <form method="POST" action="{{ route('employees.salary_structures.destroy', $structure) }}"
+                                                    onsubmit="return confirm('Delete this salary structure?');">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="btn-ghost btn-icon btn-sm text-rose-500" title="Delete">
+                                                        <x-icon name="trash" class="size-4" />
+                                                    </button>
+                                                </form>
+                                            @endif
+                                        </div>
                                     </td>
                                 </tr>
                             @endforeach

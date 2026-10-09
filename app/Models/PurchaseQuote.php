@@ -15,7 +15,7 @@ class PurchaseQuote extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'number', 'supplier_id', 'issue_date', 'valid_until',
+        'number', 'number', 'reference_number', 'supplier_id', 'issue_date', 'valid_until',
         'status', 'currency', 'exchange_rate', 'subtotal', 'discount_amount', 'tax_amount', 'total',
         'notes', 'converted_to_order_id',
     ];

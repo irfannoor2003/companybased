@@ -75,11 +75,21 @@ class Supplier extends Model
     }
 
     /**
-     * Outstanding payable = purchase invoice totals - payments - applied debit notes.
+     * Outstanding payable = purchase invoice totals - payments - applied debit
+     * notes.
+     *
+     * `paid` invoices are counted on purpose. They used to be excluded, on the
+     * reasoning that a settled bill is no longer owed — but the payments that
+     * settled them were still subtracted, so a supplier who had been paid in
+     * full showed a negative balance equal to every invoice ever paid. The
+     * company believed it owed money to each supplier it had already paid.
      */
     public function balance(): float
     {
-        $billed = (float) $this->purchaseInvoices()->whereIn('status', ['sent', 'partially_paid', 'overdue'])->sum('total');
+        $billed = (float) $this->purchaseInvoices()
+            ->whereIn('status', ['sent', 'partially_paid', 'overdue', 'paid'])
+            ->sum('total');
+
         $paid = (float) $this->payments()->sum('amount');
         $credited = (float) $this->debitNotes()->sum('applied_amount');
 

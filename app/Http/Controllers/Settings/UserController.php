@@ -57,12 +57,17 @@ class UserController extends Controller
         ]);
 
         $user = User::create([
-            'name' => trim("{$data['first_name']} {$data['last_name']}"),
+            // `?? null` on every optional field. Laravel's validated array holds only
+            // the keys that were actually submitted, so a nullable field left out of
+            // the form is absent entirely -- reading $data['phone'] ?? null raised
+            // "Undefined array key" and 500'd, so a user could not be created
+            // without a surname and a phone number.
+            'name' => trim(($data['first_name'] ?? '').' '.($data['last_name'] ?? '')),
             'first_name' => $data['first_name'],
-            'last_name' => $data['last_name'],
+            'last_name' => $data['last_name'] ?? null,
             'email' => $data['email'],
-            'phone' => $data['phone'],
-            'password' => Hash::make($data['password']),
+            'phone' => $data['phone'] ?? null,
+            'password' => Hash::make($data['password'] ?? null),
             'is_active' => $request->boolean('is_active', true),
         ]);
 
@@ -94,17 +99,19 @@ class UserController extends Controller
         ]);
 
         $user->fill([
-            'name' => trim("{$data['first_name']} {$data['last_name']}"),
+            // Same reasoning as store(): an omitted nullable field is absent from the
+            // validated array, not present-and-null.
+            'name' => trim(($data['first_name'] ?? '').' '.($data['last_name'] ?? '')),
             'first_name' => $data['first_name'],
-            'last_name' => $data['last_name'],
+            'last_name' => $data['last_name'] ?? null,
             'email' => $data['email'],
-            'phone' => $data['phone'],
+            'phone' => $data['phone'] ?? null,
             'is_active' => $request->boolean('is_active', true),
             'access_until' => $data['access_until'] ?? null,
         ]);
 
         if ($request->filled('password')) {
-            $user->password = Hash::make($data['password']);
+            $user->password = Hash::make($data['password'] ?? null);
         }
 
         $user->save();

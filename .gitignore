@@ -25,3 +25,11 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Python bytecode from render_invoice_pdf.py
+__pycache__/
+*.py[cod]
+
+# Preview PDFs and page PNGs from the document layout scripts
+/storage/app/preview-*.pdf
+/storage/app/preview-*.png

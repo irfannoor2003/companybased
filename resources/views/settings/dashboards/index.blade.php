@@ -24,6 +24,7 @@
         <x-card title="{{ $role->label ?: $role->name }} dashboard" description="Widgets are always checked against the role's current permissions before they are shown.">
             <form method="POST" action="{{ route('settings.dashboards.update', $role) }}" class="space-y-6">
                 @csrf
+                @method('PUT')
                 <div class="flex items-start justify-between gap-4 rounded-xl border border-primary/15 bg-primary/5 p-4">
                     <div>
                         <p class="text-sm font-semibold text-ink">Permission-aware layout</p>

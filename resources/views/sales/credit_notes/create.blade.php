@@ -17,23 +17,24 @@
 
                 <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
                     <x-select name="customer_id" label="Customer" required>
-                        <option value="">— Select customer —</option>
+                        <option value="">â€” Select customer â€”</option>
                         @foreach ($customers as $customer)
                             <option value="{{ $customer->id }}" @selected(old('customer_id', $fromInvoice?->customer_id) == $customer->id)>{{ $customer->company_name }}</option>
                         @endforeach
                     </x-select>
                     <x-select name="invoice_id" label="Against invoice">
-                        <option value="">— None —</option>
+                        <option value="">â€” None â€”</option>
                         @foreach (\App\Models\SalesInvoice::query()->with('customer')->orderByDesc('issue_date')->limit(100)->get() as $inv)
-                            <option value="{{ $inv->id }}" @selected(old('invoice_id', $fromInvoice?->id) == $inv->id)>{{ $inv->number }} · {{ $inv->customer?->company_name }} · {{ $inv->balance() > 0 ? 'balance '.money($inv->balance(), $inv->currency) : 'paid' }}</option>
+                            <option value="{{ $inv->id }}" @selected(old('invoice_id', $fromInvoice?->id) == $inv->id)>{{ $inv->number }} Â· {{ $inv->customer?->company_name }} Â· {{ $inv->balance() > 0 ? 'balance '.money($inv->balance(), $inv->currency) : 'paid' }}</option>
                         @endforeach
                     </x-select>
+                    @include('documents.partials.reference-number', ['example' => 'CN-2026-0001'])
                     <x-input name="issue_date" label="Issue date" type="date" value="{{ old('issue_date', now()->toDateString()) }}" />
-                    <x-input name="reason" label="Reason" value="{{ old('reason') }}" placeholder="e.g. Wrong goods, return…" />
+                    <x-input name="reason" label="Reason" value="{{ old('reason') }}" placeholder="e.g. Wrong goods, returnâ€¦" />
                     <x-select name="currency" label="Currency">
-                        <option value="">— Default —</option>
+                        <option value="">â€” Default â€”</option>
                         @foreach (currency_options() as $code => $label)
-                            <option value="{{ $code }}" @selected(old('currency', 'currency', settings('company.currency', 'USD')) === $code)>{{ $label }}</option>
+                            <option value="{{ $code }}" @selected(old('currency', settings('company.currency', 'USD')) === $code)>{{ $label }}</option>
                         @endforeach
                     </x-select>
                 </div>
@@ -49,7 +50,7 @@
                     ])->all() : [];
                 @endphp
 
-                <x-sales.line-items-editor :products="$products" :initial-items="$initialItems" :currency="old('currency', settings('company.currency', 'USD'))" :max-discount="$maxDiscount" />
+                <x-sales.line-items-editor :products="$products" :initial-items="$initialItems" :currency="old('currency', settings('company.currency', 'USD'))" :max-discount="$maxDiscount" :tax-hint="$taxHint" />
 
                 <x-textarea name="notes" label="Notes" rows="3">{{ old('notes') }}</x-textarea>
 

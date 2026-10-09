@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\Auditable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -15,7 +16,7 @@ class BankAccount extends Model
 
     protected $fillable = [
         'name', 'account_number', 'bank_name', 'branch', 'account_type',
-        'currency', 'opening_balance', 'is_active', 'notes',
+        'currency', 'opening_balance', 'is_active', 'notes', 'account_id',
     ];
 
     protected $auditModule = 'banking';
@@ -31,6 +32,31 @@ class BankAccount extends Model
     public function transactions(): HasMany
     {
         return $this->hasMany(BankTransaction::class, 'bank_account_id');
+    }
+
+    /**
+     * The ledger account this bank account is reported in.
+     *
+     * This mapping is what lets a transfer between two bank accounts reach the
+     * balance sheet at all. Without it the bank ledger and the trial balance drift
+     * apart without anything reporting the gap.
+     */
+    public function account(): BelongsTo
+    {
+        return $this->belongsTo(Account::class, 'account_id');
+    }
+
+    /**
+     * The ledger code this account posts against, falling back to Cash on Hand
+     * for a petty-cash account that was never mapped.
+     */
+    public function ledgerCode(): ?string
+    {
+        if ($this->account?->code) {
+            return $this->account->code;
+        }
+
+        return $this->account_type === 'cash' ? '1000' : null;
     }
 
     public function transfersFrom(): HasMany

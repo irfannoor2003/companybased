@@ -73,7 +73,7 @@ class CategoryController extends Controller
     {
         $data = $this->validateData($request, $category->id);
 
-        if (($data['parent_id'] ?? null) !== null && (int) $data['parent_id'] === $category->id) {
+        if (($data['parent_id'] ?? null) !== null && (int) ($data['parent_id'] ?? null) === $category->id) {
             return back()->withErrors(['parent_id' => 'A category cannot be its own parent.']);
         }
 

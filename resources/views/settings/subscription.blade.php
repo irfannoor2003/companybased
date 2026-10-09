@@ -3,7 +3,21 @@
         <x-slot name="actions">
             @if ($subscription && $subscription->is_active)
                 <form method="POST" action="{{ route('settings.subscription.deactivate') }}"
-                    onsubmit="return confirm('Deactivate the package? All users will regain access immediately.');">
+                    {{--
+                        Deactivating REMOVES the active package, so
+                        Subscription::isAccessBlocked() starts returning true and
+                        every staff page answers 403.
+
+                        This dialog previously promised the opposite outcome, which
+                        is HIGH-4. The copy now states what the click actually does.
+
+                        Wording note: do not quote the removed sentence anywhere in
+                        this file, including comments. HIGH-4 is pinned by a test that
+                        greps the view source for the old phrasing, so a comment
+                        explaining the fix reintroduces the very string it searches
+                        for and the issue reopens itself.
+                    --}}
+                    onsubmit="return confirm('Deactivate the package?\n\nEvery staff user will be signed out of all pages until a package is activated again. Only the Super Admin will retain access.\n\nContinue?');">
                     @csrf
                     @method('DELETE')
                     <x-button type="submit" variant="secondary" icon="x">Deactivate</x-button>

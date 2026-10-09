@@ -91,6 +91,16 @@
                                                     <x-icon name="tag" class="size-4" />
                                                 </a>
                                             @endif
+                                            @if (auth()->user()->can('employees.employees.delete'))
+                                                <form method="POST" action="{{ route('employees.employees.destroy', $employee) }}"
+                                                    onsubmit="return confirm('Delete employee {{ $employee->fullName() }}?');">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="btn-ghost btn-icon btn-sm text-rose-500" title="Delete">
+                                                        <x-icon name="trash" class="size-4" />
+                                                    </button>
+                                                </form>
+                                            @endif
                                         </div>
                                     </td>
                                 </tr>

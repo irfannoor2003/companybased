@@ -38,12 +38,17 @@
                                 <option value="{{ $status }}" @selected(old('status', $order->status) === $status)>{{ ucfirst(str_replace('_', ' ', $status)) }}</option>
                             @endforeach
                         </x-select>
-                        <x-input name="order_date" label="Order date" type="date" value="{{ old('order_date', $order->order_date?->format('Y-m-d')) }}" :disabled="$locked" />
+                        @include('documents.partials.reference-number', [
+                        'value' => $order->reference_number,
+                        'example' => 'POR-2026-0001',
+                        'disabled' => $locked,
+                    ])
+                    <x-input name="order_date" label="Order date" type="date" value="{{ old('order_date', $order->order_date?->format('Y-m-d')) }}" :disabled="$locked" />
                         <x-input name="expected_delivery_date" label="Expected delivery" type="date" value="{{ old('expected_delivery_date', $order->expected_delivery_date?->format('Y-m-d')) }}" :disabled="$locked" />
                         <x-select name="currency" label="Currency">
                         <option value="">— Default —</option>
                         @foreach (currency_options() as $code => $label)
-                            <option value="{{ $code }}" @selected(old('currency', 'currency', $order->currency) === $code)>{{ $label }}</option>
+                            <option value="{{ $code }}" @selected(old('currency', $order->currency) === $code)>{{ $label }}</option>
                         @endforeach
                     </x-select>
                     </div>

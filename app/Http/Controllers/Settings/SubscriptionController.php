@@ -32,19 +32,29 @@ class SubscriptionController extends Controller
 
         $subscription = Subscription::current() ?? new Subscription();
 
-        $subscription->plan_name = $data['plan_name'] ?: null;
+        // `?? null` rather than `?: null`: both fields are nullable, so a request
+        // that omits them (an API call, a partial form post, curl) leaves the key
+        // absent from the validated array entirely and `$data['notes'] ?? null` raises
+        // "Undefined array key". The shipped form always submits both inputs, which
+        // is the only reason this had not surfaced.
+        $subscription->plan_name = $data['plan_name'] ?? null;
         $subscription->starts_at = now();
 
-        if (! empty($data['expires_at'])) {
-            $subscription->expires_at = $data['expires_at'];
+        if (! empty($data['expires_at'] ?? null)) {
+            $subscription->expires_at = $data['expires_at'] ?? null;
         } else {
-            $subscription->expires_at = now()->addDays((int) $data['duration_days']);
+            $subscription->expires_at = now()->addDays((int) ($data['duration_days'] ?? null));
         }
 
         $subscription->is_active = true;
         $subscription->reminder_sent_at = null;
-        $subscription->notes = $data['notes'] ?: null;
+        $subscription->notes = $data['notes'] ?? null;
         $subscription->save();
+
+        // The access verdict is memoised per process; without this the newly
+        // activated package would not be observed until the worker restarted, and
+        // staff would stay blocked through the very screen that unblocked them.
+        Subscription::flushCache();
 
         return redirect()
             ->route('settings.subscription')
@@ -62,8 +72,12 @@ class SubscriptionController extends Controller
             $subscription->save();
         }
 
+        // Deactivating must lift the block immediately, for the same reason
+        // activation has to be visible immediately.
+        Subscription::flushCache();
+
         return redirect()
             ->route('settings.subscription')
-            ->with('success', 'Package deactivated. All users now have unrestricted access.');
+            ->with('success', 'Package deactivated. Because no active package remains, staff access is now BLOCKED until a package is activated again.');
     }
 }

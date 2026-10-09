@@ -11,8 +11,13 @@ use App\Models\PurchaseOrder;
 use App\Models\PurchaseStatusEvent;
 use App\Models\Supplier;
 use App\Models\SupplierPayment;
+use App\Services\Accounting\LedgerPosting;
 use App\Services\NotificationService;
+use App\Support\BankLedger;
+use App\Support\DiscountLimit;
 use App\Support\DocumentItems;
+use App\Support\DocumentData;
+use App\Support\DocumentReference;
 use App\Support\ExportsCsv;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
@@ -25,6 +30,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PurchaseInvoiceController extends Controller
 {
+    use DiscountLimit;
     use ExportsCsv;
 
     public function index(Request $request): View
@@ -60,7 +66,12 @@ class PurchaseInvoiceController extends Controller
                 ->findOrFail($request->production_order);
         }
 
-        return view('suppliers.purchase_invoices.create', compact('suppliers', 'products', 'fromOrder', 'fromProduction'));
+        // What the tax engine expects on this document's date.
+
+        $taxHint = $this->taxRateHint('purchase', now()->toDateString());
+
+
+        return view('suppliers.purchase_invoices.create', compact('suppliers', 'products', 'fromOrder', 'fromProduction', 'taxHint'));;
     }
 
     public function store(Request $request): RedirectResponse
@@ -69,6 +80,7 @@ class PurchaseInvoiceController extends Controller
 
         $invoice = PurchaseInvoice::create([
             'number' => next_document_number('purchase_invoice', 'PIN'),
+            'reference_number' => DocumentReference::fromRequest($data['reference_number'] ?? null),
             'order_id' => $data['order_id'] ?? null,
             'production_order_id' => $data['production_order_id'] ?? null,
             'supplier_id' => $data['supplier_id'],
@@ -80,10 +92,16 @@ class PurchaseInvoiceController extends Controller
             'notes' => $data['notes'] ?? null,
         ]);
 
+        $this->validateTaxRates($request->input('items', []), 'purchase', $data['issue_date'] ?? null);
+
         $totals = DocumentItems::sync($invoice, $request->input('items', []));
         $invoice->update(['subtotal' => $totals['subtotal'], 'tax_amount' => $totals['tax'], 'total' => $totals['total']]);
 
         $this->recalculateStatus($invoice);
+
+        // Recognise the liability and the recoverable input tax. Idempotent, and a
+        // no-op where the chart of accounts has not been seeded.
+        app(LedgerPosting::class)->purchaseBillIssued($invoice->fresh());
 
         app(NotificationService::class)->notifyStaff(
             'accounting.bills.view',
@@ -120,10 +138,12 @@ class PurchaseInvoiceController extends Controller
         $this->preparePdf();
         $invoice->load(['supplier', 'items.product', 'payments', 'debitNotes', 'productionOrder']);
 
-        $template = in_array($invoice->template, ['classic', 'modern', 'minimal', 'corporate'], true) ? $invoice->template : 'classic';
-        $view = 'suppliers.purchase_invoices.pdf'.($template === 'classic' ? '' : '-'.$template);
-
-        $html = view($view, compact('invoice'))->render();
+        // The four purchase-invoice templates are gone. They were independently
+        // authored from the sales ones and drifted: a purchase bill printed with
+        // a different letterhead, different column rules and a totals block the
+        // sales invoice no longer matched. DocumentData already normalises a
+        // purchase invoice, so it renders on the one shared document design.
+        $html = view('documents.pdf', DocumentData::build($invoice))->render();
 
         $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
 
@@ -144,9 +164,10 @@ class PurchaseInvoiceController extends Controller
 
     public function update(Request $request, PurchaseInvoice $invoice): RedirectResponse
     {
-        $data = $this->validateData($request);
+        $data = $this->validateData($request, $invoice->id);
 
         $invoice->update([
+            'reference_number' => DocumentReference::fromRequest($data['reference_number'] ?? null),
             'order_id' => $data['order_id'] ?? null,
             'production_order_id' => $data['production_order_id'] ?? null,
             'supplier_id' => $data['supplier_id'],
@@ -158,10 +179,20 @@ class PurchaseInvoiceController extends Controller
             'notes' => $data['notes'] ?? null,
         ]);
 
+        $this->validateTaxRates($request->input('items', []), 'purchase', $data['issue_date'] ?? null);
+
         $totals = DocumentItems::sync($invoice, $request->input('items', []));
         $invoice->update(['subtotal' => $totals['subtotal'], 'tax_amount' => $totals['tax'], 'total' => $totals['total']]);
 
-        $this->recalculateStatus($invoice);
+$this->recalculateStatus($invoice);
+
+        // Void the journal raised for the old bill and raise one for the amended
+        // figures, so the payable on the ledger follows the document.
+        app(LedgerPosting::class)->repost(
+            $invoice->fresh(),
+            fn ($ledger) => $ledger->purchaseBillIssued($invoice->fresh()),
+            'Purchase bill amended',
+        );
 
         return back()->with('toasts', [['type' => 'success', 'message' => "Purchase invoice {$invoice->number} updated."]]);
     }
@@ -169,6 +200,11 @@ class PurchaseInvoiceController extends Controller
     public function destroy(PurchaseInvoice $invoice): RedirectResponse
     {
         $number = $invoice->number;
+
+        // Void the bill's journal before the row goes, so the payable does not
+        // stay on the books for a bill that no longer exists.
+        app(LedgerPosting::class)->reverse($invoice, 'Purchase bill deleted');
+
         $invoice->delete();
 
         return redirect()->route('suppliers.purchase_invoices.index')
@@ -217,7 +253,7 @@ class PurchaseInvoiceController extends Controller
                     throw new \RuntimeException('Payment exceeds the outstanding balance of '.money($invoice->balance(), $invoice->currency).'.');
                 }
 
-                SupplierPayment::create([
+                $payment = SupplierPayment::create([
                     'number' => next_document_number('supplier_payment', 'SP', SupplierPayment::class),
                     'invoice_id' => $invoice->id,
                     'supplier_id' => $invoice->supplier_id,
@@ -231,8 +267,21 @@ class PurchaseInvoiceController extends Controller
                     'notes' => $data['notes'] ?? null,
                 ]);
 
-                $invoice->update(['paid_amount' => round((float) $invoice->paid_amount + (float) $data['amount'], 2)]);
-                $this->recalculateStatus($invoice);
+                // The money left the bank account, so it has to reach the ledger.
+                // Both sibling entry points — the standalone supplier payment
+                // form and the sales equivalent — post here; this one did not,
+                // so a bill paid from its own screen left the bank balance
+                // overstating cash and the statement permanently out of balance.
+                BankLedger::postDisbursement($payment->load('invoice'));
+
+                // Recomputed from the rows rather than incremented, matching the
+                // other two payment paths. An increment here drifts if a payment
+                // is ever edited, because nothing else recalculates it.
+                $invoice->update([
+                    'paid_amount' => round((float) $invoice->payments()->sum('amount'), 2),
+                ]);
+
+                $this->recalculateStatus($invoice->refresh());
             });
         } catch (\RuntimeException $e) {
             return back()->withInput()
@@ -277,9 +326,10 @@ class PurchaseInvoiceController extends Controller
         $invoice->update(['status' => $newStatus]);
     }
 
-    private function validateData(Request $request): array
+    private function validateData(Request $request, ?int $ignoreId = null): array
     {
         return $request->validate([
+            'reference_number' => DocumentReference::rules('purchase_invoices', $ignoreId),
             'order_id' => ['nullable', 'integer', Rule::exists('purchase_orders', 'id')],
             'production_order_id' => ['nullable', 'integer', Rule::exists('inventory_production_orders', 'id')],
             'supplier_id' => ['required', 'integer', Rule::exists('suppliers', 'id')],
@@ -289,6 +339,11 @@ class PurchaseInvoiceController extends Controller
             'currency' => ['nullable', 'string', 'max:8'],
             'notes' => ['nullable', 'string', 'max:5000'],
             'items' => ['required', 'array', 'min:1'],
+            // Optional per line. Constrained to expense-type accounts so a bill
+            // cannot be posted into an asset, a liability or revenue.
+            'items.*.account_id' => ['nullable', 'integer', Rule::exists('accounts', 'id')->where(
+                fn ($q) => $q->whereIn('type', ['expense', 'asset'])->whereNull('deleted_at'),
+            )],
         ]);
     }
 }

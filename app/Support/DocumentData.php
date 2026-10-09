@@ -2,6 +2,15 @@
 
 namespace App\Support;
 
+use App\Models\DebitNote;
+use App\Models\PurchaseInvoice;
+use App\Models\PurchaseOrder;
+use App\Models\PurchaseQuote;
+use App\Models\SalesCreditNote;
+use App\Models\SalesDeliveryNote;
+use App\Models\SalesOrder;
+use App\Models\SalesQuote;
+use App\Models\SalesRecurringInvoice;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -16,14 +25,23 @@ class DocumentData
      * @var array<class-string, array{title: string, route: string, kind: string, pricing: bool, applied: bool, type: string}>
      */
     public const TYPES = [
-        \App\Models\SalesQuote::class => ['title' => 'Quote', 'route' => 'sales.quotes', 'kind' => 'customer', 'pricing' => true, 'applied' => false, 'type' => 'quote'],
-        \App\Models\SalesOrder::class => ['title' => 'Order', 'route' => 'sales.orders', 'kind' => 'customer', 'pricing' => true, 'applied' => false, 'type' => 'order'],
-        \App\Models\SalesCreditNote::class => ['title' => 'Credit Note', 'route' => 'sales.credit_notes', 'kind' => 'customer', 'pricing' => true, 'applied' => true, 'type' => 'credit_note'],
-        \App\Models\SalesDeliveryNote::class => ['title' => 'Delivery Note', 'route' => 'sales.delivery_notes', 'kind' => 'customer', 'pricing' => false, 'applied' => false, 'type' => 'delivery_note'],
-        \App\Models\SalesRecurringInvoice::class => ['title' => 'Recurring Invoice', 'route' => 'sales.recurring_invoices', 'kind' => 'customer', 'pricing' => true, 'applied' => false, 'type' => 'recurring_invoice'],
-        \App\Models\PurchaseQuote::class => ['title' => 'Purchase Quote', 'route' => 'suppliers.purchase_quotes', 'kind' => 'supplier', 'pricing' => true, 'applied' => false, 'type' => 'purchase_quote'],
-        \App\Models\PurchaseOrder::class => ['title' => 'Purchase Order', 'route' => 'suppliers.purchase_orders', 'kind' => 'supplier', 'pricing' => true, 'applied' => false, 'type' => 'purchase_order'],
-        \App\Models\DebitNote::class => ['title' => 'Debit Note', 'route' => 'suppliers.debit_notes', 'kind' => 'supplier', 'pricing' => true, 'applied' => true, 'type' => 'debit_note'],
+        SalesQuote::class => ['title' => 'Quote', 'route' => 'sales.quotes', 'kind' => 'customer', 'pricing' => true, 'applied' => false, 'type' => 'quote'],
+        SalesOrder::class => ['title' => 'Order', 'route' => 'sales.orders', 'kind' => 'customer', 'pricing' => true, 'applied' => false, 'type' => 'order'],
+        SalesCreditNote::class => ['title' => 'Credit Note', 'route' => 'sales.credit_notes', 'kind' => 'customer', 'pricing' => true, 'applied' => true, 'type' => 'credit_note'],
+        SalesDeliveryNote::class => ['title' => 'Delivery Note', 'route' => 'sales.delivery_notes', 'kind' => 'customer', 'pricing' => false, 'applied' => false, 'type' => 'delivery_note'],
+        SalesRecurringInvoice::class => ['title' => 'Recurring Invoice', 'route' => 'sales.recurring_invoices', 'kind' => 'customer', 'pricing' => true, 'applied' => false, 'type' => 'recurring_invoice'],
+        PurchaseQuote::class => ['title' => 'Purchase Quote', 'route' => 'suppliers.purchase_quotes', 'kind' => 'supplier', 'pricing' => true, 'applied' => false, 'type' => 'purchase_quote'],
+        PurchaseOrder::class => ['title' => 'Purchase Order', 'route' => 'suppliers.purchase_orders', 'kind' => 'supplier', 'pricing' => true, 'applied' => false, 'type' => 'purchase_order'],
+        DebitNote::class => ['title' => 'Debit Note', 'route' => 'suppliers.debit_notes', 'kind' => 'supplier', 'pricing' => true, 'applied' => true, 'type' => 'debit_note'],
+
+        /*
+         * A purchase invoice was missing here, which is why it was the one
+         * `applied` stays false: that flag adds Applied/Remaining rows sourced
+         * from a `remaining()` method, which only credit and debit notes have. A
+         * bill's settlement figures come from its own payments, not from an
+         * application, so calling remaining() on it threw.
+         */
+        PurchaseInvoice::class => ['title' => 'Bill', 'route' => 'suppliers.purchase_invoices', 'kind' => 'supplier', 'pricing' => true, 'applied' => false, 'type' => 'purchase_invoice'],
     ];
 
     /**
@@ -46,6 +64,7 @@ class DocumentData
             'doc' => $document,
             'title' => $def['title'],
             'number' => $document->number,
+            'referenceNumber' => $document->reference_number,
             'currency' => $currency,
             'meta' => self::metaFor($document, $def, $partner, $currency),
             'billTo' => self::billToFor($document, $def, $partner),
@@ -81,6 +100,13 @@ class DocumentData
         $dateValue = $document->{$dateField}?->format('Y-m-d') ?: '—';
 
         $rows = [];
+
+        // The manual / external number is shown alongside the system number, not
+        // instead of it: the business quotes the manual one to its customer while
+        // the system one is the internal identity.
+        if (filled($document->reference_number)) {
+            $rows[] = ['label' => 'Manual number', 'value' => $document->reference_number, 'show' => true];
+        }
 
         $rows[] = ['label' => $dateLabel, 'value' => $dateValue, 'show' => true];
 
@@ -131,10 +157,30 @@ class DocumentData
             return [];
         }
 
+        // Priced with DocumentItems::lineTotals(), the same per-line arithmetic the
+        // create and edit screens use. Summing raw qty * unit_price in float was a
+        // second, independent implementation of the same rule, and the two drifted
+        // by a cent on long documents -- which showed up as a printed gross that did
+        // not reconcile with the printed discount and subtotal.
         $gross = 0.0;
+
         foreach ($document->items as $item) {
-            $gross += (float) $item->qty * (float) $item->unit_price;
+            $gross += DocumentItems::lineTotals(
+                (float) $item->qty,
+                (float) $item->unit_price,
+                (float) ($item->discount_percent ?? 0),
+                (float) ($item->tax_percent ?? 0),
+            )['line_subtotal'];
         }
+
+        $gross = round($gross, 2);
+
+        // A document with no items summed to a gross of 0.00 and printed
+        // "Subtotal 0.00" directly above a non-zero "Total", which reads as a
+        // broken document rather than an empty one. Fall back to the stored
+        // subtotal, which is the figure the total was actually built from.
+        $gross = $gross > 0.0 ? $gross : (float) ($document->subtotal ?: 0);
+
         $discount = round($gross - (float) ($document->subtotal ?: 0), 2);
 
         $totals = [
@@ -188,17 +234,20 @@ class DocumentData
 
         foreach ($document->items as $item) {
             if ($def['pricing']) {
-                $gross = (float) $item->qty * (float) $item->unit_price;
-                $net = $gross * (1 - (float) (($item->discount_percent ?? 0) / 100));
-                $tax = $net * ((float) ($item->tax_percent ?? 0) / 100);
+                $line = DocumentItems::lineTotals(
+                    (float) $item->qty,
+                    (float) $item->unit_price,
+                    (float) ($item->discount_percent ?? 0),
+                    (float) ($item->tax_percent ?? 0),
+                );
 
                 $rows[] = [
                     'description' => $item->description ?: ($item->product?->name ?? '—'),
                     'qty' => (float) $item->qty,
                     'unit_price' => (float) $item->unit_price,
-                    'discount' => round($gross - $net, 2),
-                    'tax' => $tax,
-                    'total' => $net + $tax,
+                    'discount' => $line['line_discount'],
+                    'tax' => $line['line_tax'],
+                    'total' => round($line['line_net'] + $line['line_tax'], 2),
                 ];
             } else {
                 $rows[] = [

@@ -22,12 +22,12 @@
                 <x-input name="host" label="SMTP Host" placeholder="e.g. smtp.gmail.com" value="{{ old('host', $mail['host']) }}" hint="Ignored for non-SMTP drivers." />
                 <x-input name="port" label="SMTP Port" type="number" min="1" max="65535" placeholder="587" value="{{ old('port', $mail['port']) }}" />
 
-                <x-input name="username" label="Username" placeholder="e.g. user@gmail.com" value="{{ old('username', $mail['username']) }}" @required($mail['mailer'] !== 'log') />
+                <x-input name="username" label="Username" placeholder="e.g. user@gmail.com" value="{{ old('username', $mail['username']) }}" :required="$mail['mailer'] !== 'log'" />
                 <x-input
                     name="password"
                     label="Password"
                     type="password"
-                    @required(! $mail['password_is_set'])
+                    :required="! $mail['password_is_set']"
                     autocomplete="new-password"
                     placeholder="{{ $mail['password_is_set'] ? '•••••••• (stored — leave blank to keep)' : 'Required — app password or SMTP password' }}"
                     value=""
@@ -74,6 +74,94 @@
             </div>
         </x-card>
 
+        <x-card title="Second Mailbox Login (info@)" description="On shared hosting such as Hostinger and cPanel, every mailbox is a separate login with its own password, even though they all relay through the same server. Set the team mailbox login here when its password differs from the no-reply one.">
+            <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                <x-input
+                    name="team_username"
+                    label="Team username"
+                    placeholder="e.g. info@yourcompany.com"
+                    value="{{ old('team_username', $mail['team_username']) }}"
+                    hint="The info@ mailbox. Leave blank to reuse the username above."
+                />
+                <x-input
+                    name="team_password"
+                    label="Team password"
+                    type="password"
+                    autocomplete="new-password"
+                    placeholder="{{ $mail['team_password_is_set'] ? '•••••••• (stored — leave blank to keep)' : 'Leave blank to reuse the password above' }}"
+                    value=""
+                    hint="{{ $mail['team_password_is_set'] ? 'A team password is already stored and is never shown. Leave this blank to keep it.' : 'Only needed if it differs from the password above.' }}"
+                />
+
+                <div class="sm:col-span-2">
+                    <p class="text-xs text-ink-soft">
+                        Staff email sent from the portal authenticates with these credentials. Automated email
+                        (welcome messages, order updates, alerts) always uses the no-reply login in the
+                        <span class="font-medium text-ink-soft">Outgoing Mail</span> card above.
+                        To go back to a single login, clear both boxes and save.
+                    </p>
+                </div>
+            </div>
+        </x-card>
+
+        <x-card title="Accounts & Invoicing Email" description="Used when dispatching sales invoices, credit notes, customer statements, and payment receipts.">
+            <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                <x-input name="accounts_from_address" label="Accounts from email" type="email" placeholder="billing@yourcompany.com" value="{{ old('accounts_from_address', $mail['accounts_from_address']) }}" hint="Leave blank to use the automated system address." />
+                <x-input name="accounts_from_name" label="Accounts from name" placeholder="{{ company_name() }} Accounts" value="{{ old('accounts_from_name', $mail['accounts_from_name']) }}" />
+
+                <x-input
+                    name="accounts_username"
+                    label="Accounts mailbox username"
+                    placeholder="e.g. billing@yourcompany.com"
+                    value="{{ old('accounts_username', $mail['accounts_username']) }}"
+                    hint="Optional separate login. Leave blank to reuse the primary SMTP credentials."
+                />
+                <x-input
+                    name="accounts_password"
+                    label="Accounts mailbox password"
+                    type="password"
+                    autocomplete="new-password"
+                    placeholder="{{ $mail['accounts_password_is_set'] ? '•••••••• (stored — leave blank to keep)' : 'Leave blank to reuse primary SMTP password' }}"
+                    value=""
+                    hint="{{ $mail['accounts_password_is_set'] ? 'Stored password kept if blank.' : 'Only needed if accounts mailbox has its own password.' }}"
+                />
+            </div>
+        </x-card>
+
+        <x-card title="Sales & Quotes Email" description="Used when dispatching sales quotes, order confirmations, and proposal emails to prospects and customers.">
+            <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                <x-input name="sales_from_address" label="Sales from email" type="email" placeholder="sales@yourcompany.com" value="{{ old('sales_from_address', $mail['sales_from_address']) }}" hint="Leave blank to use the shared team mailbox." />
+                <x-input name="sales_from_name" label="Sales from name" placeholder="{{ company_name() }} Sales" value="{{ old('sales_from_name', $mail['sales_from_name']) }}" />
+
+                <div class="sm:col-span-2">
+                    <label class="flex items-start gap-3 rounded-lg border border-line bg-surface-muted p-3">
+                        <input type="checkbox" name="sales_use_salesman_address" value="1" class="mt-0.5 rounded border-line" @checked(old('sales_use_salesman_address', $mail['sales_use_salesman_address']))>
+                        <span>
+                            <span class="block text-sm font-medium text-ink">Send quotes and orders from the assigned Salesman's email address</span>
+                            <span class="block text-xs text-ink-soft">When enabled, the email arrives directly from the assigned representative with their name. Falls back to company sales address if no salesman is assigned.</span>
+                        </span>
+                    </label>
+                </div>
+
+                <x-input
+                    name="sales_username"
+                    label="Sales mailbox username"
+                    placeholder="e.g. sales@yourcompany.com"
+                    value="{{ old('sales_username', $mail['sales_username']) }}"
+                    hint="Optional separate login. Leave blank to reuse primary SMTP."
+                />
+                <x-input
+                    name="sales_password"
+                    label="Sales mailbox password"
+                    type="password"
+                    autocomplete="new-password"
+                    placeholder="{{ $mail['sales_password_is_set'] ? '•••••••• (stored — leave blank to keep)' : 'Leave blank to reuse primary SMTP password' }}"
+                    value=""
+                    hint="{{ $mail['sales_password_is_set'] ? 'Stored password kept if blank.' : 'Only needed if sales mailbox has its own password.' }}"
+                />
+            </div>
+        </x-card>
+
         <div class="flex justify-end gap-3">
             <x-button href="{{ route('settings.company') }}" variant="ghost">Cancel</x-button>
             <x-button type="submit" icon="save">Save mail settings</x-button>
@@ -81,11 +169,17 @@
     </form>
 
     <div class="mt-6 max-w-3xl">
-        <x-card title="Test Email" description="Send a test email to verify your configuration is working.">
+        <x-card title="Test Email" description="Send a test email to verify any configured mailbox identity and transport.">
             <form method="POST" action="{{ route('settings.mail.test') }}" class="space-y-4">
                 @csrf
-                <div class="max-w-md">
-                    <x-input name="test_email" label="Recipient email" type="email" value="{{ old('test_email', auth()->user()->email) }}" placeholder="Enter email address" />
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <x-input name="test_email" label="Recipient email" type="email" value="{{ old('test_email', auth()->user()->email) }}" placeholder="Enter recipient email" required />
+                    <x-select name="test_identity" label="Test email as">
+                        <option value="system">Automated (No-Reply)</option>
+                        <option value="accounts">Accounts & Invoicing</option>
+                        <option value="sales">Sales & Orders</option>
+                        <option value="team">Team Mailbox (info@)</option>
+                    </x-select>
                 </div>
                 <div class="flex justify-end">
                     <x-button type="submit" icon="send" size="sm" variant="secondary">Send test email</x-button>

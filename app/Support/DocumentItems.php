@@ -27,6 +27,111 @@ class DocumentItems
      * @param  array<int, array<string, mixed>>  $items
      * @return array{subtotal: float, tax: float, total: float}
      */
+    /**
+     * The per-line money arithmetic, in one place.
+     *
+     * Every caller that has to price a line must use these exact rules, otherwise
+     * the printed rows stop adding up to the printed total: subtotal is net of the
+     * line discount, and tax is a percentage of that net rather than of the gross.
+     *
+     * Rounding is per-line and to two places. Doing it once per line and summing
+     * the rounded figures is what keeps the header reconcilable; rounding only the
+     * final sum drifts by a cent per line.
+     *
+     * @return array{line_subtotal: float, line_discount: float, line_net: float, line_tax: float}
+     */
+    public static function lineTotals(
+        float $qty,
+        float $unitPrice,
+        float $discountPercent = 0,
+        float $taxPercent = 0,
+    ): array {
+        $lineSubtotal = round($qty * $unitPrice, 2);
+        $lineDiscount = round($lineSubtotal * ($discountPercent / 100), 2);
+        $lineNet = round($lineSubtotal - $lineDiscount, 2);
+        $lineTax = round($lineNet * ($taxPercent / 100), 2);
+
+        return [
+            'line_subtotal' => $lineSubtotal,
+            'line_discount' => $lineDiscount,
+            'line_net' => $lineNet,
+            'line_tax' => $lineTax,
+        ];
+    }
+
+    /**
+     * Recompute a document's header totals from its persisted line items.
+     *
+     * Used when the lines are edited in place rather than replaced -- a currency
+     * conversion, for instance -- so the header is derived by the same arithmetic
+     * sync() uses instead of being multiplied independently. Multiplying subtotal,
+     * tax and total separately is what produced documents where
+     * subtotal + tax != total.
+     *
+     * @return array{subtotal: float, tax: float, total: float}
+     */
+    public static function totalsFromPersistedItems(Model $document): array
+    {
+        $subtotal = 0.0;
+        $tax = 0.0;
+
+        foreach ($document->items()->get() as $item) {
+            $totals = self::lineTotals(
+                (float) $item->qty,
+                (float) $item->unit_price,
+                (float) ($item->discount_percent ?? 0),
+                (float) ($item->tax_percent ?? 0),
+            );
+
+            $subtotal += $totals['line_net'];
+            $tax += $totals['line_tax'];
+        }
+
+        $subtotal = round($subtotal, 2);
+        $tax = round($tax, 2);
+
+        return [
+            'subtotal' => $subtotal,
+            'tax' => $tax,
+            'total' => round($subtotal + $tax, 2),
+        ];
+    }
+
+    /**
+     * Line columns that only some document types have.
+     *
+     * `account_id` exists on purchase bill lines alone -- it is the expense account
+     * the line is charged to on the P&L. Emitting it unconditionally would fail on
+     * the eight other line tables that have no such column, so it is added only for
+     * a document whose items table actually carries it.
+     *
+     * @param  array<string, mixed>  $item
+     * @return array<string, mixed>
+     */
+    private static function optionalColumns(Model $document, array $item): array
+    {
+        // A bill line records which expense account it is charged to.
+        if ($document instanceof \App\Models\PurchaseInvoice) {
+            return ['account_id' => ! empty($item['account_id']) ? (int) $item['account_id'] : null];
+        }
+
+        // A sales line snapshots the product's cost price, so cost of goods sold
+        // can be recognised at posting time and later repricing cannot rewrite a
+        // past invoice's margin. An explicitly supplied value wins, which is what
+        // makes a historical invoice reproducible when re-saved.
+        if ($document instanceof \App\Models\SalesInvoice) {
+            $unitCost = $item['unit_cost'] ?? null;
+
+            if ($unitCost === null && ! empty($item['product_id'])) {
+                $unitCost = \App\Models\Product::where('id', $item['product_id'])->value('cost_price');
+            }
+
+            return ['unit_cost' => $unitCost === null ? null : (float) $unitCost];
+        }
+
+        return [];
+    }
+
     public static function sync(Model $document, array $items): array
     {
         $cleaned = [];
@@ -47,10 +152,7 @@ class DocumentItems
                 ]);
             }
 
-            $lineSubtotal = round($qty * $unitPrice, 2);
-            $lineDiscount = round($lineSubtotal * ($discount / 100), 2);
-            $lineNet = round($lineSubtotal - $lineDiscount, 2);
-            $lineTax = round($lineNet * ($taxPercent / 100), 2);
+            $totals = self::lineTotals($qty, $unitPrice, $discount, $taxPercent);
 
             $cleaned[] = [
                 'product_id' => ! empty($item['product_id']) ? $item['product_id'] : null,
@@ -59,11 +161,11 @@ class DocumentItems
                 'unit_price' => $unitPrice,
                 'discount_percent' => $discount,
                 'tax_percent' => $taxPercent,
-                'line_total' => $lineNet,
-            ];
+                'line_total' => $totals['line_net'],
+            ] + self::optionalColumns($document, $item);
 
-            $subtotal += $lineNet;
-            $tax += $lineTax;
+            $subtotal += $totals['line_net'];
+            $tax += $totals['line_tax'];
         }
 
         // Delete-then-insert is two statements, so a constraint violation on the

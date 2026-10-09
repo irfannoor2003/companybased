@@ -162,8 +162,16 @@ if (! function_exists('next_document_number')) {
 
             do {
                 $number = $prefix.'-'.now()->format('Y').'-'.str_pad((string) $next, 4, '0', STR_PAD_LEFT);
-                $next++;
+
+                // Persist the value actually issued. This used to increment $next
+                // *before* storing it, so the counter always landed one past the
+                // number handed out and every sequential document skipped the
+                // odd one: INV-2026-0001, 0003, 0005. The gaps are
+                // indistinguishable from deleted records in an audit trail, and
+                // the counter drifted twice as fast as the document count.
                 $setting->update(['value' => (string) $next]);
+
+                $next++;
             } while ($modelClass !== null && $modelClass::withTrashed()->where('number', $number)->exists());
 
             Setting::flushCache();
@@ -251,6 +259,43 @@ if (! function_exists('darken_hex')) {
         foreach ([0, 2, 4] as $i) {
             $channel = hexdec(substr($hex, $i, 2)) * $factor;
             $out .= str_pad(dechex((int) round($channel)), 2, '0', STR_PAD_LEFT);
+        }
+
+        return $out;
+    }
+}
+
+if (! function_exists('mix_hex')) {
+    /**
+     * Blend two hex colours, $percent being how much of $to ends up in the result.
+     *
+     * Needed where a colour has to be derived from a tenant's own brand choice —
+     * the muted text on a dark rail, for instance. A hard-coded grey there looks
+     * correct against one brand colour and wrong against every other, and CSS
+     * rgba() cannot be used because the backdrop is itself dynamic.
+     */
+    function mix_hex(?string $from, string $to, float $percent = 50): string
+    {
+        $normalise = static function (?string $hex, string $fallback): string {
+            $hex = ltrim((string) $hex, '#');
+
+            if (strlen($hex) === 3) {
+                $hex = $hex[0].$hex[0].$hex[1].$hex[1].$hex[2].$hex[2];
+            }
+
+            return preg_match('/^[0-9a-fA-F]{6}$/', $hex) ? $hex : $fallback;
+        };
+
+        $from = $normalise($from, '000000');
+        $to = $normalise($to, 'ffffff');
+
+        $weight = max(0, min(1, $percent / 100));
+
+        $out = '#';
+        foreach ([0, 2, 4] as $i) {
+            $a = hexdec(substr($from, $i, 2));
+            $b = hexdec(substr($to, $i, 2));
+            $out .= str_pad(dechex((int) round($a + ($b - $a) * $weight)), 2, '0', STR_PAD_LEFT);
         }
 
         return $out;

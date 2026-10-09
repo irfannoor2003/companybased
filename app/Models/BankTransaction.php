@@ -15,7 +15,7 @@ class BankTransaction extends Model
     protected $fillable = [
         'bank_account_id', 'number', 'transaction_date', 'type', 'amount',
         'counterparty', 'description', 'reference', 'is_reconciled',
-        'reconciled_at', 'reference_type', 'reference_id',
+        'reconciled_at', 'reference_type', 'reference_id', 'journal_entry_id',
     ];
 
     protected $auditModule = 'banking';
@@ -35,9 +35,15 @@ class BankTransaction extends Model
         return $this->belongsTo(BankAccount::class, 'bank_account_id');
     }
 
-    public function transfer(): BelongsTo
+    /**
+     * The journal this transaction posted, when it has one.
+     *
+     * Stamped rather than looked up so a voided and re-posted transaction can find
+     * its own journal without ambiguity.
+     */
+    public function journalEntry(): BelongsTo
     {
-        return $this->belongsTo(BankTransfer::class, 'reference_id', 'id')->where('reference_type', BankTransfer::class);
+        return $this->belongsTo(JournalEntry::class, 'journal_entry_id');
     }
 
     public static function typeOptions(): array
@@ -53,6 +59,15 @@ class BankTransaction extends Model
     public function isDebit(): bool
     {
         return in_array($this->type, ['withdrawal', 'transfer_out'], true);
+    }
+
+    /**
+     * Whether money came in. Alias of isCredit() that reads correctly at a call
+     * site where direction is the point.
+     */
+    public function isInflow(): bool
+    {
+        return $this->isCredit();
     }
 
     public function signedAmount(): float

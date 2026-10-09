@@ -42,6 +42,8 @@
                     <x-input name="country" label="Country" value="{{ old('country', $customer->country) }}" />
                 </div>
 
+                @include('sales.customers.partials.opening-balance')
+
                 <x-textarea name="notes" label="Notes" rows="3">{{ old('notes', $customer->notes) }}</x-textarea>
 
                 <div class="border-t border-line pt-4">

@@ -7,6 +7,7 @@ use App\Models\Employee;
 use App\Models\PayrollRun;
 use App\Models\Payslip;
 use App\Models\SalaryStructure;
+use App\Support\Money;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -116,27 +117,59 @@ class PayrollService
         $gross = $structure->gross();
         $dailyRate = $this->attendance->dailyRate($gross, $workDates->count());
 
-        $lateDed = $this->attendance->deductionFor('deduction_late_type', 'deduction_late_amount', $dailyRate, $rules) * $counts['late'];
-        $shortLeaveDed = $this->attendance->deductionFor('deduction_short_leave_type', 'deduction_short_leave_amount', $dailyRate, $rules) * $counts['short_leave'];
-        $absentPerDay = $this->attendance->deductionFor('deduction_absent_type', 'deduction_absent_amount', $dailyRate, $rules);
-        $absentDed = $absentPerDay * ($counts['absent'] + (0.5 * $counts['half_day']));
+        // Each deduction is a money amount scaled by a headcount, and each product
+        // is rounded to the scale before the three are added. Multiplying in float
+        // and rounding only the sum leaves a fraction of a rupee in the payslip
+        // (12.999999999 vs 13.00) that does not survive a re-read of the column.
+        $lateDed = Money::multiply(
+            $this->attendance->deductionFor('deduction_late_type', 'deduction_late_amount', $dailyRate, $rules),
+            $counts['late'],
+        );
 
-        $attendanceDeductions = round($lateDed + $shortLeaveDed + $absentDed, 2);
-        $net = round($gross - $attendanceDeductions, 2);
+        $shortLeaveDed = Money::multiply(
+            $this->attendance->deductionFor('deduction_short_leave_type', 'deduction_short_leave_amount', $dailyRate, $rules),
+            $counts['short_leave'],
+        );
+
+        $absentPerDay = $this->attendance->deductionFor('deduction_absent_type', 'deduction_absent_amount', $dailyRate, $rules);
+
+        // A half day counts as half an absence, hence the 0.5 factor.
+        $absenceUnits = Money::add($counts['absent'], Money::multiply('0.5', $counts['half_day']));
+        $absentDed = Money::multiply($absentPerDay, $absenceUnits);
+
+        $attendanceDeductions = Money::add($lateDed, $shortLeaveDed, $absentDed);
+
+        /**
+         * Deductions are capped at gross pay.
+         *
+         * The daily rate is gross divided by the number of working days, so a full
+         * month of absence multiplies back to very nearly the whole salary -- and
+         * because each product is rounded to the money scale before being summed,
+         * it can land a fraction above gross. The payslip then shows a *negative*
+         * net pay, which is not a thing: nobody owes the company their salary.
+         *
+         * Clamping here rather than at the posting layer keeps the payslip itself
+         * honest, because it is the document a payroll clerk reconciles against.
+         */
+        if (Money::isGreaterThan($attendanceDeductions, $gross)) {
+            $attendanceDeductions = Money::of($gross);
+        }
+
+        $net = Money::subtract($gross, $attendanceDeductions);
 
         return $run->payslips()->create([
             'employee_id' => $employee->id,
             'basic_salary' => (string) $structure->basic_salary,
             'allowances' => (string) $structure->allowances(),
-            'gross_pay' => (string) round($gross, 2),
+            'gross_pay' => Money::of($gross),
             'days_present' => $counts['present'],
             'days_late' => $counts['late'],
             'days_short_leave' => $counts['short_leave'],
             'days_half_day' => $counts['half_day'],
             'days_absent' => $counts['absent'],
-            'attendance_deductions' => (string) $attendanceDeductions,
-            'total_deductions' => (string) $attendanceDeductions,
-            'net_pay' => (string) $net,
+            'attendance_deductions' => $attendanceDeductions,
+            'total_deductions' => $attendanceDeductions,
+            'net_pay' => $net,
         ]);
     }
 }

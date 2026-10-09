@@ -146,8 +146,8 @@ class AccountController extends Controller
             'description' => ['nullable', 'string', 'max:5000'],
         ]);
 
-        if (! empty($data['parent_id'])) {
-            $parent = Account::find($data['parent_id']);
+        if (! empty($data['parent_id'] ?? null)) {
+            $parent = Account::find($data['parent_id'] ?? null);
             if ($parent && $parent->type !== $data['type']) {
                 $data['type'] = $parent->type;
             }

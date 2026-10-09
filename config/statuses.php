@@ -26,7 +26,8 @@ return [
         'draft' => ['neutral', 'Draft'],
         'sent' => ['info', 'Sent'],
         'accepted' => ['success', 'Accepted'],
-        'rejected' => ['danger', 'Rejected'],
+          'pending_approval' => ['warning', 'Awaiting approval'],
+  'rejected' => ['danger', 'Rejected'],
         'converted' => ['success', 'Converted'],
         'confirmed' => ['info', 'Confirmed'],
         'packed' => ['info', 'Packed'],
@@ -74,6 +75,7 @@ return [
         'filed' => ['info', 'Filed'],
         'active' => ['success', 'Active'],
         'closed' => ['neutral', 'Closed'],
+  'locked' => ['danger', 'Locked'],
     ],
 
     'banking' => [

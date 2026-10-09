@@ -41,6 +41,54 @@
                     box-shadow: none !important;
                     border: none !important;
                 }
+
+                /*
+                    While the preview overlay is open, the thing to print is the
+                    previewed document.
+
+                    The overlay is rendered outside the app shell (see
+                    @stack('preview')), so hiding the shell removes the chrome
+                    and the data-entry form while leaving the document. An earlier
+                    version kept the overlay inside <main> and printed a blank
+                    page.
+
+                    .app-shell is h-full, which is a full viewport of layout. In
+                    print that produced an empty page *before* the document, so
+                    it is removed outright rather than merely having its parts
+                    hidden.
+                */
+                body.document-preview-open .app-shell { display: none !important; }
+                body.document-preview-open aside,
+                body.document-preview-open header { display: none !important; }
+
+                /*
+                    <main> holds the data-entry form. The rule above removes it
+                    along with the rest of the shell, but it is repeated
+                    explicitly because the overlay is not always outside the
+                    shell: a screen that pushes the preview from inside its own
+                    content would otherwise print the form above the document.
+                */
+                body.document-preview-open main { display: none !important; }
+
+                body.document-preview-open .document-preview-overlay {
+                    position: static !important;
+                    display: block !important;
+                    overflow: visible !important;
+                    height: auto !important;
+                    background: #fff !important;
+                }
+
+                /* The overlay's own toolbar is UI, not part of the document. */
+                body.document-preview-open .document-preview-overlay > .sticky { display: none !important; }
+
+                /* The centring canvas is page furniture too. */
+                body.document-preview-open .document-preview-overlay > .flex { display: block !important; padding: 0 !important; }
+
+                body.document-preview-open .document-preview-sheet {
+                    max-width: none !important;
+                    padding: 0 !important;
+                    box-shadow: none !important;
+                }
             }
         </style>
 
@@ -63,7 +111,7 @@
     <body class="h-full font-sans antialiased">
         <div
             x-data="appShell()"
-            class="flex h-full overflow-hidden bg-canvas"
+            class="app-shell flex h-full overflow-hidden bg-canvas"
         >
             @include('layouts.partials.sidebar')
 
@@ -101,6 +149,15 @@
         <script>
             window.flashToasts = @json(session('toasts', []));
         </script>
+
+        {{--
+            The document preview overlay is pushed here, deliberately outside
+            <main>. The print stylesheet hides <main> so that printing from a
+            create screen yields the document rather than the data-entry form,
+            and an overlay nested inside <main> would be hidden along with it —
+            printing a blank page.
+        --}}
+        @stack('preview')
 
         @stack('scripts')
     </body>

@@ -53,9 +53,12 @@ class SalaryStructureController extends Controller
             'employee_id' => $data['employee_id'],
             'effective_from' => $data['effective_from'],
             'basic_salary' => (string) $data['basic_salary'],
-            'housing_allowance' => (string) $data['housing_allowance'],
-            'transport_allowance' => (string) $data['transport_allowance'],
-            'other_allowance' => (string) $data['other_allowance'],
+            // All three allowances are nullable, and Laravel's validated array omits
+            // a key the form did not submit -- reading one unguarded raised
+            // "Undefined array key" and 500'd payroll setup.
+            'housing_allowance' => (string) ($data['housing_allowance'] ?? 0),
+            'transport_allowance' => (string) ($data['transport_allowance'] ?? 0),
+            'other_allowance' => (string) ($data['other_allowance'] ?? 0),
             'is_active' => true,
             'notes' => $data['notes'] ?? null,
         ]);
@@ -80,9 +83,9 @@ class SalaryStructureController extends Controller
             'employee_id' => $data['employee_id'],
             'effective_from' => $data['effective_from'],
             'basic_salary' => (string) $data['basic_salary'],
-            'housing_allowance' => (string) $data['housing_allowance'],
-            'transport_allowance' => (string) $data['transport_allowance'],
-            'other_allowance' => (string) $data['other_allowance'],
+            'housing_allowance' => (string) ($data['housing_allowance'] ?? 0),
+            'transport_allowance' => (string) ($data['transport_allowance'] ?? 0),
+            'other_allowance' => (string) ($data['other_allowance'] ?? 0),
             'is_active' => $structure->employee_id === $data['employee_id'] ? $structure->is_active : false,
             'notes' => $data['notes'] ?? null,
         ]);

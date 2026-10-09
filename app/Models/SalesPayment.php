@@ -15,7 +15,7 @@ class SalesPayment extends Model
     protected $table = 'sales_payments';
 
     protected $fillable = [
-        'number', 'invoice_id', 'customer_id', 'bank_account_id', 'amount', 'payment_date', 'method',
+        'number', 'number', 'reference_number', 'invoice_id', 'customer_id', 'bank_account_id', 'amount', 'payment_date', 'method',
         'reference', 'currency', 'exchange_rate', 'notes',
     ];
 

@@ -10,7 +10,7 @@ class SalesInvoiceItem extends Model
     protected $table = 'sales_invoice_items';
 
     protected $fillable = [
-        'invoice_id', 'product_id', 'description', 'qty', 'unit_price',
+        'invoice_id', 'product_id', 'description', 'qty', 'unit_price', 'unit_cost',
         'discount_percent', 'tax_percent', 'line_total',
     ];
 
@@ -19,6 +19,7 @@ class SalesInvoiceItem extends Model
         return [
             'qty' => 'decimal:3',
             'unit_price' => 'decimal:2',
+            'unit_cost' => 'decimal:2',
             'discount_percent' => 'decimal:2',
             'tax_percent' => 'decimal:2',
             'line_total' => 'decimal:2',

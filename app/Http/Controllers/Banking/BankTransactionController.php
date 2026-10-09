@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Banking;
 use App\Http\Controllers\Controller;
 use App\Models\BankAccount;
 use App\Models\BankTransaction;
+use App\Services\Accounting\LedgerPosting;
 use App\Support\ExportsCsv;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -63,6 +64,16 @@ class BankTransactionController extends Controller
             'is_reconciled' => false,
         ]);
 
+        /**
+         * Post it to the ledger.
+         *
+         * A hand-entered deposit is real money in the account, and until it posts
+         * the balance sheet does not show it. The offset is Uncategorised Bank
+         * Items: the money has arrived but nobody has said what it is, so it is a
+         * liability rather than a cost until matched.
+         */
+        app(LedgerPosting::class)->bankTransactionPosted($transaction->fresh());
+
         return redirect()->route('banking.transactions.index')
             ->with('toasts', [['type' => 'success', 'message' => "Transaction {$transaction->number} recorded."]]);
     }
@@ -79,6 +90,16 @@ class BankTransactionController extends Controller
     {
         $data = $this->validateData($request, $transaction->id);
 
+        /**
+         * The ledger has to follow the edit, not trail behind it.
+         *
+         * The old journal is voided and a new one raised from the amended figures,
+         * because voiding alone would leave the balance sheet showing the original
+         * amount while the bank ledger shows the corrected one.
+         */
+        $ledger = app(LedgerPosting::class);
+        $ledger->reverseBankMovement($transaction);
+
         $transaction->update([
             'bank_account_id' => $data['bank_account_id'],
             'transaction_date' => $data['transaction_date'],
@@ -89,12 +110,20 @@ class BankTransactionController extends Controller
             'reference' => $data['reference'] ?? null,
         ]);
 
+        $transaction->forceFill(['journal_entry_id' => null])->saveQuietly();
+        $ledger->bankTransactionPosted($transaction->fresh());
+
         return back()->with('toasts', [['type' => 'success', 'message' => "Transaction {$transaction->number} updated."]]);
     }
 
     public function destroy(BankTransaction $transaction): RedirectResponse
     {
         $number = $transaction->number;
+
+        // Deleting the row while leaving its journal posted would strand the entry
+        // on the balance sheet with nothing referencing it.
+        app(LedgerPosting::class)->reverseBankMovement($transaction);
+
         $transaction->delete();
 
         return back()->with('toasts', [['type' => 'success', 'message' => "Transaction {$number} deleted."]]);

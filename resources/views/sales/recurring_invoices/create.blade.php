@@ -15,7 +15,7 @@
                 <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
                     <x-input name="name" label="Template name" required value="{{ old('name') }}" placeholder="e.g. Monthly hosting fee" />
                     <x-select name="customer_id" label="Customer" required>
-                        <option value="">— Select customer —</option>
+                        <option value="">â€” Select customer â€”</option>
                         @foreach ($customers as $customer)
                             <option value="{{ $customer->id }}" @selected(old('customer_id') == $customer->id)>{{ $customer->company_name }}</option>
                         @endforeach
@@ -28,14 +28,14 @@
                     <x-input name="next_run_date" label="Next run date" type="date" value="{{ old('next_run_date', now()->toDateString()) }}" />
                     <x-input name="day_of_cycle" label="Day of cycle" type="number" min="1" max="31" value="{{ old('day_of_cycle', 1) }}" hint="1-31. Clamped to month length." />
                     <x-select name="currency" label="Currency">
-                        <option value="">— Default —</option>
+                        <option value="">â€” Default â€”</option>
                         @foreach (currency_options() as $code => $label)
-                            <option value="{{ $code }}" @selected(old('currency', 'currency', settings('company.currency', 'USD')) === $code)>{{ $label }}</option>
+                            <option value="{{ $code }}" @selected(old('currency', settings('company.currency', 'USD')) === $code)>{{ $label }}</option>
                         @endforeach
                     </x-select>
                 </div>
 
-                <x-sales.line-items-editor :products="$products" :initial-items="[]" :currency="old('currency', settings('company.currency', 'USD'))" />
+                <x-sales.line-items-editor :products="$products" :initial-items="[]" :currency="old('currency', settings('company.currency', 'USD'))" :tax-hint="$taxHint" />
 
                 <x-textarea name="notes" label="Notes" rows="3">{{ old('notes') }}</x-textarea>
 

@@ -33,6 +33,7 @@
                             <option value="{{ $status }}" @selected(old('status', 'draft') === $status)>{{ ucfirst($status) }}</option>
                         @endforeach
                     </x-select>
+                    @include('documents.partials.reference-number', ['example' => 'Q-2026-0001'])
                     <x-input name="issue_date" label="Issue date" type="date" value="{{ old('issue_date', now()->toDateString()) }}" />
                     <x-input name="valid_until" label="Valid until" type="date" value="{{ old('valid_until') }}" />
                     <x-select name="currency" label="Currency">
@@ -43,7 +44,7 @@
                     </x-select>
                 </div>
 
-                <x-sales.line-items-editor :products="$products" :initial-items="[]" :currency="old('currency', settings('company.currency', 'USD'))" :max-discount="$maxDiscount" />
+                <x-sales.line-items-editor :products="$products" :initial-items="[]" :currency="old('currency', settings('company.currency', 'USD'))" :max-discount="$maxDiscount" :tax-hint="$taxHint" />
 
                 <x-textarea name="notes" label="Notes" rows="3">{{ old('notes') }}</x-textarea>
 

@@ -14,7 +14,7 @@ class DebitNote extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'number', 'invoice_id', 'supplier_id', 'issue_date', 'reason',
+        'number', 'number', 'reference_number', 'invoice_id', 'supplier_id', 'issue_date', 'reason',
         'currency', 'exchange_rate', 'subtotal', 'tax_amount', 'total', 'applied_amount', 'notes',
     ];
 

@@ -1,61 +1,8 @@
 @php
-    $attendanceTracked = auth()->user()->isAttendanceTracked();
-
-    $navItems = collect(config('nav.items', []))->map(function ($item) use ($enabledModuleKeys, $attendanceTracked) {
-        $module = $item['module'] ?? null;
-        $moduleEnabled = ! $module || in_array($module, $enabledModuleKeys, true);
-
-        if (! empty($item['group'])) {
-            $children = collect($item['items'] ?? [])
-                ->filter(function ($child) use ($enabledModuleKeys, $attendanceTracked) {
-                    $childModule = $child['module'] ?? null;
-                    if ($childModule && ! in_array($childModule, $enabledModuleKeys, true)) {
-                        return false;
-                    }
-                    if (($child['permission'] ?? null) && ! auth()->user()->can($child['permission'])) {
-                        return false;
-                    }
-                    // Self-service HR screens only exist for real employees.
-                    if (($child['employee_only'] ?? false) && ! $attendanceTracked) {
-                        return false;
-                    }
-                    return true;
-                })
-                ->values();
-
-            return ['item' => $item, 'visible' => $moduleEnabled && $children->isNotEmpty(), 'children' => $children];
-        }
-
-        $visible = $moduleEnabled;
-        if (($item['permission'] ?? null) && ! auth()->user()->can($item['permission'])) {
-            $visible = false;
-        }
-        if (($item['employee_only'] ?? false) && ! $attendanceTracked) {
-            $visible = false;
-        }
-
-        return ['item' => $item, 'visible' => $visible];
-    });
-
-    $isActive = function ($route) {
-        $current = request()->route()->getName();
-        if (! $current) {
-            return false;
-        }
-        if ($current === $route) {
-            return true;
-        }
-        if (str_starts_with($current, $route . '.')) {
-            return true;
-        }
-        $segments = explode('.', $route);
-        if (end($segments) === 'index') {
-            array_pop($segments);
-            $base = implode('.', $segments);
-            return str_starts_with($current, $base . '.');
-        }
-        return false;
-    };
+    // Visibility and active-state resolution live in App\Support\NavBuilder so the
+    // rule is testable on its own and cannot drift from the one the routes enforce.
+    $navItems = \App\Support\NavBuilder::items(auth()->user(), $enabledModuleKeys);
+    $isActive = fn ($route) => \App\Support\NavBuilder::isActive($route);
 @endphp
 
 {{-- Mobile overlay --}}

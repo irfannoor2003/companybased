@@ -6,10 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\PayrollRun;
 use App\Models\Payslip;
+use App\Services\Accounting\LedgerPosting;
 use App\Services\NotificationService;
 use App\Services\PayrollService;
 use App\Support\ExportsCsv;
 use App\Support\ExportsJson;
+use App\Support\Money;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -44,6 +46,55 @@ class PayrollRunController extends Controller
         ]);
     }
 
+    /**
+     * Record the wage cost and what is owed, at the moment the run is approved.
+     *
+     * The posting is keyed to the run, so LedgerPosting makes it idempotent: an
+     * approval that is retried or double-clicked cannot double the expense.
+     */
+    public function approve(PayrollRun $run): RedirectResponse
+    {
+        if ($run->status === 'void') {
+            return back()->with('toasts', [['type' => 'danger', 'message' => 'Void payroll runs cannot be approved.']]);
+        }
+
+        if ($run->status === 'paid') {
+            return back()->with('toasts', [['type' => 'info', 'message' => 'This run is already paid.']]);
+        }
+
+        try {
+            $run->update(['status' => 'submitted']);
+
+            $entry = app(LedgerPosting::class)->payrollRunApproved(
+                $run,
+                $this->withheldFor($run),
+                $run->period_end?->toDateString(),
+            );
+        } catch (\RuntimeException $e) {
+            return back()->with('toasts', [['type' => 'danger', 'message' => $e->getMessage()]]);
+        }
+
+        return back()->with('toasts', [[
+            'type' => 'success',
+            'message' => $entry
+                ? "{$run->number} approved and posted to the ledger."
+                : "{$run->number} approved.",
+        ]]);
+    }
+
+    /**
+     * Employee tax withheld across the run's payslips.
+     *
+     * Taken from the payslip notes' dedicated column when the run carries one, and
+     * otherwise derived as gross less net so the journal balances. Deriving it is
+     * not a guess about the tax rate: gross minus net is the amount that was
+     * withheld from the employee by definition, whatever it was composed of.
+     */
+    private function withheldFor(PayrollRun $run): string
+    {
+        return Money::subtract($run->total_gross, $run->total_net);
+    }
+
     public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([
@@ -69,8 +120,8 @@ class PayrollRunController extends Controller
         ]);
 
         $employees = null;
-        if (! empty($data['employee_ids'])) {
-            $employees = Employee::whereIn('id', $data['employee_ids'])->get();
+        if (! empty($data['employee_ids'] ?? null)) {
+            $employees = Employee::whereIn('id', $data['employee_ids'] ?? null)->get();
         }
 
         $this->payroll->generate($run, $employees);
@@ -120,6 +171,24 @@ class PayrollRunController extends Controller
             if ($run->status === 'paid') {
                 return;
             }
+
+            /**
+             * Settle net pay against the liability created at approval.
+             *
+             * LedgerPosting is idempotent on the run, so paying twice cannot debit
+             * Net Pay Payable twice. If approval never posted -- a deployment with an
+             * incomplete chart of accounts, or a run approved before this wiring
+             * existed -- there is no liability to settle, so the approval is posted
+             * here rather than leaving a payroll payout with no matching accrual.
+             */
+            $ledger = app(LedgerPosting::class);
+
+            if (! $ledger->hasJournalFor($run)) {
+                $ledger->payrollRunApproved($run->fresh(), null, $run->period_end?->toDateString());
+            }
+
+            $ledger->payrollPaid($run->fresh());
+
             $run->update(['status' => 'paid', 'paid_at' => now()]);
         });
 

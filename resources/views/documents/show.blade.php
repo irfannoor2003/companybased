@@ -5,6 +5,12 @@
                 <div class="print:hidden">
                     @can($viewPermission)
                         <x-button :href="$pdfRoute" variant="secondary" icon="download" target="_blank" rel="noopener">Export PDF</x-button>
+                        @if ($doc instanceof \App\Models\SalesQuote || $doc instanceof \App\Models\PurchaseOrder)
+                            <button type="button" x-data="" x-on:click="$dispatch('open-modal', 'send-document-modal')" class="btn-secondary">
+                                <x-icon name="mail" class="size-4 mr-1.5" />
+                                Email {{ $title }}
+                            </button>
+                        @endif
                     @endcan
                     <button type="button" onclick="window.print()" class="btn-ghost btn-icon btn-sm" title="Print">
                         <x-icon name="printer" class="size-4" />
@@ -48,6 +54,9 @@
                 <div class="text-right">
                     <h2 class="text-2xl font-bold text-ink">{{ $title }}</h2>
                     <p class="text-sm text-ink-soft mt-1">{{ $number }}</p>
+                    @if (! empty($referenceNumber))
+                        <p class="text-sm text-ink-soft">Ref: {{ $referenceNumber }}</p>
+                    @endif
                     <p class="text-sm text-ink-faint">{{ $dateRow['label'] }}: {{ $dateRow['value'] ?? '—' }}</p>
                     <p class="text-sm text-ink-faint">Status: {{ $statusRow ? $statusRow['value'] : '—' }}</p>
                 </div>
@@ -139,4 +148,38 @@
             </div>
         </div>
     </div>
+
+    @if ($doc instanceof \App\Models\SalesQuote || $doc instanceof \App\Models\PurchaseOrder)
+        @php
+            $isQuote = $doc instanceof \App\Models\SalesQuote;
+            // Route names are module-prefixed. The unprefixed spellings
+            // (quotes.send_email / purchase_orders.send_email) never existed and
+            // threw RouteNotFoundException, 500-ing this page for both documents.
+            $sendRoute = $isQuote ? route('sales.quotes.send_email', $doc) : route('suppliers.purchase_orders.send_email', $doc);
+            $partnerEmail = $isQuote ? ($doc->customer?->email ?? '') : ($doc->supplier?->email ?? '');
+            // A purchase order is not attributed to a salesperson, so only the
+            // quote side resolves one.
+            $senderEmail = $isQuote
+                ? \App\Support\MailIdentity::salesFromAddress($doc->salesman)
+                : \App\Support\MailIdentity::accountsFromAddress();
+        @endphp
+        <x-modal name="send-document-modal" :title="'Email '.$title.' '.$number" :description="'Send this '.$title.' directly with official PDF attached. Sent from: '.$senderEmail">
+            <form method="POST" action="{{ $sendRoute }}" class="space-y-4">
+                @csrf
+                <div>
+                    <x-input name="recipient_email" label="Recipient Email" type="email" required value="{{ old('recipient_email', $partnerEmail) }}" placeholder="e.g. contact@example.com" />
+                </div>
+                <div>
+                    <x-textarea name="message" label="Custom Note (Optional)" rows="3" placeholder="Add an optional message...">{{ old('message') }}</x-textarea>
+                </div>
+                <div class="rounded-lg bg-surface-muted p-3 text-xs text-ink-soft">
+                    The official PDF for {{ $title }} <strong>{{ $number }}</strong> will be generated and attached automatically.
+                </div>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" x-on:click="$dispatch('close-modal', 'send-document-modal')" class="btn-ghost">Cancel</button>
+                    <x-button type="submit" icon="send">Send {{ $title }}</x-button>
+                </div>
+            </form>
+        </x-modal>
+    @endif
 </x-app-layout>

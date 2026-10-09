@@ -40,7 +40,11 @@
                             <option value="{{ $code }}" @selected(old('currency', $invoice->currency) === $code)>{{ $label }}</option>
                         @endforeach
                     </x-select>
-                        <x-input name="issue_date" label="Issue date" type="date" value="{{ old('issue_date', $invoice->issue_date?->format('Y-m-d')) }}" />
+                        @include('documents.partials.reference-number', [
+                        'value' => $invoice->reference_number,
+                        'example' => 'INV-2026-0001',
+                    ])
+                    <x-input name="issue_date" label="Issue date" type="date" value="{{ old('issue_date', $invoice->issue_date?->format('Y-m-d')) }}" />
                         <x-input name="due_date" label="Due date" type="date" value="{{ old('due_date', $invoice->due_date?->format('Y-m-d')) }}" />
                     </div>
 

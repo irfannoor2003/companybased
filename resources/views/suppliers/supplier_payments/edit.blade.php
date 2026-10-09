@@ -15,8 +15,13 @@
                  @method('PUT')
 
                  <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                     @include('documents.partials.reference-number', [
+                         'label' => 'Manual payment number',
+                         'example' => 'SP-OS-4471',
+                         'value' => $payment->reference_number,
+                     ])
                      <x-select name="supplier_id" label="Supplier" required @change="$event.target.value && syncCurrency($event.target)">
-                        @foreach ($suppliers as $supplier)
+                         @foreach ($suppliers as $supplier)
                             <option value="{{ $supplier->id }}" data-currency="{{ $supplier->currency ?? '' }}" @selected(old('supplier_id', $payment->supplier_id) == $supplier->id)>{{ $supplier->company_name }}</option>
                         @endforeach
                     </x-select>

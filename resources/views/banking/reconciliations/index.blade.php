@@ -72,11 +72,25 @@
                                 </td>
                                 <td><x-banking.status-badge :status="$reconciliation->status" /></td>
                                 <td class="text-right">
-                                    @if (auth()->user()->can('banking.reconciliations.edit'))
-                                        <a href="{{ route('banking.reconciliations.edit', $reconciliation) }}" class="btn-ghost btn-icon btn-sm" title="Edit">
-                                            <x-icon name="edit" class="size-4" />
-                                        </a>
-                                    @endif
+                                    <div class="flex items-center justify-end gap-1">
+                                        @if (auth()->user()->can('banking.reconciliations.edit'))
+                                            <a href="{{ route('banking.reconciliations.edit', $reconciliation) }}" class="btn-ghost btn-icon btn-sm" title="Edit">
+                                                <x-icon name="edit" class="size-4" />
+                                            </a>
+                                        @endif
+                                        {{-- The controller refuses to delete a completed reconciliation, so the
+                                             button is withheld rather than left to fail. --}}
+                                        @if (auth()->user()->can('banking.reconciliations.delete') && ! $reconciliation->isCompleted())
+                                            <form method="POST" action="{{ route('banking.reconciliations.destroy', $reconciliation) }}"
+                                                onsubmit="return confirm('Delete reconciliation {{ $reconciliation->number }}?');">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="btn-ghost btn-icon btn-sm text-rose-500" title="Delete">
+                                                    <x-icon name="trash" class="size-4" />
+                                                </button>
+                                            </form>
+                                        @endif
+                                    </div>
                                 </td>
                             </tr>
                         @endforeach

@@ -8,15 +8,18 @@ use App\Models\Product;
 use App\Models\SalesCustomer;
 use App\Models\SalesOrder;
 use App\Models\SalesQuote;
+use App\Mail\SalesQuoteMailable;
 use App\Support\DiscountLimit;
 use App\Support\DocumentData;
 use App\Support\DocumentItems;
+use App\Support\DocumentReference;
 use App\Support\ExportsCsv;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -49,12 +52,18 @@ class QuoteController extends Controller
         $products = Product::query()->where('is_active', true)->orderBy('name')->get();
         $maxDiscount = $this->getMaxDiscountForUser();
 
-        return view('sales.quotes.create', compact('customers', 'priceLists', 'products', 'maxDiscount'));
+        // What the tax engine expects on this document's date.
+
+        $taxHint = $this->taxRateHint('sales', now()->toDateString());
+
+
+        return view('sales.quotes.create', compact('customers', 'priceLists', 'products', 'maxDiscount', 'taxHint'));;
     }
 
     public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([
+            'reference_number' => DocumentReference::rules('sales_quotes'),
             'customer_id' => ['required', 'integer', Rule::exists('sales_customers', 'id')],
             'price_list_id' => ['nullable', 'integer', Rule::exists('price_lists', 'id')],
             'issue_date' => ['required', 'date'],
@@ -66,10 +75,13 @@ class QuoteController extends Controller
         ]);
 
         $this->validateDiscountLimits($request->input('items', []));
+        $this->validateTaxRates($request->input('items', []), 'sales', $data['issue_date'] ?? null);
 
         $quote = SalesQuote::create([
             'number' => next_document_number('quote', 'Q'),
+            'reference_number' => DocumentReference::fromRequest($data['reference_number'] ?? null),
             'customer_id' => $data['customer_id'],
+            'salesman_id' => auth()->id(),
             'price_list_id' => $data['price_list_id'] ?? null,
             'issue_date' => $data['issue_date'],
             'valid_until' => $data['valid_until'] ?? null,
@@ -109,11 +121,33 @@ class QuoteController extends Controller
         $this->preparePdf();
         $quote->load(['customer', 'items.product']);
 
-        $html = view('pdf.document', DocumentData::build($quote))->render();
+        $html = view('documents.pdf', DocumentData::build($quote))->render();
 
         $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
 
         return $pdf->stream('quote-'.$quote->number.'.pdf');
+    }
+
+    public function sendEmail(Request $request, SalesQuote $quote): RedirectResponse
+    {
+        $quote->loadMissing(['customer', 'salesman']);
+
+        $data = $request->validate([
+            'recipient_email' => ['required', 'email', 'max:255'],
+            'message' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        try {
+            Mail::to($data['recipient_email'])->send(
+                new SalesQuoteMailable($quote, $data['message'] ?? null)
+            );
+
+            return back()->with('toasts', [['type' => 'success', 'message' => "Quotation {$quote->number} sent to {$data['recipient_email']}."]]);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return back()->with('toasts', [['type' => 'error', 'message' => 'Failed to send quotation email: '.$e->getMessage()]]);
+        }
     }
 
     public function update(Request $request, SalesQuote $quote): RedirectResponse
@@ -123,6 +157,7 @@ class QuoteController extends Controller
         }
 
         $data = $request->validate([
+            'reference_number' => DocumentReference::rules('sales_quotes', $quote->id),
             'customer_id' => ['required', 'integer', Rule::exists('sales_customers', 'id')],
             'price_list_id' => ['nullable', 'integer', Rule::exists('price_lists', 'id')],
             'issue_date' => ['required', 'date'],
@@ -134,8 +169,10 @@ class QuoteController extends Controller
         ]);
 
         $this->validateDiscountLimits($request->input('items', []));
+        $this->validateTaxRates($request->input('items', []), 'sales', $data['issue_date'] ?? null);
 
         $quote->update([
+            'reference_number' => DocumentReference::fromRequest($data['reference_number'] ?? null),
             'customer_id' => $data['customer_id'],
             'price_list_id' => $data['price_list_id'] ?? null,
             'issue_date' => $data['issue_date'],
@@ -198,7 +235,10 @@ class QuoteController extends Controller
                 'number' => next_document_number('order', 'SO'),
                 'quote_id' => $quote->id,
                 'customer_id' => $quote->customer_id,
-                'salesman_id' => auth()->id(),
+                // Carry the quote's rep across instead of crediting the order to
+                // whoever pressed Convert, so Sales-by-Salesman reporting and the
+                // Sales mail identity stay attributed to the original author.
+                'salesman_id' => $quote->salesman_id ?? auth()->id(),
                 'issue_date' => now()->toDateString(),
                 'status' => 'draft',
                 'currency' => $quote->currency,

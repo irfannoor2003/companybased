@@ -56,7 +56,99 @@ class MailConfigServiceProvider extends ServiceProvider
             'mail.mailers.smtp.port' => (int) Setting::get('mail.port', config('mail.mailers.smtp.port')),
             'mail.mailers.smtp.username' => Setting::get('mail.username', config('mail.mailers.smtp.username')),
             'mail.mailers.smtp.password' => Setting::get('mail.password', config('mail.mailers.smtp.password')),
-            'mail.mailers.smtp.scheme' => Setting::get('mail.encryption', config('mail.mailers.smtp.scheme')),
+            'mail.mailers.smtp.scheme' => $this->smtpScheme(
+                Setting::get('mail.encryption', config('mail.mailers.smtp.scheme')),
+            ),
+        ]);
+
+        $this->applyTeamMailer();
+        $this->applyAccountsMailer();
+        $this->applySalesMailer();
+    }
+
+    /**
+     * Translate the panel's "encryption" choice into a scheme Symfony Mailer
+     * actually accepts.
+     *
+     * The panel offers TLS / SSL / None because that is how SMTP servers are
+     * described to administrators, but Symfony's SMTP DSN only knows two
+     * schemes: `smtp` and `smtps`. Passing the label straight through makes
+     * `UnsupportedSchemeException` escape from `EsmtpTransportFactory` the
+     * first time anything tries to resolve the transport — which happened
+     * *before* a queued mail was dispatched, so it turned ordinary "create
+     * customer" requests into 500s.
+     *
+     * `ssl` is implicit TLS, i.e. `smtps`. `tls` is opportunistic STARTTLS,
+     * which is the behaviour of the plain `smtp` scheme. "None" is `smtp`
+     * too, since an unencrypted server simply never offers STARTTLS.
+     */
+    private function smtpScheme(mixed $encryption): ?string
+    {
+        return match (strtolower(trim((string) $encryption))) {
+            'ssl', 'smtps' => 'smtps',
+            default => 'smtp',
+        };
+    }
+
+    /**
+     * The team mailbox is a second login on the *same* SMTP server, so the
+     * connection settings are inherited rather than configured twice. Only the
+     * username and password are its own.
+     *
+     * Left untouched when no team login is stored, so a single-mailbox install
+     * resolves no second transport and personal mail keeps using the default.
+     */
+    private function applyTeamMailer(): void
+    {
+        $username = Setting::get('mail.team_username') ?: env('MAIL_TEAM_USERNAME');
+        $password = Setting::get('mail.team_password') ?: env('MAIL_TEAM_PASSWORD');
+
+        if (! filled($username) || ! filled($password)) {
+            return;
+        }
+
+        config([
+            'mail.mailers.smtp_team.host' => config('mail.mailers.smtp.host'),
+            'mail.mailers.smtp_team.port' => config('mail.mailers.smtp.port'),
+            'mail.mailers.smtp_team.scheme' => config('mail.mailers.smtp.scheme'),
+            'mail.mailers.smtp_team.username' => $username,
+            'mail.mailers.smtp_team.password' => $password,
+        ]);
+    }
+
+    private function applyAccountsMailer(): void
+    {
+        $username = Setting::get('mail.accounts_username') ?: env('MAIL_ACCOUNTS_USERNAME');
+        $password = Setting::get('mail.accounts_password') ?: env('MAIL_ACCOUNTS_PASSWORD');
+
+        if (! filled($username) || ! filled($password)) {
+            return;
+        }
+
+        config([
+            'mail.mailers.smtp_accounts.host' => config('mail.mailers.smtp.host'),
+            'mail.mailers.smtp_accounts.port' => config('mail.mailers.smtp.port'),
+            'mail.mailers.smtp_accounts.scheme' => config('mail.mailers.smtp.scheme'),
+            'mail.mailers.smtp_accounts.username' => $username,
+            'mail.mailers.smtp_accounts.password' => $password,
+        ]);
+    }
+
+    private function applySalesMailer(): void
+    {
+        $username = Setting::get('mail.sales_username') ?: env('MAIL_SALES_USERNAME');
+        $password = Setting::get('mail.sales_password') ?: env('MAIL_SALES_PASSWORD');
+
+        if (! filled($username) || ! filled($password)) {
+            return;
+        }
+
+        config([
+            'mail.mailers.smtp_sales.host' => config('mail.mailers.smtp.host'),
+            'mail.mailers.smtp_sales.port' => config('mail.mailers.smtp.port'),
+            'mail.mailers.smtp_sales.scheme' => config('mail.mailers.smtp.scheme'),
+            'mail.mailers.smtp_sales.username' => $username,
+            'mail.mailers.smtp_sales.password' => $password,
         ]);
     }
 }

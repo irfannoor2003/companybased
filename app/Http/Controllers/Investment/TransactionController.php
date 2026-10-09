@@ -48,7 +48,7 @@ class TransactionController extends Controller
     {
         $data = $this->validateData($request);
 
-        $total = round((float) $data['quantity'] * (float) $data['unit_price'] + (float) $data['fees'], 2);
+        $total = round((float) $data['quantity'] * (float) $data['unit_price'] + (float) ($data['fees'] ?? null), 2);
 
         $transaction = InvestmentTransaction::create([
             'investment_id' => $data['investment_id'],
@@ -56,7 +56,7 @@ class TransactionController extends Controller
             'type' => $data['type'],
             'quantity' => (string) $data['quantity'],
             'unit_price' => (string) $data['unit_price'],
-            'fees' => (string) $data['fees'],
+            'fees' => (string) ($data['fees'] ?? null),
             'total' => (string) $total,
             'notes' => $data['notes'] ?? null,
         ]);
@@ -80,7 +80,7 @@ class TransactionController extends Controller
     {
         $data = $this->validateData($request);
 
-        $total = round((float) $data['quantity'] * (float) $data['unit_price'] + (float) $data['fees'], 2);
+        $total = round((float) $data['quantity'] * (float) $data['unit_price'] + (float) ($data['fees'] ?? null), 2);
 
         $transaction->update([
             'investment_id' => $data['investment_id'],
@@ -88,7 +88,7 @@ class TransactionController extends Controller
             'type' => $data['type'],
             'quantity' => (string) $data['quantity'],
             'unit_price' => (string) $data['unit_price'],
-            'fees' => (string) $data['fees'],
+            'fees' => (string) ($data['fees'] ?? null),
             'total' => (string) $total,
             'notes' => $data['notes'] ?? null,
         ]);

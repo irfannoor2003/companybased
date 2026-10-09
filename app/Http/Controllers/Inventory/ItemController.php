@@ -59,7 +59,7 @@ class ItemController extends Controller
         $data = $this->validateData($request);
 
         $item = InventoryItem::create([
-            'product_id' => $data['product_id'],
+            'product_id' => $data['product_id'] ?? null,
             'reorder_level' => $data['reorder_level'] ?? 0,
             'reorder_quantity' => $data['reorder_quantity'] ?? 0,
             'notes' => $data['notes'] ?? null,

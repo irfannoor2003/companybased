@@ -62,8 +62,7 @@ return [
                 'roles' => ['view', 'manage'],
                 'permissions' => ['view', 'manage'],
                 'theme' => ['view', 'manage'],
-                'templates' => ['view', 'manage'],
-                'tax_rates' => ['view', 'manage'],
+'templates' => ['view', 'manage'],
                 'currencies' => ['view', 'manage'],
                 'base_currency' => ['view', 'manage'],
                 'payment_terms' => ['view', 'manage'],
@@ -140,8 +139,9 @@ return [
                 'items' => ['view', 'create', 'edit', 'delete', 'export', 'adjust_stock'],
                 'transfers' => ['view', 'create', 'edit', 'delete', 'export'],
                 'write_offs' => ['view', 'create', 'edit', 'delete', 'export'],
-                'production_orders' => ['view', 'create', 'edit', 'delete', 'export', 'update_status'],
+                'production_orders' => ['view', 'create', 'edit', 'delete', 'export', 'update_status', 'record_labour'],
                 'bill_of_materials' => ['view', 'create', 'edit', 'delete', 'export'],
+                  'material_requirements' => ['view', 'export'],
                 'warehouses' => ['view', 'create', 'edit', 'delete', 'export'],
                 'incoming_shipments' => ['view', 'create', 'edit', 'delete', 'export', 'receive', 'approve'],
             ],
@@ -185,10 +185,15 @@ return [
             'permissions' => [
                 'chart_of_accounts' => ['view', 'create', 'edit', 'delete', 'export'],
                 'journal_entries' => ['view', 'create', 'edit', 'delete', 'export'],
-                'expense_claims' => ['view', 'create', 'edit', 'delete', 'export'],
+                'expense_claims' => ['view', 'create', 'edit', 'delete', 'export', 'approve', 'reimburse'],
                 'bills' => ['view', 'create', 'edit', 'delete', 'export', 'record_payment'],
                 'tax_returns' => ['view', 'create', 'edit', 'delete', 'export'],
+        // Tax RATES are a ledger concern, not a company-setting one: they decide
+        // what gets posted to Output Tax Payable. They live under accounting so the
+        // permission matches the module the screen is actually in.
+        'tax_rates' => ['view', 'manage', 'delete'],
                 'budgeting' => ['view', 'create', 'edit', 'delete', 'export'],
+  'fiscal_periods' => ['view', 'create', 'edit', 'delete', 'close', 'lock'],
             ],
         ],
 

@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\SalesCustomer;
 use App\Models\SalesRecurringInvoice;
 use App\Support\DocumentData;
+use App\Support\DiscountLimit;
 use App\Support\DocumentItems;
 use App\Support\ExportsCsv;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -19,6 +20,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class RecurringInvoiceController extends Controller
 {
+    use DiscountLimit;
     use ExportsCsv;
 
     public function index(Request $request): View
@@ -43,7 +45,12 @@ class RecurringInvoiceController extends Controller
         $customers = SalesCustomer::query()->orderBy('company_name')->get();
         $products = Product::query()->where('is_active', true)->orderBy('name')->get();
 
-        return view('sales.recurring_invoices.create', compact('customers', 'products'));
+        // What the tax engine expects on this document's date.
+
+        $taxHint = $this->taxRateHint('sales', now()->toDateString());
+
+
+        return view('sales.recurring_invoices.create', compact('customers', 'products', 'taxHint'));;
     }
 
     public function store(Request $request): RedirectResponse
@@ -60,6 +67,8 @@ class RecurringInvoiceController extends Controller
             'is_active' => $request->boolean('is_active', true),
             'notes' => $data['notes'] ?? null,
         ]);
+
+        $this->validateTaxRates($request->input('items', []), 'sales', $data['issue_date'] ?? null);
 
         $totals = DocumentItems::sync($recurring, $request->input('items', []));
         $recurring->update(['subtotal' => $totals['subtotal'], 'tax_amount' => $totals['tax'], 'total' => $totals['total']]);
@@ -89,7 +98,7 @@ class RecurringInvoiceController extends Controller
         $this->preparePdf();
         $recurringInvoice->load(['customer', 'items.product']);
 
-        $html = view('pdf.document', DocumentData::build($recurringInvoice))->render();
+        $html = view('documents.pdf', DocumentData::build($recurringInvoice))->render();
 
         $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
 
@@ -110,6 +119,8 @@ class RecurringInvoiceController extends Controller
             'is_active' => $request->boolean('is_active', true),
             'notes' => $data['notes'] ?? null,
         ]);
+
+        $this->validateTaxRates($request->input('items', []), 'sales', $data['issue_date'] ?? null);
 
         $totals = DocumentItems::sync($recurringInvoice, $request->input('items', []));
         $recurringInvoice->update(['subtotal' => $totals['subtotal'], 'tax_amount' => $totals['tax'], 'total' => $totals['total']]);

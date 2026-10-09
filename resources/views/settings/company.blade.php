@@ -22,6 +22,18 @@
                     <x-textarea name="address" label="Address">{{ old('address', settings('company.address')) }}</x-textarea>
                 </div>
 
+                {{-- Printed down the left rail of every invoice. Left blank the
+                     block is omitted entirely rather than shown empty. --}}
+                <x-card title="Invoice payment details" description="Printed on the left edge of every invoice. Left blank, the payment and terms blocks are omitted from the document.">
+                    <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                        <x-input name="bank_account_name" label="Account name" value="{{ old('bank_account_name', settings('company.bank_account_name')) }}" />
+                        <x-input name="bank_name" label="Bank" value="{{ old('bank_name', settings('company.bank_name')) }}" />
+                        <x-input name="bank_account_number" label="Account number / IBAN" value="{{ old('bank_account_number', settings('company.bank_account_number')) }}" />
+                        <x-textarea name="payment_instructions" label="Payment instructions" rows="2">{{ old('payment_instructions', settings('company.payment_instructions')) }}</x-textarea>
+                        <x-textarea name="payment_terms" label="Payment terms" rows="3">{{ old('payment_terms', settings('company.payment_terms')) }}</x-textarea>
+                    </div>
+                </x-card>
+
                 <div class="grid grid-cols-1 gap-5 sm:grid-cols-3">
                     <x-input name="fiscal_year_start" label="Fiscal year start" type="date" value="{{ old('fiscal_year_start', settings('company.fiscal_year_start')) }}" />
                     <x-select name="timezone" label="Timezone">
@@ -172,7 +184,8 @@
         </x-card>
 
         {{-- Office Location --}}
-        <x-card title="Office Location" description="Set your office coordinates and radius for attendance and visit tracking. Employees must be within this radius to clock in/out.">
+        <x-card title="Office Location" description="Set your office coordinates and radius for attendance and visit tracking. Employees must be within this radius to clock in/out."
+            x-data="officeQrPreview(@js(old('qr_code_text', settings('company.qr_code_text', 'NEXOSDIGITAL-OFFICE-ATTENDANCE-2026'))))">
             <form method="POST" action="{{ route('settings.company.update') }}" class="space-y-5">
                 @csrf
                 @method('PUT')
@@ -186,10 +199,28 @@
                         value="{{ old('radius', settings('company.radius', '500')) }}" hint="Default: 500m" />
                 </div>
 
-                <div class="max-w-md">
+                <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
                     <x-input name="qr_code_text" label="QR Code Text" required
                         value="{{ old('qr_code_text', settings('company.qr_code_text', 'NEXOSDIGITAL-OFFICE-ATTENDANCE-2026')) }}"
-                        hint="Text encoded in the office QR code. Employees must scan this exact code." />
+                        hint="Text encoded in the office QR code. Employees must scan this exact code."
+                        x-model="qrText" />
+
+                    <div class="flex flex-col items-center gap-3 lg:w-56">
+                        <div class="rounded-xl border-2 border-dashed border-line bg-surface p-3">
+                            <template x-if="qrText.trim()">
+                                <img :src="previewUrl" alt="Office attendance QR code preview" class="block size-40" />
+                            </template>
+                            <p x-show="! qrText.trim()" class="flex size-40 items-center justify-center px-2 text-center text-xs text-ink-faint">
+                                Enter a QR code text to preview it
+                            </p>
+                        </div>
+                        <a :href="previewUrl" download="office-attendance-qr-code.png"
+                            class="btn-secondary btn-sm w-full justify-center"
+                            :class="qrText.trim() ? '' : 'pointer-events-none opacity-50'">
+                            <x-icon name="download" class="size-4 shrink-0" />
+                            Download PNG
+                        </a>
+                    </div>
                 </div>
 
                 <div class="flex justify-end border-t border-line pt-4">
@@ -198,4 +229,29 @@
             </form>
         </x-card>
     </div>
+
+    @push('scripts')
+    <script>
+        function officeQrPreview(initialText) {
+            return {
+                qrText: initialText ?? '',
+
+                /**
+                 * Server-rendered PNG for the current text. Re-requested on every
+                 * keystroke, so a blank box must not hammer the endpoint.
+                 */
+                get previewUrl() {
+                    const text = this.qrText.trim();
+
+                    if (! text) {
+                        return '';
+                    }
+
+                    return @json(route('settings.company.attendance-qr-code'))
+                        + '?text=' + encodeURIComponent(text);
+                }
+            }
+        }
+    </script>
+    @endpush
 </x-settings-layout>

@@ -30,7 +30,7 @@
                     <x-select name="currency" label="Currency">
                         <option value="">— Default —</option>
                         @foreach (currency_options() as $code => $label)
-                            <option value="{{ $code }}" @selected(old('currency', 'currency', $withholdingTaxReceipt->currency) === $code)>{{ $label }}</option>
+                            <option value="{{ $code }}" @selected(old('currency', $withholdingTaxReceipt->currency) === $code)>{{ $label }}</option>
                         @endforeach
                     </x-select>
                     <x-input name="amount" label="Payment amount" type="number" step="0.01" min="0" value="{{ old('amount', $withholdingTaxReceipt->amount) }}" />

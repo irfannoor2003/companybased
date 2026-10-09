@@ -59,7 +59,7 @@ class NotificationService
      * Notify a notifiable with a notification, running any pre/post hooks
      * (logging, provider fallback) around the dispatch.
      */
-    public function notifyStaff(string $permission, string $title, string $message, string $type = 'info', ?string $url = null, ?int $exceptUserId = null): void
+    public function notifyStaff(string $permission, string $title, string $message, string $type = 'info', ?string $url = null, ?int $exceptUserId = null, bool $sendEmail = false): void
     {
         // Resolve the permission in SQL rather than loading every user and
         // running a permission check on each one.
@@ -76,7 +76,7 @@ class NotificationService
         }
 
         try {
-            NotificationFacade::send($users, new SystemNotification($title, $message, $type, $url));
+            NotificationFacade::send($users, new SystemNotification($title, $message, $type, $url, $sendEmail));
         } catch (\Throwable $e) {
             $this->logFailure('staff', $title, $e);
         }
@@ -86,14 +86,14 @@ class NotificationService
      * Notify a single user directly, bypassing permission checks.
      * Used for "your request was approved" style messages.
      */
-    public function notifyUser(?User $user, string $title, string $message, string $type = 'info', ?string $url = null): void
+    public function notifyUser(?User $user, string $title, string $message, string $type = 'info', ?string $url = null, bool $sendEmail = false): void
     {
         if (! $user) {
             return;
         }
 
         try {
-            $user->notify(new SystemNotification($title, $message, $type, $url));
+            $user->notify(new SystemNotification($title, $message, $type, $url, $sendEmail));
         } catch (\Throwable $e) {
             $this->logFailure($user->email ?? (string) $user->id, $title, $e);
         }

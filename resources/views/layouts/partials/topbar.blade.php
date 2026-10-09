@@ -106,7 +106,7 @@
         </button>
 
         {{-- Notifications --}}
-        <x-dropdown align="right" class="!mr-1">
+        <x-dropdown align="right" width="w-[22rem] sm:w-[26rem]" class="!mr-1">
             @slot('trigger')
                 <button type="button" class="btn-ghost btn-icon relative" aria-label="Notifications">
                     <x-icon name="bell" class="size-5" />
@@ -126,18 +126,20 @@
                 @endif
             </div>
             <div class="mx-2 my-1 divider"></div>
-            @forelse ($unreadNotifications as $notification)
-                <form method="POST" action="{{ route('notifications.read', $notification->id) }}">
-                    @csrf
-                    <button type="submit" class="block w-full px-3 py-2 text-left transition hover:bg-surface-muted">
-                        <p class="text-sm font-semibold text-ink">{{ data_get($notification->data, 'title', 'Notification') }}</p>
-                        <p class="mt-0.5 text-xs text-ink-soft">{{ data_get($notification->data, 'message', '') }}</p>
-                        <p class="mt-1 text-[11px] text-ink-faint">{{ $notification->created_at?->diffForHumans() }}</p>
-                    </button>
-                </form>
-            @empty
-                <p class="px-3 py-2 text-center text-xs text-ink-faint">No new notifications</p>
-            @endforelse
+            <div class="max-h-[60vh] overflow-y-auto">
+                @forelse ($unreadNotifications as $notification)
+                    <form method="POST" action="{{ route('notifications.read', $notification->id) }}">
+                        @csrf
+                        <button type="submit" class="block w-full px-3 py-2.5 text-left transition hover:bg-surface-muted">
+                            <p class="text-sm font-semibold text-ink">{{ data_get($notification->data, 'title', 'Notification') }}</p>
+                            <p class="mt-0.5 text-xs leading-5 text-ink-soft">{{ data_get($notification->data, 'message', '') }}</p>
+                            <p class="mt-1 text-[11px] text-ink-faint">{{ $notification->created_at?->diffForHumans() }}</p>
+                        </button>
+                    </form>
+                @empty
+                    <p class="px-3 py-6 text-center text-xs text-ink-faint">No new notifications</p>
+                @endforelse
+            </div>
         </x-dropdown>
 
         {{-- User menu --}}

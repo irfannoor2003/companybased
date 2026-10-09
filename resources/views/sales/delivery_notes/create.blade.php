@@ -57,6 +57,7 @@
                             <option value="{{ $status }}" @selected(old('status', 'pending') === $status)>{{ ucfirst($status) }}</option>
                         @endforeach
                     </x-select>
+                    @include('documents.partials.reference-number', ['example' => 'DN-2026-0001'])
                     <x-input name="issue_date" label="Issue date" type="date" value="{{ old('issue_date', now()->toDateString()) }}" />
                     <x-input name="carrier" label="Carrier" value="{{ old('carrier') }}" placeholder="e.g. DHL, FedEx…" />
                     <x-input name="tracking_number" label="Tracking number" value="{{ old('tracking_number') }}" />

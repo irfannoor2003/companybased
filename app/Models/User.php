@@ -11,17 +11,18 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Notifications\Notifiable;
-use Spatie\Permission\Traits\HasRoles;
+    use Illuminate\Notifications\Notifiable;
+    use Laravel\Sanctum\HasApiTokens;
+    use Spatie\Permission\Traits\HasRoles;
 
 #[Fillable([
-    'name', 'email', 'password', 'first_name', 'last_name', 'phone', 'avatar', 'is_active',
+    'name', 'email', 'password', 'first_name', 'last_name', 'phone', 'avatar', 'is_active', 'access_until',
 ])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use Auditable, HasFactory, HasRoles, Notifiable, SoftDeletes;
+    use Auditable, HasApiTokens, HasFactory, HasRoles, Notifiable, SoftDeletes;
 
     protected string $auditModule = 'settings';
 
@@ -34,12 +35,19 @@ class User extends Authenticatable
      */
     protected function casts(): array
     {
-        return [
-            'email_verified_at' => 'datetime',
-            'password' => 'hashed',
-            'is_active' => 'boolean',
-            'last_login_at' => 'datetime',
-        ];
+    return [
+        'email_verified_at' => 'datetime',
+        'password' => 'hashed',
+        'is_active' => 'boolean',
+        'last_login_at' => 'datetime',
+        // Time-boxed access is a *date*, not an instant: the settings form uses
+        // <input type="date">, UserController validates it as 'date', and the views
+        // render it with format('Y-m-d'). Without a cast it arrived as a string and
+        // EnsureUserIsActive's isPast() call threw "Call to a member function
+        // isPast() on string", 500-ing every authenticated request for any account
+        // with an expiry set instead of logging it out.
+        'access_until' => 'date',
+    ];
     }
 
     public function isSuperAdmin(): bool

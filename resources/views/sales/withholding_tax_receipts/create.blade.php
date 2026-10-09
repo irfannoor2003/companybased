@@ -14,22 +14,22 @@
 
                 <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
                     <x-select name="customer_id" label="Customer" required>
-                        <option value="">— Select customer —</option>
+                        <option value="">â€” Select customer â€”</option>
                         @foreach ($customers as $customer)
                             <option value="{{ $customer->id }}" @selected(old('customer_id') == $customer->id)>{{ $customer->company_name }}</option>
                         @endforeach
                     </x-select>
                     <x-select name="invoice_id" label="Invoice">
-                        <option value="">— None —</option>
+                        <option value="">â€” None â€”</option>
                         @foreach (\App\Models\SalesInvoice::query()->with('customer')->orderByDesc('issue_date')->limit(100)->get() as $inv)
-                            <option value="{{ $inv->id }}" @selected(old('invoice_id') == $inv->id)>{{ $inv->number }} · {{ $inv->customer?->company_name }}</option>
+                            <option value="{{ $inv->id }}" @selected(old('invoice_id') == $inv->id)>{{ $inv->number }} Â· {{ $inv->customer?->company_name }}</option>
                         @endforeach
                     </x-select>
                     <x-input name="receipt_date" label="Receipt date" type="date" value="{{ old('receipt_date', now()->toDateString()) }}" />
                     <x-select name="currency" label="Currency">
-                        <option value="">— Default —</option>
+                        <option value="">â€” Default â€”</option>
                         @foreach (currency_options() as $code => $label)
-                            <option value="{{ $code }}" @selected(old('currency', 'currency', settings('company.currency', 'USD')) === $code)>{{ $label }}</option>
+                            <option value="{{ $code }}" @selected(old('currency', settings('company.currency', 'USD')) === $code)>{{ $label }}</option>
                         @endforeach
                     </x-select>
                     <x-input name="amount" label="Payment amount" type="number" step="0.01" min="0" value="{{ old('amount', 0) }}" />

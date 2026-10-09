@@ -23,9 +23,9 @@
                         @endforeach
                     </x-select>
                     <x-select name="currency" label="Currency">
-                        <option value="">— Default —</option>
+                        <option value="">â€” Default â€”</option>
                         @foreach (currency_options() as $code => $label)
-                            <option value="{{ $code }}" @selected(old('currency', 'currency', settings('company.currency', 'USD')) === $code)>{{ $label }}</option>
+                            <option value="{{ $code }}" @selected(old('currency', settings('company.currency', 'USD')) === $code)>{{ $label }}</option>
                         @endforeach
                     </x-select>
                 </div>

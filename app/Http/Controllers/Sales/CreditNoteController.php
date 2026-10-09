@@ -7,21 +7,24 @@ use App\Models\Product;
 use App\Models\SalesCreditNote;
 use App\Models\SalesCustomer;
 use App\Models\SalesInvoice;
+use App\Support\CreditNoteApplication;
+use App\Support\DiscountLimit;
 use App\Support\DocumentData;
 use App\Support\DocumentItems;
-use App\Support\DiscountLimit;
+use App\Support\DocumentReference;
 use App\Support\ExportsCsv;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CreditNoteController extends Controller
 {
-    use ExportsCsv;
     use DiscountLimit;
+    use ExportsCsv;
 
     public function index(Request $request): View
     {
@@ -49,16 +52,23 @@ class CreditNoteController extends Controller
             $fromInvoice = SalesInvoice::query()->with(['items.product'])->findOrFail($request->invoice);
         }
 
-        return view('sales.credit_notes.create', compact('customers', 'products', 'fromInvoice', 'maxDiscount'));
+        // What the tax engine expects on this document's date.
+
+        $taxHint = $this->taxRateHint('sales', now()->toDateString());
+
+
+        return view('sales.credit_notes.create', compact('customers', 'products', 'fromInvoice', 'maxDiscount', 'taxHint'));;
     }
 
     public function store(Request $request): RedirectResponse
     {
         $data = $this->validateData($request);
         $this->validateDiscountLimits($request->input('items', []));
+        $this->validateTaxRates($request->input('items', []), 'sales', $data['issue_date'] ?? null);
 
         $note = SalesCreditNote::create([
             'number' => next_document_number('credit_note', 'CN'),
+            'reference_number' => DocumentReference::fromRequest($data['reference_number'] ?? null),
             'invoice_id' => $data['invoice_id'] ?? null,
             'customer_id' => $data['customer_id'],
             'issue_date' => $data['issue_date'],
@@ -71,8 +81,16 @@ class CreditNoteController extends Controller
         $totals = DocumentItems::sync($note, $request->input('items', []));
         $note->update(['subtotal' => $totals['subtotal'], 'tax_amount' => $totals['tax'], 'total' => $totals['total']]);
 
+        $applied = CreditNoteApplication::sync($note->fresh());
+
+        $message = "Credit note {$note->number} created.";
+
+        if ($applied > 0.0) {
+            $message .= ' '.money($applied, $note->currency).' was deducted from the customer balance.';
+        }
+
         return redirect()->route('sales.credit_notes.index')
-            ->with('toasts', [['type' => 'success', 'message' => "Credit note {$note->number} created."]]);
+            ->with('toasts', [['type' => 'success', 'message' => $message]]);
     }
 
     public function edit(SalesCreditNote $creditNote): View
@@ -92,11 +110,11 @@ class CreditNoteController extends Controller
         return view('documents.show', DocumentData::build($creditNote));
     }
 
-    public function pdf(SalesCreditNote $creditNote): \Illuminate\Http\Response
+    public function pdf(SalesCreditNote $creditNote): Response
     {
         $creditNote->load(['customer', 'items.product', 'invoice']);
 
-        $html = view('pdf.document', DocumentData::build($creditNote))->render();
+        $html = view('documents.pdf', DocumentData::build($creditNote))->render();
 
         $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
 
@@ -105,10 +123,14 @@ class CreditNoteController extends Controller
 
     public function update(Request $request, SalesCreditNote $creditNote): RedirectResponse
     {
-        $data = $this->validateData($request);
+        $data = $this->validateData($request, $creditNote->id);
         $this->validateDiscountLimits($request->input('items', []));
+        $this->validateTaxRates($request->input('items', []), 'sales', $data['issue_date'] ?? null);
+
+        $previousInvoiceId = $creditNote->invoice_id;
 
         $creditNote->update([
+            'reference_number' => DocumentReference::fromRequest($data['reference_number'] ?? null),
             'invoice_id' => $data['invoice_id'] ?? null,
             'customer_id' => $data['customer_id'],
             'issue_date' => $data['issue_date'],
@@ -121,13 +143,30 @@ class CreditNoteController extends Controller
         $totals = DocumentItems::sync($creditNote, $request->input('items', []));
         $creditNote->update(['subtotal' => $totals['subtotal'], 'tax_amount' => $totals['tax'], 'total' => $totals['total']]);
 
+        CreditNoteApplication::sync($creditNote->fresh());
+
+        // Re-pointing a note leaves its old invoice carrying credit that is no
+        // longer applied to it, which would leave that bill reading as settled
+        // by a note that no longer refers to it.
+        if ($previousInvoiceId && (int) $previousInvoiceId !== (int) $creditNote->invoice_id) {
+            CreditNoteApplication::resyncInvoice(SalesInvoice::query()->findOrFail($previousInvoiceId));
+        }
+
         return back()->with('toasts', [['type' => 'success', 'message' => "Credit note {$creditNote->number} updated."]]);
     }
 
     public function destroy(SalesCreditNote $creditNote): RedirectResponse
     {
         $number = $creditNote->number;
+        $invoiceId = $creditNote->invoice_id;
+
         $creditNote->delete();
+
+        // The invoice it credited has to stop counting it, or the customer keeps
+        // a reduction for a note that no longer exists.
+        if ($invoiceId) {
+            CreditNoteApplication::resyncInvoice(SalesInvoice::query()->find($invoiceId));
+        }
 
         return redirect()->route('sales.credit_notes.index')
             ->with('toasts', [['type' => 'success', 'message' => "Credit note {$number} deleted."]]);
@@ -155,9 +194,10 @@ class CreditNoteController extends Controller
         ]));
     }
 
-    private function validateData(Request $request): array
+    private function validateData(Request $request, ?int $ignoreId = null): array
     {
         return $request->validate([
+            'reference_number' => DocumentReference::rules('sales_credit_notes', $ignoreId),
             'invoice_id' => ['nullable', 'integer', Rule::exists('sales_invoices', 'id')],
             'customer_id' => ['required', 'integer', Rule::exists('sales_customers', 'id')],
             'issue_date' => ['required', 'date'],

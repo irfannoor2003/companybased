@@ -17,7 +17,7 @@
 
                 <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3" x-data="currencyFromEntity()" x-init="initCurrencySelect()">
                     <x-select name="supplier_id" label="Supplier" required @change="$event.target.value && syncCurrency($event.target)">
-                        <option value="">— Select supplier —</option>
+                        <option value="">â€” Select supplier â€”</option>
                         @foreach ($suppliers as $supplier)
                             <option value="{{ $supplier->id }}" data-currency="{{ $supplier->currency ?? '' }}" @selected(old('supplier_id') == $supplier->id)>{{ $supplier->company_name }}</option>
                         @endforeach
@@ -28,16 +28,18 @@
                         @endforeach
                     </x-select>
                     <x-select name="currency" label="Currency">
-                        <option value="">— Default —</option>
+                        <option value="">â€” Default â€”</option>
                         @foreach (currency_options() as $code => $label)
-                            <option value="{{ $code }}" @selected(old('currency', 'currency', settings('company.currency', 'USD')) === $code)>{{ $label }}</option>
+                            <option value="{{ $code }}" @selected(old('currency', settings('company.currency', 'USD')) === $code)>{{ $label }}</option>
                         @endforeach
                     </x-select>
+                    @include('documents.partials.reference-number', ['example' => 'PQ-2026-0001'])
                     <x-input name="issue_date" label="Issue date" type="date" value="{{ old('issue_date', now()->toDateString()) }}" />
                     <x-input name="valid_until" label="Valid until" type="date" value="{{ old('valid_until') }}" />
                 </div>
 
-                <x-suppliers.line-items-editor :products="$products" :initial-items="[]" :currency="old('currency', settings('company.currency', 'USD'))" />
+                <x-suppliers.line-items-editor
+                    :products="$products" :initial-items="[]" :currency="old('currency', settings('company.currency', 'USD'))" :tax-hint="$taxHint" />
 
                 <x-textarea name="notes" label="Notes" rows="3">{{ old('notes') }}</x-textarea>
 

@@ -13,6 +13,10 @@
                  @csrf
 
                  <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                     @include('documents.partials.reference-number', [
+                         'label' => 'Manual payment number',
+                         'example' => 'SP-OS-4471',
+                     ])
                      <x-select name="supplier_id" label="Supplier" required @change="$event.target.value && syncCurrency($event.target)">
                          <option value="">— Select supplier —</option>
                          @foreach ($suppliers as $supplier)

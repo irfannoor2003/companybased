@@ -12,20 +12,28 @@
 
     <div class="mt-6 space-y-6">
         @if (auth()->user()->can('settings.backup.manage'))
-            <x-card title="Restore from file" description="Upload a backup .sql file to replace the current database. This overwrites all existing data — proceed with caution.">
+            <x-card title="Restore from file" description="Upload a backup .sql file to replace the current database. A safety backup of the current data is taken automatically before anything is overwritten.">
                 <form method="POST" action="{{ route('settings.backups.restore') }}" enctype="multipart/form-data"
-                    onsubmit="return confirm('Restoring will replace the entire database. Continue?');"
-                    class="flex flex-col gap-4 sm:flex-row sm:items-end">
+                    onsubmit="return confirm('Restoring will replace the entire database and sign you out. Continue?');"
+                    class="space-y-4">
                     @csrf
-                    <div class="flex-1">
-                        <x-input type="file" name="backup" label="Backup file" accept=".sql,.txt" />
+                    <div class="flex flex-col gap-4 sm:flex-row sm:items-end">
+                        <div class="flex-1">
+                            <x-input type="file" name="backup" label="Backup file" accept=".sql,.txt" />
+                        </div>
+                        <div class="flex-1">
+                            <x-input name="confirmation" label="Type RESTORE to confirm" placeholder="RESTORE" autocomplete="off" />
+                        </div>
+                        <x-button type="submit" variant="danger-secondary" icon="refresh">Restore database</x-button>
                     </div>
-                    <x-button type="submit" variant="danger-secondary" icon="refresh">Restore database</x-button>
+                    <p class="text-xs text-ink-faint">
+                        A restore cannot be undone from this page. Take a fresh backup first if you are unsure which file to use.
+                    </p>
                 </form>
             </x-card>
         @endif
 
-        <x-card title="Available backups" :padding="false">
+        <x-card title="Available backups" description="The newest {{ $retention }} backup(s) are kept on disk; anything older is removed automatically after the next backup." :padding="false">
             @if ($backups->isEmpty())
                 <x-empty-state icon="database" title="No backups yet" description="Create your first backup to see it listed here." />
             @else

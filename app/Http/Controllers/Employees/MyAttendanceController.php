@@ -11,9 +11,7 @@ use Illuminate\View\View;
 
 class MyAttendanceController extends Controller
 {
-    public function __construct(private readonly AttendanceService $attendance)
-    {
-    }
+    public function __construct(private readonly AttendanceService $attendance) {}
 
     public function index(): View
     {
@@ -23,13 +21,19 @@ class MyAttendanceController extends Controller
             return view('employees.my_attendance.index', ['employee' => null]);
         }
 
+        // whereDate() rather than where(): the `attendance_date` cast round-trips
+        // as 'Y-m-d 00:00:00' on SQLite but as a bare 'Y-m-d' on MySQL, so an
+        // equality match silently returns nothing on SQLite. That left $today
+        // null after a successful clock-in, so the page still offered "Clock in"
+        // and never showed the recorded times.
         $records = $employee->attendanceRecords()
-            ->where('attendance_date', '>=', now()->startOfMonth()->toDateString())
+            ->whereDate('attendance_date', '>=', now()->startOfMonth()->toDateString())
             ->orderByDesc('attendance_date')
             ->get();
 
         $today = $employee->attendanceRecords()
-            ->where('attendance_date', now()->toDateString())
+            ->whereDate('attendance_date', now()->toDateString())
+            ->latest('id')
             ->first();
 
         return view('employees.my_attendance.index', compact('employee', 'records', 'today'));
@@ -61,13 +65,19 @@ class MyAttendanceController extends Controller
         $officeLng = (float) settings('company.longitude', 0);
         $radius = (float) settings('company.radius', 500);
 
-        $distance = $this->haversineDistance(
-            $request->latitude, $request->longitude,
-            $officeLat, $officeLng
-        );
+        // With no office location on file there is nothing to compare against, so
+        // the mark is allowed rather than rejected on a null island distance.
+        if (! ($officeLat === 0.0 && $officeLng === 0.0)) {
+            $distance = $this->haversineDistance(
+                (float) $request->latitude,
+                (float) $request->longitude,
+                $officeLat,
+                $officeLng
+            );
 
-        if ($distance > $radius) {
-            return back()->with('toasts', [['type' => 'error', 'message' => 'You must be within the office radius ('.number_format($radius, 0).'m) to mark attendance. Current distance: '.number_format($distance, 0).'m']]);
+            if ($distance > $radius) {
+                return back()->with('toasts', [['type' => 'error', 'message' => 'You must be within the office radius ('.number_format($radius, 0).'m) to mark attendance. Current distance: '.number_format($distance, 0).'m']]);
+            }
         }
 
         $result = $this->attendance->recordScan($employee, 'manual');

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Banking;
 
 use App\Http\Controllers\Controller;
+use App\Models\Account;
 use App\Models\BankAccount;
 use App\Support\ExportsCsv;
 use Illuminate\Http\RedirectResponse;
@@ -53,6 +54,7 @@ class BankAccountController extends Controller
             'opening_balance' => $data['opening_balance'],
             'is_active' => $request->boolean('is_active', true),
             'notes' => $data['notes'] ?? null,
+            'account_id' => $data['account_id'] ?? null,
         ]);
 
         return redirect()->route('banking.accounts.show', $account)
@@ -70,7 +72,16 @@ class BankAccountController extends Controller
 
     public function edit(BankAccount $account): View
     {
-        return view('banking.accounts.edit', compact('account'));
+        // Only asset-side accounts can hold a bank balance, so offering a revenue
+        // or expense account here would let a mapping be chosen that can never be
+        // right.
+        $ledgerAccounts = Account::query()
+            ->where('is_active', true)
+            ->whereIn('type', ['asset'])
+            ->orderBy('code')
+            ->get();
+
+        return view('banking.accounts.edit', compact('account', 'ledgerAccounts'));
     }
 
     public function update(Request $request, BankAccount $account): RedirectResponse
@@ -87,6 +98,7 @@ class BankAccountController extends Controller
             'opening_balance' => $data['opening_balance'],
             'is_active' => $request->boolean('is_active', true),
             'notes' => $data['notes'] ?? null,
+            'account_id' => $data['account_id'] ?? null,
         ]);
 
         return back()->with('toasts', [['type' => 'success', 'message' => "Bank account \"{$account->name}\" updated."]]);
@@ -140,6 +152,13 @@ class BankAccountController extends Controller
             'opening_balance' => ['required', 'numeric'],
             'is_active' => ['boolean'],
             'notes' => ['nullable', 'string', 'max:5000'],
+
+            /**
+             * Which ledger account this is reported in. Optional because a petty
+             * cash account falls back to Cash on Hand, but a real bank account
+             * without a mapping cannot reach the balance sheet at all.
+             */
+            'account_id' => ['nullable', 'integer', Rule::exists('accounts', 'id')],
         ]);
     }
 }

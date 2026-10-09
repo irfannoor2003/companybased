@@ -31,7 +31,7 @@
                         <x-select name="currency" label="Currency">
                         <option value="">— Default —</option>
                         @foreach (currency_options() as $code => $label)
-                            <option value="{{ $code }}" @selected(old('currency', 'currency', $recurringInvoice->currency) === $code)>{{ $label }}</option>
+                            <option value="{{ $code }}" @selected(old('currency', $recurringInvoice->currency) === $code)>{{ $label }}</option>
                         @endforeach
                     </x-select>
                     </div>

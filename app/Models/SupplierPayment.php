@@ -13,7 +13,7 @@ class SupplierPayment extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'number', 'invoice_id', 'supplier_id', 'bank_account_id', 'amount', 'payment_date',
+        'number', 'number', 'reference_number', 'invoice_id', 'supplier_id', 'bank_account_id', 'amount', 'payment_date',
         'method', 'reference', 'currency', 'exchange_rate', 'notes',
     ];
 

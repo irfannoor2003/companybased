@@ -91,8 +91,16 @@ class AttendanceService
             return ['status' => 'error', 'message' => 'Attendance scanning is disabled on company holidays.'];
         }
 
+        // Look the day up with whereDate() rather than firstOrNew(). The
+        // `attendance_date` cast round-trips as 'Y-m-d 00:00:00' on SQLite but as
+        // a bare 'Y-m-d' on MySQL, so an equality match on the date string finds
+        // nothing on SQLite and firstOrNew() then attempts a second insert for
+        // the same day, tripping the unique(employee_id, attendance_date) index
+        // and 500-ing the clock-in.
         $record = AttendanceRecord::withTrashed()
-            ->firstOrNew([
+            ->where('employee_id', $employee->id)
+            ->whereDate('attendance_date', $at->toDateString())
+            ->first() ?? new AttendanceRecord([
                 'employee_id' => $employee->id,
                 'attendance_date' => $at->toDateString(),
             ]);
@@ -112,8 +120,6 @@ class AttendanceService
         }
 
         $record->fill([
-            'employee_id' => $employee->id,
-            'attendance_date' => $at->toDateString(),
             'check_in_at' => $at,
             'method' => $method,
             'notes' => $notes,

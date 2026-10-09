@@ -97,9 +97,26 @@
                                     <td class="text-right text-ink-soft">{{ $visit->pit_stops_count }}</td>
                                     <td><x-visits.status-badge :status="$visit->status" /></td>
                                     <td class="text-right">
-                                        <a href="{{ route('visits.show', $visit) }}" class="btn-ghost btn-icon btn-sm" title="View">
-                                            <x-icon name="eye" class="size-4" />
-                                        </a>
+                                        <div class="flex items-center justify-end gap-1">
+                                            <a href="{{ route('visits.show', $visit) }}" class="btn-ghost btn-icon btn-sm" title="View">
+                                                <x-icon name="eye" class="size-4" />
+                                            </a>
+                                            @if (auth()->user()->can('visits.visits.edit'))
+                                                <a href="{{ route('visits.edit', $visit) }}" class="btn-ghost btn-icon btn-sm" title="Edit">
+                                                    <x-icon name="edit" class="size-4" />
+                                                </a>
+                                            @endif
+                                            @if (auth()->user()->can('visits.visits.delete'))
+                                                <form method="POST" action="{{ route('visits.destroy', $visit) }}"
+                                                    onsubmit="return confirm('Delete visit {{ $visit->visit_number }}?');">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="btn-ghost btn-icon btn-sm text-rose-500" title="Delete">
+                                                        <x-icon name="trash" class="size-4" />
+                                                    </button>
+                                                </form>
+                                            @endif
+                                        </div>
                                     </td>
                                 </tr>
                             @endforeach

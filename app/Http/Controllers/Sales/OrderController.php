@@ -11,6 +11,7 @@ use App\Services\TrackingService;
 use App\Support\DiscountLimit;
 use App\Support\DocumentData;
 use App\Support\DocumentItems;
+use App\Support\DocumentReference;
 use App\Support\ExportsCsv;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
@@ -48,16 +49,23 @@ class OrderController extends Controller
         $products = Product::query()->where('is_active', true)->orderBy('name')->get();
         $maxDiscount = $this->getMaxDiscountForUser();
 
-        return view('sales.orders.create', compact('customers', 'products', 'maxDiscount'));
+        // What the tax engine expects on this document's date.
+
+        $taxHint = $this->taxRateHint('sales', now()->toDateString());
+
+
+        return view('sales.orders.create', compact('customers', 'products', 'maxDiscount', 'taxHint'));;
     }
 
     public function store(Request $request): RedirectResponse
     {
         $data = $this->validateData($request);
         $this->validateDiscountLimits($request->input('items', []));
+        $this->validateTaxRates($request->input('items', []), 'sales', $data['issue_date'] ?? null);
 
         $order = SalesOrder::create([
             'number' => next_document_number('order', 'SO'),
+            'reference_number' => DocumentReference::fromRequest($data['reference_number'] ?? null),
             'customer_id' => $data['customer_id'],
             'salesman_id' => auth()->id(),
             'issue_date' => $data['issue_date'],
@@ -110,7 +118,7 @@ class OrderController extends Controller
     {
         $order->load(['customer', 'items.product']);
 
-        $html = view('pdf.document', DocumentData::build($order))->render();
+        $html = view('documents.pdf', DocumentData::build($order))->render();
 
         $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
 
@@ -119,10 +127,12 @@ class OrderController extends Controller
 
     public function update(Request $request, SalesOrder $order): RedirectResponse
     {
-        $data = $this->validateData($request);
+        $data = $this->validateData($request, $order->id);
         $this->validateDiscountLimits($request->input('items', []));
+        $this->validateTaxRates($request->input('items', []), 'sales', $data['issue_date'] ?? null);
 
         $order->update([
+            'reference_number' => DocumentReference::fromRequest($data['reference_number'] ?? null),
             'customer_id' => $data['customer_id'],
             'issue_date' => $data['issue_date'],
             'expected_delivery_date' => $data['expected_delivery_date'] ?? null,
@@ -238,9 +248,10 @@ class OrderController extends Controller
         $tracking->notifyOrder($order, $status);
     }
 
-    private function validateData(Request $request): array
+    private function validateData(Request $request, ?int $ignoreId = null): array
     {
         return $request->validate([
+            'reference_number' => DocumentReference::rules('sales_orders', $ignoreId),
             'customer_id' => ['required', 'integer', Rule::exists('sales_customers', 'id')],
             'issue_date' => ['required', 'date'],
             'expected_delivery_date' => ['nullable', 'date'],

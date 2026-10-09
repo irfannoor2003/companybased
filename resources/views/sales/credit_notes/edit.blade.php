@@ -29,12 +29,16 @@
                                 <option value="{{ $inv->id }}" @selected(old('invoice_id', $creditNote->invoice_id) == $inv->id)>{{ $inv->number }} · {{ $inv->customer?->company_name }}</option>
                             @endforeach
                         </x-select>
-                        <x-input name="issue_date" label="Issue date" type="date" value="{{ old('issue_date', $creditNote->issue_date?->format('Y-m-d')) }}" />
+                        @include('documents.partials.reference-number', [
+                        'value' => $creditNote->reference_number,
+                        'example' => 'CN-2026-0001',
+                    ])
+                    <x-input name="issue_date" label="Issue date" type="date" value="{{ old('issue_date', $creditNote->issue_date?->format('Y-m-d')) }}" />
                         <x-input name="reason" label="Reason" value="{{ old('reason', $creditNote->reason) }}" />
                         <x-select name="currency" label="Currency">
                         <option value="">— Default —</option>
                         @foreach (currency_options() as $code => $label)
-                            <option value="{{ $code }}" @selected(old('currency', 'currency', $creditNote->currency) === $code)>{{ $label }}</option>
+                            <option value="{{ $code }}" @selected(old('currency', $creditNote->currency) === $code)>{{ $label }}</option>
                         @endforeach
                     </x-select>
                     </div>

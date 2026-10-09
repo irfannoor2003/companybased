@@ -84,6 +84,51 @@ return [
             ]) : [],
         ],
 
+        /*
+        |----------------------------------------------------------------------
+        | Test-only MySQL connection
+        |----------------------------------------------------------------------
+        |
+        | The suite runs against MySQL so it exercises the same engine as
+        | production. SQLite hid real defects — a `date` cast round-trips as
+        | 'Y-m-d 00:00:00' in a text column but is coerced back to a date by
+        | MySQL, so date equality and range queries behave differently between
+        | the two. A suite on a different engine than production will keep
+        | reporting bugs that do not exist, and missing real ones that do.
+        |
+        | This is a SEPARATE connection, not the `mysql` one, on purpose. The
+        | `mysql` connection is the application's real database; if the test
+        | suite ever fell back to it, RefreshDatabase would migrate:fresh and
+        | wipe production data. Keeping them apart means a missing DB_TEST_DATABASE
+        | fails loudly on an undefined connection rather than silently landing on
+        | the live schema.
+        |
+        | DB_TEST_DATABASE must never name a real schema. Tests\TestCase asserts
+        | this on every run — see guardAgainstProductionDatabase().
+        |
+        */
+
+        'mysql_testing' => [
+            'driver' => 'mysql',
+            'host' => env('DB_HOST', '127.0.0.1'),
+            'port' => env('DB_PORT', '3306'),
+            'database' => env('DB_TEST_DATABASE', 'companybased_test'),
+            'username' => env('DB_USERNAME', 'root'),
+            'password' => env('DB_PASSWORD', ''),
+            'unix_socket' => env('DB_SOCKET', ''),
+            'charset' => env('DB_CHARSET', 'utf8mb4'),
+            'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+            // RefreshDatabase wraps each test in a transaction, so a dropped or
+            // refused autocommit here would leave rows behind between tests.
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
+                Mysql::ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+            ], static fn ($value): bool => $value !== null) : [],
+        ],
+
         'pgsql' => [
             'driver' => 'pgsql',
             'url' => env('DB_URL'),

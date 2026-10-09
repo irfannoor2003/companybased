@@ -3,14 +3,19 @@
 namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
+use App\Models\Employee;
 use App\Models\InventoryBillOfMaterial;
 use App\Models\InventoryItem;
 use App\Models\InventoryProductionOrder;
 use App\Models\InventoryWarehouse;
+use App\Models\ProductionLabourEntry;
+use App\Services\Accounting\ProductionAbsorptionService;
 use App\Support\ExportsCsv;
 use App\Support\InventoryLedger;
+use App\Support\Money;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -48,7 +53,24 @@ class ProductionOrderController extends Controller
     {
         $order->load(['item.product', 'warehouse', 'billOfMaterial', 'items.componentItem.product']);
 
-        return view('inventory.production_orders.show', compact('order'));
+        // Labour recorded against this order, so the cost capitalised into work in
+        // progress is visible on the order that incurred it rather than only on the
+        // trial balance.
+        $labour = ProductionLabourEntry::query()
+            ->where('production_order_id', $order->id)
+            ->with('employee')
+            ->orderBy('work_date')
+            ->orderBy('id')
+            ->get();
+
+        // Only staff who can actually have their time recorded, so the form cannot
+        // offer someone with no salary structure and then reject the submission.
+        $employees = Employee::query()
+            ->where('employment_status', 'active')
+            ->orderBy('first_name')
+            ->get();
+
+        return view('inventory.production_orders.show', compact('order', 'labour', 'employees'));
     }
 
     public function store(Request $request): RedirectResponse
@@ -107,6 +129,70 @@ class ProductionOrderController extends Controller
         return back()->with('toasts', [['type' => 'success', 'message' => "Production order {$order->number} updated."]]);
     }
 
+    /**
+     * Record time worked on an order, and capitalise it into work in progress.
+     *
+     * Absorption happens as the time is recorded, not at completion. That is the
+     * whole point of a work in progress account: the cost exists while the job is
+     * still running, so it sits in WIP until the goods are finished. Posting it all
+     * at completion would make WIP permanently zero and the account decorative.
+     */
+    public function storeLabour(Request $request, InventoryProductionOrder $order): RedirectResponse
+    {
+        $data = $request->validate([
+            'employee_id' => ['required', 'exists:employees,id'],
+            'minutes' => ['required', 'integer', 'min:1', 'max:1440'],
+            'work_date' => ['required', 'date'],
+            'note' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        if (in_array($order->status, ['completed', 'cancelled'], true)) {
+            return back()->with('toasts', [['type' => 'error', 'message' => 'This production order is closed.']]);
+        }
+
+        $service = app(ProductionAbsorptionService::class);
+        $employee = Employee::findOrFail($data['employee_id']);
+
+        /**
+         * The rate is snapshotted onto the entry.
+         *
+         * Taken from the employee's salary as it stands today, because that is what
+         * the hours were worth when worked. Storing it means a later pay rise cannot
+         * silently restate labour already posted into inventory.
+         */
+        $rate = $service->hourlyRateFor($employee);
+
+        if ($rate === null) {
+            return back()->with('toasts', [[
+                'type' => 'error',
+                'message' => 'That employee has no salary structure, so their hourly rate is unknown.',
+            ]]);
+        }
+
+        $minutes = (int) $data['minutes'];
+
+        $entry = ProductionLabourEntry::create([
+            'production_order_id' => $order->id,
+            'employee_id' => $employee->id,
+            'minutes' => $minutes,
+            'hourly_rate' => $rate,
+            'labour_cost' => $service->costForMinutes($minutes, $rate),
+            'work_date' => $data['work_date'],
+            'note' => $data['note'] ?? null,
+        ]);
+
+        try {
+            $service->absorb($order->fresh());
+        } catch (\RuntimeException $e) {
+            return back()->with('toasts', [['type' => 'error', 'message' => $e->getMessage()]]);
+        }
+
+        return back()->with('toasts', [[
+            'type' => 'success',
+            'message' => 'Recorded '.Money::of($entry->labour_cost).' of labour and absorbed it into work in progress.',
+        ]]);
+    }
+
     public function updateStatus(Request $request, InventoryProductionOrder $order): RedirectResponse
     {
         $data = $request->validate([
@@ -122,11 +208,42 @@ class ProductionOrderController extends Controller
                 return back()->with('toasts', [['type' => 'error', 'message' => 'No components are linked to this production order.']]);
             }
 
-            $order->items()->where('quantity_used', '<=', 0)->update(['quantity_used' => \DB::raw('quantity_required')]);
+            $order->items()->where('quantity_used', '<=', 0)->update(['quantity_used' => DB::raw('quantity_required')]);
 
             try {
                 InventoryLedger::applyProduction($order->fresh());
+
+                /**
+                 * Pick up any labour recorded but not yet absorbed BEFORE the goods
+                 * come out.
+                 *
+                 * Completion transfers everything sitting in work in progress onto
+                 * the finished goods. If a back-dated labour entry were still waiting
+                 * to be absorbed, it would be stranded in WIP forever with no order
+                 * left to move it -- a real balance on a real account that nothing
+                 * would ever reconcile.
+                 */
+                app(ProductionAbsorptionService::class)->absorb($order->fresh());
+
+                /**
+                 * Post the accounting side of the same event.
+                 *
+                 * applyProduction() moves stock but never touched the ledger, so
+                 * completing an order changed every stock figure on the system and
+                 * none of the accounting ones: the components stayed on the balance
+                 * sheet at their original cost, the finished goods had no cost
+                 * basis at all, and the difference went nowhere.
+                 *
+                 * Inside the same try, so a posting failure leaves stock and
+                 * accounts consistent with each other rather than one updated and
+                 * the other not.
+                 */
+                app(\App\Services\Accounting\ProductionPostingService::class)
+                    ->postCompleted($order->fresh());
             } catch (\DomainException $e) {
+                return back()->with('toasts', [['type' => 'error', 'message' => $e->getMessage()]]);
+            } catch (\RuntimeException $e) {
+                // The chart of accounts lacks a WIP or variance account.
                 return back()->with('toasts', [['type' => 'error', 'message' => $e->getMessage()]]);
             }
         }

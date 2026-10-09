@@ -29,21 +29,109 @@
             </dl>
         </x-card>
 
-        <x-card title="Review" description="Advance the claim through the workflow">
-            <form method="POST" action="{{ route('accounting.expense_claims.status', $claim) }}" class="space-y-3">
-                @csrf
-                <x-select name="status" label="Move to" size="sm">
-                    @foreach (['approved', 'rejected', 'reimbursed'] as $status)
-                        <option value="{{ $status }}" @selected($claim->status === $status) @if ($claim->status === $status) disabled @endif>{{ ucfirst($status) }}</option>
-                    @endforeach
-                </x-select>
-                @if ($claim->status === 'reimbursed')
-                    <x-button type="submit" size="sm" icon="check" disabled>Update status</x-button>
+        {{--
+    Approval is explicit now: one action per transition, each behind its own
+    permission, rather than a dropdown that let a single request move a claim
+    straight to reimbursed.
+
+    A claim awaiting a decision shows no editing link, because approving figures
+    the employee changed afterwards would mean approving something nobody read.
+--}}
+<x-card title="Approval">
+    <div class="space-y-4">
+        @if ($claim->isPendingApproval())
+            @php $live = $claim->liveApproval(); @endphp
+
+            <div class="rounded-lg border border-line bg-surface-muted p-4">
+                <div class="text-sm font-medium text-ink">
+                    Awaiting approval &middot; requested by {{ $live?->requester?->name ?? 'unknown' }}
+                </div>
+                <div class="mt-1 text-xs text-ink-faint">
+                    Submitted {{ $live?->requested_at?->diffForHumans() }} &middot;
+                    waiting {{ $claim->approvalWaitingDays() }} {{ Str::plural('day', $claim->approvalWaitingDays()) }}
+                </div>
+            </div>
+
+            @if (auth()->user()->can('accounting.expense_claims.approve'))
+                @unless ($live?->requested_by === auth()->id())
+                    <form method="POST" action="{{ route('accounting.expense_claims.approve', $claim) }}" class="space-y-3">
+                        @csrf
+                        <x-textarea name="comment" label="Comment" rows="2" placeholder="Optional note recorded against the approval." />
+                        <div class="flex gap-2">
+                            <x-button type="submit" variant="success" size="sm" icon="check">Approve</x-button>
+                        </div>
+                    </form>
+
+                    <form method="POST" action="{{ route('accounting.expense_claims.reject', $claim) }}" class="space-y-3">
+                        @csrf
+                        <x-textarea name="comment" label="Reason for rejection" rows="2" required
+                                    placeholder="Required. The employee sees this and can correct and resubmit." />
+                        <x-button type="submit" variant="danger" size="sm" icon="trash">Reject</x-button>
+                    </form>
                 @else
-                    <x-button type="submit" size="sm" icon="check">Update status</x-button>
-                @endif
-                <p class="text-xs text-ink-faint">Pending → approved/rejected → reimbursed.</p>
-            </form>
-        </x-card>
+                    <x-alert type="info">
+                        You raised this request, so someone else must decide it.
+                        Separation of duties is enforced by the system, not by policy.
+                    </x-alert>
+                @endunless
+
+                <form method="POST" action="{{ route('accounting.expense_claims.withdraw', $claim) }}">
+                    @csrf
+                    <x-button type="submit" variant="ghost" size="sm">Withdraw request</x-button>
+                </form>
+            @endif
+        @elseif ($claim->canBeSubmitted())
+            <p class="text-sm text-ink-soft">
+                This claim has not been submitted for approval yet. It cannot be reimbursed until it has been.
+            </p>
+            @if (auth()->user()->can('accounting.expense_claims.edit'))
+                <form method="POST" action="{{ route('accounting.expense_claims.submit', $claim) }}" class="space-y-3">
+                    @csrf
+                    <x-textarea name="comment" label="Note for the approver" rows="2" />
+                    <x-button type="submit" size="sm" icon="check">Submit for approval</x-button>
+                </form>
+            @endif
+        @elseif ($claim->status === 'approved')
+            <p class="text-sm text-ink-soft">Approved. Payment can now be recorded.</p>
+            @if (auth()->user()->can('accounting.expense_claims.reimburse'))
+                <form method="POST" action="{{ route('accounting.expense_claims.reimburse', $claim) }}">
+                    @csrf
+                    <x-button type="submit" variant="success" size="sm" icon="check">Mark as reimbursed</x-button>
+                </form>
+            @endif
+        @endif
+
+        {{-- The trail. Rejections stay visible after a resubmission: that history
+             is the point of an approval record. --}}
+        @if ($claim->approvalRequests->isNotEmpty())
+            <div class="border-t border-line pt-4">
+                <h4 class="text-xs font-medium uppercase tracking-wide text-ink-faint">Approval history</h4>
+                <ul class="mt-3 space-y-3">
+                    @foreach ($claim->approvalHistory() as $request)
+                        <li class="text-xs">
+                            <span class="font-medium text-ink">
+                                {{ ucfirst($request->status) }}
+                                @if ($request->status === 'pending')
+                                    <span class="text-ink-faint">(live)</span>
+                                @endif
+                            </span>
+                            <div class="text-ink-faint">
+                                Requested by {{ $request->requester?->name ?? 'system' }}
+                                {{ $request->requested_at?->format('j M Y H:i') }}
+                                @if ($request->decided_by)
+                                    &middot; decided by {{ $request->decider?->name }}
+                                    {{ $request->decided_at?->format('j M Y H:i') }}
+                                @endif
+                            </div>
+                            @if ($request->comment)
+                                <div class="mt-1 text-ink-soft">{{ $request->comment }}</div>
+                            @endif
+                        </li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+    </div>
+</x-card>
     </div>
 </x-app-layout>

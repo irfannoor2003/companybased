@@ -100,35 +100,104 @@ class ExpenseClaimController extends Controller
         return back()->with('toasts', [['type' => 'success', 'message' => "Expense claim {$claim->number} updated."]]);
     }
 
-    public function updateStatus(Request $request, ExpenseClaim $claim): RedirectResponse
-    {
+    /**
+     * Raise the claim for approval.
+     *
+     * The old updateStatus() endpoint took a target status straight from the request
+ * and let the caller jump to `reimbursed`. It also stamped reviewed_by as a side
+ * effect when reimbursing an unapproved claim -- so one request could pay out
+ * money that nobody had approved, approved by the same person, with a timestamp
+ * on it. Every transition now goes through the shared approval engine instead.
+ */
+public function submit(Request $request, ExpenseClaim $claim): RedirectResponse
+{
+    try {
+        $request->validate(['comment' => ['nullable', 'string', 'max:2000']]);
+
+        $claim->submitForApproval($request->user(), 1, $request->input('comment'));
+    } catch (\RuntimeException $e) {
+        return back()->with('toasts', [['type' => 'danger', 'message' => $e->getMessage()]]);
+    }
+
+    return back()->with('toasts', [[
+        'type' => 'success',
+        'message' => "Expense claim {$claim->number} submitted for approval.",
+    ]]);
+}
+
+public function approve(Request $request, ExpenseClaim $claim): RedirectResponse
+{
+    try {
+        $request->validate(['comment' => ['nullable', 'string', 'max:2000']]);
+
+        $claim->approve($request->user(), $request->input('comment'));
+
+        // reviewed_by/reviewed_at are the legacy summary columns the list view
+        // reads, kept in step with the real trail rather than replacing it.
+        $claim->update(['reviewed_by' => $request->id(), 'reviewed_at' => now()]);
+    } catch (\RuntimeException $e) {
+        return back()->with('toasts', [['type' => 'danger', 'message' => $e->getMessage()]]);
+    }
+
+    return back()->with('toasts', [[
+        'type' => 'success',
+        'message' => "Expense claim {$claim->number} approved.",
+    ]]);
+}
+
+public function reject(Request $request, ExpenseClaim $claim): RedirectResponse
+{
+    try {
         $data = $request->validate([
-            'status' => ['required', Rule::in(['approved', 'rejected', 'reimbursed'])],
+            'comment' => ['required', 'string', 'max:2000'],
         ]);
 
-        $current = $claim->status;
+        $claim->reject($request->user(), $data['comment']);
 
-        $updates = ['status' => $data['status']];
-
-        if ($data['status'] === 'approved' && $current === 'pending') {
-            $updates['reviewed_by'] = auth()->id();
-            $updates['reviewed_at'] = now();
-        }
-
-        if ($data['status'] === 'reimbursed') {
-            if ($current === 'approved') {
-                $updates['reimbursed_at'] = now();
-            } else {
-                $updates['reviewed_by'] = auth()->id();
-                $updates['reviewed_at'] = now();
-                $updates['reimbursed_at'] = now();
-            }
-        }
-
-        $claim->update($updates);
-
-        return back()->with('toasts', [['type' => 'success', 'message' => "Expense claim {$claim->number} marked {$data['status']}."]]);
+        $claim->update(['reviewed_by' => $request->id(), 'reviewed_at' => now()]);
+    } catch (\RuntimeException $e) {
+        return back()->with('toasts', [['type' => 'danger', 'message' => $e->getMessage()]]);
     }
+
+    return back()->with('toasts', [[
+        'type' => 'success',
+        'message' => "Expense claim {$claim->number} rejected. It can be corrected and resubmitted.",
+    ]]);
+}
+
+public function withdraw(Request $request, ExpenseClaim $claim): RedirectResponse
+{
+    try {
+        $claim->withdrawApproval($request->user());
+    } catch (\RuntimeException $e) {
+        return back()->with('toasts', [['type' => 'danger', 'message' => $e->getMessage()]]);
+    }
+
+    return back()->with('toasts', [[
+        'type' => 'success',
+        'message' => "Approval request for {$claim->number} withdrawn.",
+    ]]);
+}
+
+/**
+ * Pay out an approved claim.
+ *
+ * Refuses one that was never approved. This is the transition the old endpoint
+ * allowed unconditionally, and it is the one that costs real money.
+ */
+public function reimburse(Request $request, ExpenseClaim $claim): RedirectResponse
+{
+    try {
+        $claim->markReimbursed($request->user());
+    } catch (\RuntimeException $e) {
+        return back()->with('toasts', [['type' => 'danger', 'message' => $e->getMessage()]]);
+    }
+
+    return back()->with('toasts', [[
+        'type' => 'success',
+        'message' => "Expense claim {$claim->number} marked as reimbursed.",
+    ]]);
+}
 
     public function destroy(ExpenseClaim $claim): RedirectResponse
     {

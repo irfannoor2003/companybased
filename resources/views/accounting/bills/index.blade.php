@@ -81,9 +81,30 @@
                                     <td class="text-right text-ink">{{ money($bill->amount, $bill->currency) }}</td>
                                     <td class="text-right font-medium {{ $bill->balance() > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400' }}">{{ money($bill->balance(), $bill->currency) }}</td>
                                     <td class="text-right">
-                                        <a href="{{ route('accounting.bills.show', $bill) }}" class="btn-ghost btn-icon btn-sm" title="View">
-                                            <x-icon name="eye" class="size-4" />
-                                        </a>
+                                        <div class="flex items-center justify-end gap-1">
+                                            <a href="{{ route('accounting.bills.show', $bill) }}" class="btn-ghost btn-icon btn-sm" title="View">
+                                                <x-icon name="eye" class="size-4" />
+                                            </a>
+                                            @can('accounting.bills.edit')
+                                                <a href="{{ route('accounting.bills.edit', $bill) }}" class="btn-ghost btn-icon btn-sm" title="Edit">
+                                                    <x-icon name="edit" class="size-4" />
+                                                </a>
+                                            @endcan
+                                            {{-- A bill with payments against it is refused by the controller, so the
+                                                 button is withheld rather than left to fail. --}}
+                                            @can('accounting.bills.delete')
+                                                @if ($bill->paid_amount <= 0)
+                                                    <form method="POST" action="{{ route('accounting.bills.destroy', $bill) }}"
+                                                        onsubmit="return confirm('Delete bill {{ $bill->number }}?');">
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <button type="submit" class="btn-ghost btn-icon btn-sm text-rose-500" title="Delete">
+                                                            <x-icon name="trash" class="size-4" />
+                                                        </button>
+                                                    </form>
+                                                @endif
+                                            @endcan
+                                        </div>
                                     </td>
                                 </tr>
                             @endforeach

@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true"
+         cacheDirectory=".phpunit.cache"
+>
+    <testsuites>
+        <testsuite name="Unit">
+            <directory>tests/Unit</directory>
+        </testsuite>
+        <testsuite name="Feature">
+            <directory>tests/Feature</directory>
+        </testsuite>
+    </testsuites>
+
+    <source>
+        <include>
+            <directory>app</directory>
+        </include>
+    </source>
+
+    <!--
+        An isolated copy of phpunit.xml that migrates into its own schema,
+        `companybased_test_`, so two suites can run at the same time.
+
+        Every test class runs `migrate:fresh`, which drops and recreates *every*
+        table in the connected schema. Two PHPUnit processes sharing
+        `companybased_test` therefore destroy each other's database mid-run and
+        report failures that look like application bugs: deadlocks, and
+        "table doesn't exist" against tables that plainly exist.
+
+        The only difference from phpunit.xml is the DB_TEST_DATABASE value, set in
+        both the <env> and <server> blocks because Laravel's env() helper reads
+        $_SERVER first. Everything else, including the force="true" on both blocks
+        and the mirrored <server> block that keeps APP_ENV out of production mode,
+        is required for the same reasons documented in phpunit.xml and must not be
+        dropped here.
+
+        Tests\TestCase::guardAgainstProductionDatabase() accepts `companybased_test_`
+        because it is on its allow-list of disposable schemas, and still refuses any
+        schema equal to DB_DATABASE. So a misconfigured override aborts the run
+        rather than migrating:fresh over real data.
+
+        Create the schema once before first use:
+
+            CREATE DATABASE companybased_test_
+              CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+        Then run:
+
+            php vendor/bin/phpunit -c phpunit.sweep.xml (pass no-coverage for speed)
+    -->
+    <php>
+        <ini name="memory_limit" value="1G"/>
+        <env name="APP_ENV" value="testing" force="true"/>
+        <env name="APP_MAINTENANCE_DRIVER" value="file" force="true"/>
+        <env name="BCRYPT_ROUNDS" value="4" force="true"/>
+        <env name="CACHE_STORE" value="array" force="true"/>
+        <env name="DB_CONNECTION" value="mysql_testing" force="true"/>
+        <env name="DB_TEST_DATABASE" value="companybased_test_" force="true"/>
+        <env name="MAIL_MAILER" value="array" force="true"/>
+        <env name="QUEUE_CONNECTION" value="sync" force="true"/>
+        <env name="SESSION_DRIVER" value="array" force="true"/>
+        <env name="TELESCOPE_ENABLED" value="false" force="true"/>
+        <server name="APP_ENV" value="testing" force="true"/>
+        <server name="APP_MAINTENANCE_DRIVER" value="file" force="true"/>
+        <server name="BCRYPT_ROUNDS" value="4" force="true"/>
+        <server name="CACHE_STORE" value="array" force="true"/>
+        <server name="DB_CONNECTION" value="mysql_testing" force="true"/>
+        <server name="DB_TEST_DATABASE" value="companybased_test_" force="true"/>
+        <server name="MAIL_MAILER" value="array" force="true"/>
+        <server name="QUEUE_CONNECTION" value="sync" force="true"/>
+        <server name="SESSION_DRIVER" value="array" force="true"/>
+        <server name="TELESCOPE_ENABLED" value="false" force="true"/>
+    </php>
+</phpunit>

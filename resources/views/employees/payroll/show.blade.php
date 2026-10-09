@@ -23,7 +23,20 @@
     @if ($run->status !== 'void')
         <div class="mt-6 flex flex-wrap items-center gap-2">
             <x-badge :color="$run->status === 'paid' ? 'success' : ($run->status === 'void' ? 'danger' : 'warning')" dot>{{ ucfirst($run->status) }}</x-badge>
-            @if (auth()->user()->can('employees.payroll_runs.approve') && $run->status !== 'paid')
+            {{-- Approve and pay are separate steps because they are separate accounting
+                 events: approval recognises the wage cost and the liability owed to
+                 employees, payment settles that liability against the bank. Marking a
+                 draft "paid" directly would pay a liability that was never accrued. --}}
+            @if (auth()->user()->can('employees.payroll_runs.approve') && $run->status === 'draft')
+                <form method="POST" action="{{ route('employees.payroll.approve', $run) }}">
+                    @csrf
+                    <x-button type="submit" variant="primary" size="sm" icon="check"
+                              onclick="return confirm('Approve this run? The wage cost is posted to the ledger.');">
+                        Approve
+                    </x-button>
+                </form>
+            @endif
+            @if (auth()->user()->can('employees.payroll_runs.approve') && $run->status === 'submitted')
                 <form method="POST" action="{{ route('employees.payroll.mark-paid', $run) }}">
                     @csrf
                     <x-button type="submit" variant="success" size="sm" icon="check">Mark as paid</x-button>

@@ -39,7 +39,12 @@ class GrandReportController extends Controller
         $purchaseInvoices = PurchaseInvoice::query()->whereBetween('issue_date', [$from, $to]);
         $bankIn = BankTransaction::query()->whereBetween('transaction_date', [$from, $to])->whereIn('type', ['deposit', 'transfer_in']);
         $bankOut = BankTransaction::query()->whereBetween('transaction_date', [$from, $to])->whereIn('type', ['withdrawal', 'transfer_out']);
-        $attendance = AttendanceRecord::query()->whereBetween('attendance_date', [$from->toDateString(), $to->toDateString()]);
+        // whereBetween() on a raw date string drops the last day of the period
+        // when the value round-trips as 'Y-m-d 00:00:00' (SQLite), because
+        // 'Y-m-d 00:00:00' > 'Y-m-d'. whereDate() compares on the date part.
+        $attendance = AttendanceRecord::query()
+            ->whereDate('attendance_date', '>=', $from->toDateString())
+            ->whereDate('attendance_date', '<=', $to->toDateString());
         $leave = LeaveRequest::query()->whereBetween('start_date', [$from->toDateString(), $to->toDateString()]);
         $pos = PosSale::query()->where('status', 'completed')->whereBetween('sold_at', [$from, $to]);
 

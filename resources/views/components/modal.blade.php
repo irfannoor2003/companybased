@@ -1,5 +1,6 @@
 @props([
     'name' => null,
+    'show' => false,
     'title' => null,
     'description' => null,
     'maxWidth' => 'lg',
@@ -18,12 +19,14 @@
 @endphp
 
 <div
-    x-data="{ show: false }"
-    x-init="show = true"
+    x-data="{ show: @js($show ?? false) }"
+    x-init="@js($name ? false : true) ? (show = true) : null"
     x-show="show"
     x-cloak
     @keydown.escape.window="show = false"
     @if ($name)
+        x-on:open-modal.window="$event.detail == '{{ $name }}' ? show = true : null"
+        x-on:close-modal.window="$event.detail == '{{ $name }}' ? show = false : null"
         @click.outside="show = false"
     @endif
     role="dialog"

@@ -75,6 +75,18 @@
                                                     <x-icon name="tag" class="size-4" />
                                                 </a>
                                             @endif
+                                            {{-- A department that still has employees is refused by the controller,
+                                                 so the button is withheld rather than left to fail. --}}
+                                            @if (auth()->user()->can('employees.departments.delete') && $department->employees_count == 0)
+                                                <form method="POST" action="{{ route('employees.departments.destroy', $department) }}"
+                                                    onsubmit="return confirm('Delete department {{ $department->name }}?');">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="btn-ghost btn-icon btn-sm text-rose-500" title="Delete">
+                                                        <x-icon name="trash" class="size-4" />
+                                                    </button>
+                                                </form>
+                                            @endif
                                         </div>
                                     </td>
                                 </tr>

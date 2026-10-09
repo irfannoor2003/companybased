@@ -17,9 +17,9 @@ class SalesInvoice extends Model
     protected $table = 'sales_invoices';
 
     protected $fillable = [
-        'number', 'order_id', 'customer_id', 'issue_date', 'due_date',
+        'number', 'number', 'reference_number', 'order_id', 'customer_id', 'issue_date', 'due_date',
         'status', 'template', 'currency', 'exchange_rate', 'subtotal', 'discount_amount', 'tax_amount', 'total',
-        'paid_amount', 'withheld_amount', 'notes',
+        'paid_amount', 'credit_applied', 'credit_note_applied', 'withheld_amount', 'notes',
     ];
 
     protected $auditModule = 'sales';
@@ -35,6 +35,8 @@ class SalesInvoice extends Model
             'tax_amount' => 'decimal:2',
             'total' => 'decimal:2',
             'paid_amount' => 'decimal:2',
+            'credit_applied' => 'decimal:2',
+            'credit_note_applied' => 'decimal:2',
             'withheld_amount' => 'decimal:2',
         ];
     }
@@ -84,9 +86,40 @@ class SalesInvoice extends Model
         return ['classic' => 'Classic', 'modern' => 'Modern', 'minimal' => 'Minimal', 'corporate' => 'Corporate'];
     }
 
+    /**
+     * What is still owed on this invoice.
+     *
+     * Three separate mechanisms can settle an invoice, and each has to be
+     * deducted or the same money is collectable twice:
+     *
+     *  - paid_amount — cash receipts, always the sum of the payment rows.
+     *  - credit_applied — the customer's own forward balance, money they handed
+     *    over on an earlier document.
+     *  - credit_note_applied — value returned by a credit note raised against
+     *    this invoice.
+     */
     public function balance(): float
     {
-        return round((float) $this->total - (float) $this->paid_amount, 2);
+        return round(
+            (float) $this->total
+            - (float) $this->paid_amount
+            - (float) $this->credit_applied
+            - (float) $this->credit_note_applied,
+            2,
+        );
+    }
+
+    /**
+     * Total settled on the invoice, in cash, forward credit and credit notes.
+     */
+    public function settledAmount(): float
+    {
+        return round(
+            (float) $this->paid_amount
+            + (float) $this->credit_applied
+            + (float) $this->credit_note_applied,
+            2,
+        );
     }
 
     public function isPaid(): bool

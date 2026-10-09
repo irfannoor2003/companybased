@@ -37,10 +37,14 @@
                         <x-select name="currency" label="Currency">
                         <option value="">— Default —</option>
                         @foreach (currency_options() as $code => $label)
-                            <option value="{{ $code }}" @selected(old('currency', 'currency', $order->currency) === $code)>{{ $label }}</option>
+                            <option value="{{ $code }}" @selected(old('currency', $order->currency) === $code)>{{ $label }}</option>
                         @endforeach
                     </x-select>
-                        <x-input name="issue_date" label="Issue date" type="date" value="{{ old('issue_date', $order->issue_date?->format('Y-m-d')) }}" />
+                        @include('documents.partials.reference-number', [
+                        'value' => $order->reference_number,
+                        'example' => 'SO-2026-0001',
+                    ])
+                    <x-input name="issue_date" label="Issue date" type="date" value="{{ old('issue_date', $order->issue_date?->format('Y-m-d')) }}" />
                         <x-input name="expected_delivery_date" label="Expected delivery" type="date" value="{{ old('expected_delivery_date', $order->expected_delivery_date?->format('Y-m-d')) }}" />
                     </div>
 

@@ -40,12 +40,17 @@
                                 <option value="{{ $status }}" @selected(old('status', $quote->status) === $status)>{{ ucfirst($status) }}</option>
                             @endforeach
                         </x-select>
-                        <x-input name="issue_date" label="Issue date" type="date" value="{{ old('issue_date', $quote->issue_date?->format('Y-m-d')) }}" :disabled="$quote->isConverted()" />
+                        @include('documents.partials.reference-number', [
+                        'value' => $quote->reference_number,
+                        'example' => 'Q-2026-0001',
+                        'disabled' => $quote->isConverted(),
+                    ])
+                    <x-input name="issue_date" label="Issue date" type="date" value="{{ old('issue_date', $quote->issue_date?->format('Y-m-d')) }}" :disabled="$quote->isConverted()" />
                         <x-input name="valid_until" label="Valid until" type="date" value="{{ old('valid_until', $quote->valid_until?->format('Y-m-d')) }}" :disabled="$quote->isConverted()" />
                         <x-select name="currency" label="Currency">
                         <option value="">— Default —</option>
                         @foreach (currency_options() as $code => $label)
-                            <option value="{{ $code }}" @selected(old('currency', 'currency', $quote->currency) === $code)>{{ $label }}</option>
+                            <option value="{{ $code }}" @selected(old('currency', $quote->currency) === $code)>{{ $label }}</option>
                         @endforeach
                     </x-select>
                     </div>
@@ -96,6 +101,28 @@
                     @endif
                 </div>
             </x-card>
+
+            {{-- A converted quote is frozen: QuoteController::updateStatus() refuses
+                 it, so the control is withheld rather than left to bounce. --}}
+            @if (! $quote->isConverted())
+                <x-card title="Status">
+                    <div class="flex items-center justify-between">
+                        <x-sales.status-badge :status="$quote->status" />
+                        @if (auth()->user()->can('sales.quotes.edit'))
+                            <form method="POST" action="{{ route('sales.quotes.status', $quote) }}" class="flex gap-2">
+                                @csrf
+                                @method('PATCH')
+                                <x-select name="status" size="sm" class="w-32">
+                                    @foreach (\App\Models\SalesQuote::statusOptions() as $status)
+                                        <option value="{{ $status }}" @selected($quote->status === $status)>{{ ucfirst($status) }}</option>
+                                    @endforeach
+                                </x-select>
+                                <x-button type="submit" size="sm" variant="secondary">Update</x-button>
+                            </form>
+                        @endif
+                    </div>
+                </x-card>
+            @endif
         </div>
     </div>
 </x-app-layout>

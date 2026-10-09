@@ -26,6 +26,21 @@
                             @endforeach
                         </x-select>
                         <x-input name="currency" label="Currency" value="{{ old('currency', $account->currency) }}" />
+
+                        {{-- Which ledger account this is reported in.
+                             Without it, transfers and manual transactions on this
+                             account move the bank ledger but never reach the
+                             balance sheet. --}}
+                        <x-select name="account_id" label="Ledger account"
+                                  hint="Required for the account to reach the balance sheet. A petty cash account left blank falls back to Cash on Hand.">
+                            <option value="">Not mapped</option>
+                            @foreach ($ledgerAccounts as $ledgerAccount)
+                                <option value="{{ $ledgerAccount->id }}"
+                                    @selected((int) old('account_id', $account->account_id) === $ledgerAccount->id)>
+                                    {{ $ledgerAccount->code }} &mdash; {{ $ledgerAccount->name }}
+                                </option>
+                            @endforeach
+                        </x-select>
                     </div>
 
                     <x-input name="opening_balance" label="Opening balance" type="number" step="0.01" value="{{ old('opening_balance', $account->opening_balance) }}" hint="Only affects the starting balance; leave as-is once transactions exist." />

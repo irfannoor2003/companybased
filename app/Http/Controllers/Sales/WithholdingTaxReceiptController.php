@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Sales;
 
+use App\Support\ReceiptDocument;
+
 use App\Http\Controllers\Controller;
 use App\Models\SalesCustomer;
 use App\Models\SalesInvoice;
@@ -107,7 +109,7 @@ class WithholdingTaxReceiptController extends Controller
     {
         $withholdingTaxReceipt->load(['customer', 'invoice']);
 
-        $html = view('sales.withholding_tax_receipts.pdf', compact('withholdingTaxReceipt'))->render();
+        $html = ReceiptDocument::withholdingTaxReceipt($withholdingTaxReceipt)->render();
 
         $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
 

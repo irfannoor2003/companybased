@@ -14,14 +14,7 @@
         </div>
 
         <div>
-            <div class="flex items-center justify-between">
-                <x-input-label for="password" :value="__('Password')" />
-                @if (Route::has('password.request'))
-                    <a class="text-xs font-medium text-primary hover:text-primary-strong" href="{{ route('password.request') }}">
-                        {{ __('Forgot your password?') }}
-                    </a>
-                @endif
-            </div>
+            <x-input-label for="password" :value="__('Password')" />
             <div x-data="{ visible: false }" class="relative">
                 <input id="password" :type="visible ? 'text' : 'password'" class="input mt-1 block w-full pr-11" name="password" required autocomplete="current-password">
                 <button type="button" @click="visible = !visible" class="absolute right-1.5 top-1/2 mt-0.5 flex size-8 -translate-y-1/2 items-center justify-center rounded-lg text-ink-faint transition hover:bg-surface-muted hover:text-ink" :aria-label="visible ? 'Hide password' : 'Show password'">
@@ -32,6 +25,12 @@
             <x-input-error :messages="$errors->get('password')" class="mt-2" />
         </div>
 
+        {{-- No "Forgot your password?" link, by design: this is a single-tenant
+             install where an administrator resets passwords rather than the user
+             requesting a reset e-mail. Pinned by
+             AuthFlowTest::test_login_page_does_not_link_to_registration_or_password_reset.
+             The password.request route and screen still exist and are reachable
+             directly; they are simply not advertised on the login page. --}}
         <label for="remember_me" class="flex cursor-pointer items-center gap-2">
             <input id="remember_me" type="checkbox" class="size-4 rounded border-line text-primary shadow-sm focus:ring-primary" name="remember">
             <span class="text-sm text-ink-soft">{{ __('Remember me') }}</span>

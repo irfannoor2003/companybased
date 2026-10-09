@@ -49,6 +49,27 @@ return [
             'local_domain' => env('MAIL_EHLO_DOMAIN', parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST)),
         ],
 
+        /*
+         * The team mailbox (info@) authenticating as a second login on the same
+         * SMTP server — the shape shared hosting such as Hostinger uses, where
+         * every mailbox is its own account but they all relay through one host.
+         *
+         * Host, port and scheme are inherited from the `smtp` mailer by
+         * MailConfigServiceProvider; only the credentials are distinct. If no
+         * team login is configured, MailIdentity keeps personal mail on the
+         * default transport and this block is never resolved.
+         */
+        'smtp_team' => [
+            'transport' => 'smtp',
+            'scheme' => env('MAIL_SCHEME'),
+            'host' => env('MAIL_HOST', '127.0.0.1'),
+            'port' => env('MAIL_PORT', 2525),
+            'username' => env('MAIL_TEAM_USERNAME'),
+            'password' => env('MAIL_TEAM_PASSWORD'),
+            'timeout' => null,
+            'local_domain' => env('MAIL_EHLO_DOMAIN', parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST)),
+        ],
+
         'ses' => [
             'transport' => 'ses',
         ],

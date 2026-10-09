@@ -30,6 +30,10 @@ final class MailIdentity
 
     private const PERSONAL_PREFIX = 'mail.personal';
 
+    private const ACCOUNTS_PREFIX = 'mail.accounts';
+
+    private const SALES_PREFIX = 'mail.sales';
+
     private const REPLY_TO_PREFIX = 'mail.reply_to';
 
     /**
@@ -117,6 +121,115 @@ final class MailIdentity
         $name = self::replyToName();
 
         return $name ? ['address' => $address, 'name' => $name] : ['address' => $address];
+    }
+
+    /**
+     * The name of the transport that should carry personal (info@) mail.
+     *
+     * Returns null when no separate team login is configured, which tells the
+     * mailables to stay on the default transport. The team mailbox is a second
+     * login on the same SMTP server, so only a distinct credential pair
+     * justifies a second transport.
+     */
+    public static function teamMailerName(): ?string
+    {
+        $username = settings('mail.team_username');
+        $password = settings('mail.team_password');
+
+        if (! filled($username) || ! filled($password)) {
+            return null;
+        }
+
+        return 'smtp_team';
+    }
+
+    /**
+     * From address for accounts / billing email (invoices, receipts, reminders).
+     */
+    public static function accountsFromAddress(): string
+    {
+        return (string) (settings(self::ACCOUNTS_PREFIX.'_from_address') ?: self::guessAccountsAddress() ?: self::systemFromAddress());
+    }
+
+    public static function accountsFromName(): string
+    {
+        return (string) (settings(self::ACCOUNTS_PREFIX.'_from_name') ?: (company_name().' Accounts'));
+    }
+
+    public static function accountsMailerName(): ?string
+    {
+        $username = settings('mail.accounts_username');
+        $password = settings('mail.accounts_password');
+
+        if (! filled($username) || ! filled($password)) {
+            return null;
+        }
+
+        return 'smtp_accounts';
+    }
+
+    /**
+     * Whether sales documents (quotes, orders) prefer the assigned salesman's
+     * email address over the general sales address.
+     */
+    public static function usesSalesmanAddress(): bool
+    {
+        $configured = settings(self::SALES_PREFIX.'_use_salesman_address');
+
+        return $configured === null ? true : filter_var($configured, FILTER_VALIDATE_BOOLEAN);
+    }
+
+    /**
+     * From address for sales / quotes / proposals.
+     */
+    public static function salesFromAddress(?\App\Models\User $salesman = null): string
+    {
+        if (self::usesSalesmanAddress() && filled($salesman?->email)) {
+            return (string) $salesman->email;
+        }
+
+        return (string) (settings(self::SALES_PREFIX.'_from_address') ?: self::guessSalesAddress() ?: self::personalFromAddress());
+    }
+
+    public static function salesFromName(?\App\Models\User $salesman = null): string
+    {
+        if (self::usesSalesmanAddress() && filled($salesman?->name)) {
+            return (string) $salesman->name;
+        }
+
+        return (string) (settings(self::SALES_PREFIX.'_from_name') ?: (company_name().' Sales'));
+    }
+
+    public static function salesMailerName(): ?string
+    {
+        $username = settings('mail.sales_username');
+        $password = settings('mail.sales_password');
+
+        if (! filled($username) || ! filled($password)) {
+            return null;
+        }
+
+        return 'smtp_sales';
+    }
+
+    /**
+     * Derive accounts@<domain>
+     */
+    private static function guessAccountsAddress(): ?string
+    {
+        $domain = self::domainFromConfiguredSender();
+
+        return $domain ? 'accounts@'.$domain : null;
+    }
+
+    /**
+     * Derive sales@<domain>
+     */
+    private static function guessSalesAddress(): ?string
+    {
+        $domain = self::domainFromConfiguredSender();
+
+        return $domain ? 'sales@'.$domain : null;
     }
 
     /**

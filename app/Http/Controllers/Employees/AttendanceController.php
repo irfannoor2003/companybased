@@ -30,9 +30,13 @@ class AttendanceController extends Controller
     {
         $date = $request->filled('date') ? $request->date : now()->toDateString();
 
+        // whereDate() rather than where(): the `attendance_date` cast round-trips
+        // as 'Y-m-d 00:00:00' on SQLite but as a bare 'Y-m-d' on MySQL, so an
+        // equality match returns no rows on SQLite and the day's attendance
+        // appears to be missing.
         $records = AttendanceRecord::query()
             ->with('employee.department')
-            ->when($request->filled('date'), fn ($q) => $q->where('attendance_date', $request->date), fn ($q) => $q->where('attendance_date', $date))
+            ->whereDate('attendance_date', $date)
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->status))
             ->when($request->filled('employee_id'), fn ($q) => $q->where('employee_id', $request->employee_id))
             ->orderBy('check_in_at')
@@ -41,9 +45,9 @@ class AttendanceController extends Controller
 
         $employees = Employee::query()->orderBy('first_name')->get(['id', 'first_name', 'last_name', 'employee_code']);
 
-        $present = AttendanceRecord::query()->where('attendance_date', $date)->whereIn('status', ['present', 'late'])->count();
-        $late = AttendanceRecord::query()->where('attendance_date', $date)->where('status', 'late')->count();
-        $absent = AttendanceRecord::query()->where('attendance_date', $date)->where('status', 'absent')->count();
+        $present = AttendanceRecord::query()->whereDate('attendance_date', $date)->whereIn('status', ['present', 'late'])->count();
+        $late = AttendanceRecord::query()->whereDate('attendance_date', $date)->where('status', 'late')->count();
+        $absent = AttendanceRecord::query()->whereDate('attendance_date', $date)->where('status', 'absent')->count();
         $totalEnabled = Employee::query()->where('attendance_enabled', true)->count();
 
         return view('employees.attendance.index', compact('records', 'employees', 'date', 'present', 'late', 'absent', 'totalEnabled'));
@@ -190,9 +194,12 @@ class AttendanceController extends Controller
 
     public function export(Request $request): StreamedResponse
     {
+        $date = $request->filled('date') ? $request->date : now()->toDateString();
+
+        // whereDate() rather than where() — see the note in index().
         $records = AttendanceRecord::query()
             ->with('employee.department')
-            ->when($request->filled('date'), fn ($q) => $q->where('attendance_date', $request->date), fn ($q) => $q->where('attendance_date', now()->toDateString()))
+            ->whereDate('attendance_date', $date)
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->status))
             ->when($request->filled('employee_id'), fn ($q) => $q->where('employee_id', $request->employee_id))
             ->orderBy('check_in_at')

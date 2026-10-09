@@ -12,12 +12,14 @@ use App\Models\SalesQuote;
 use App\Models\SalesStatusEvent;
 use App\Services\TrackingService;
 use App\Support\DocumentData;
+use App\Support\DocumentReference;
 use App\Support\ExportsCsv;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DeliveryNoteController extends Controller
@@ -69,6 +71,7 @@ class DeliveryNoteController extends Controller
 
         $note = SalesDeliveryNote::create([
             'number' => next_document_number('delivery_note', 'DN'),
+            'reference_number' => DocumentReference::fromRequest($data['reference_number'] ?? null),
             'order_id' => $data['order_id'] ?? null,
             'customer_id' => $data['customer_id'],
             'issue_date' => $data['issue_date'],
@@ -101,12 +104,12 @@ class DeliveryNoteController extends Controller
         return view('documents.show', DocumentData::build($deliveryNote));
     }
 
-    public function pdf(SalesDeliveryNote $deliveryNote): \Illuminate\Http\Response
+    public function pdf(SalesDeliveryNote $deliveryNote): Response
     {
         $this->preparePdf();
         $deliveryNote->load(['customer', 'items.product', 'order']);
 
-        $html = view('pdf.document', DocumentData::build($deliveryNote))->render();
+        $html = view('documents.pdf', DocumentData::build($deliveryNote))->render();
 
         $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
 
@@ -115,9 +118,10 @@ class DeliveryNoteController extends Controller
 
     public function update(Request $request, SalesDeliveryNote $deliveryNote): RedirectResponse
     {
-        $data = $this->validateData($request);
+        $data = $this->validateData($request, $deliveryNote->id);
 
         $deliveryNote->update([
+            'reference_number' => DocumentReference::fromRequest($data['reference_number'] ?? null),
             'order_id' => $data['order_id'] ?? null,
             'customer_id' => $data['customer_id'],
             'issue_date' => $data['issue_date'],
@@ -212,9 +216,10 @@ class DeliveryNoteController extends Controller
         $note->items()->createMany($cleaned);
     }
 
-    private function validateData(Request $request): array
+    private function validateData(Request $request, ?int $ignoreId = null): array
     {
         return $request->validate([
+            'reference_number' => DocumentReference::rules('sales_delivery_notes', $ignoreId),
             'order_id' => ['nullable', 'integer', Rule::exists('sales_orders', 'id')],
             'customer_id' => ['required', 'integer', Rule::exists('sales_customers', 'id')],
             'issue_date' => ['required', 'date'],

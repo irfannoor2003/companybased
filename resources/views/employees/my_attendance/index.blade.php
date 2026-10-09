@@ -42,11 +42,16 @@
                     @if (! ($today && $today->check_in_at && $today->check_out_at))
                         <div class="border-t border-line pt-4">
                             <p class="text-xs text-ink-faint mb-2">Scan the office QR code to mark attendance</p>
-                            <input type="file" accept="image/*" capture="environment" class="hidden" x-ref="qrInput"
-                                @change="handleQrScan($event)" />
-                            <x-button type="button" icon="scan" variant="secondary" class="w-full" @click="$refs.qrInput.click()">
-                                Scan QR Code
-                            </x-button>
+                            <div id="qr-reader" class="mb-3 hidden overflow-hidden rounded-xl border border-line"></div>
+                            <div class="flex flex-col gap-2">
+                                <x-button type="button" icon="scan" variant="secondary" class="w-full"
+                                    @click="toggleScanner()" x-text="scanning ? 'Stop camera' : 'Scan QR Code'"></x-button>
+                                <label class="btn-ghost btn-sm w-full cursor-pointer justify-center">
+                                    <x-icon name="upload" class="size-4" />
+                                    Upload QR image
+                                    <input type="file" accept="image/*" class="hidden" @change="handleQrUpload($event)" />
+                                </label>
+                            </div>
                         </div>
                     @endif
 
@@ -58,13 +63,14 @@
 
                     {{-- Manual Clock In/Out (with location) --}}
                     @if (auth()->user()->can('employees.my_attendance.mark') && ! ($today && $today->check_in_at && $today->check_out_at))
-                        <form method="POST" action="{{ route('employees.my_attendance.mark') }}" id="attendanceForm">
+                        <form method="POST" action="{{ route('employees.my_attendance.mark') }}" id="attendanceForm"
+                            x-ref="form" @submit.prevent="markAttendance()">
                             @csrf
                             <input type="hidden" name="latitude" :value="latitude" />
                             <input type="hidden" name="longitude" :value="longitude" />
                             <input type="hidden" name="qr_text" :value="qrText" />
-                            <x-button type="submit" icon="clock" class="w-full" @click="getLocation()">
-                                {{ $action }}
+                            <x-button type="submit" icon="clock" class="w-full" ::disabled="locating">
+                                <span x-text="locating ? 'Locating…' : @js($action)"></span>
                             </x-button>
                         </form>
                     @endif
@@ -140,77 +146,189 @@
             return {
                 latitude: null,
                 longitude: null,
-                qrText: '{{ settings("company.qr_code_text", "") }}',
-                loading: false,
+                qrText: @json(settings('company.qr_code_text', '')),
+                locating: false,
+                scanning: false,
                 message: '',
                 success: false,
+                reader: null,
+                cameras: [],
+                lastQr: '',
 
+                /**
+                 * Read the device GPS. Resolves with the coordinates so callers can
+                 * wait for them instead of submitting a form with null values.
+                 */
                 getLocation() {
-                    if (navigator.geolocation) {
+                    return new Promise((resolve, reject) => {
+                        if (! navigator.geolocation) {
+                            reject(new Error('This browser cannot report your location.'));
+                            return;
+                        }
+
                         navigator.geolocation.getCurrentPosition(
                             (position) => {
                                 this.latitude = position.coords.latitude;
                                 this.longitude = position.coords.longitude;
+                                resolve([this.latitude, this.longitude]);
                             },
                             (error) => {
-                                this.message = 'Location access is required to mark attendance.';
-                                this.success = false;
-                            }
+                                const messages = {
+                                    1: 'Location permission was denied. Allow location access to mark attendance.',
+                                    2: 'Your location is unavailable. Turn on location services and try again.',
+                                    3: 'Locating timed out. Please try again.',
+                                };
+                                reject(new Error(messages[error.code] ?? 'Could not determine your location.'));
+                            },
+                            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
                         );
+                    });
+                },
+
+                /**
+                 * Open the rear camera and scan continuously. The file input is only
+                 * a fallback because on some browsers `capture` still opens the
+                 * gallery chooser instead of the camera.
+                 */
+                async toggleScanner() {
+                    if (this.scanning) {
+                        this.stopScanner();
+                        return;
+                    }
+
+                    if (typeof Html5Qrcode === 'undefined') {
+                        this.message = 'QR scanner library not loaded. Please refresh the page.';
+                        this.success = false;
+                        return;
+                    }
+
+                    this.message = 'Requesting camera access…';
+                    this.success = false;
+
+                    try {
+                        this.cameras = await Html5Qrcode.getCameras();
+                    } catch (e) {
+                        this.message = 'Could not access the camera. Use “Upload QR image” instead.';
+                        this.success = false;
+                        return;
+                    }
+
+                    if (! this.cameras.length) {
+                        this.message = 'No camera found on this device. Use “Upload QR image” instead.';
+                        this.success = false;
+                        return;
+                    }
+
+                    const readerElement = document.getElementById('qr-reader');
+                    readerElement.classList.remove('hidden');
+                    this.reader = new Html5Qrcode('qr-reader');
+
+                    try {
+                        await this.reader.start(
+                            { facingMode: 'environment' },
+                            { fps: 10, qrbox: { width: 220, height: 220 }, aspectRatio: 1 },
+                            (decodedText) => this.onDecoded(decodedText),
+                            () => {}
+                        );
+                        this.scanning = true;
+                        this.message = 'Point the camera at the office QR code.';
+                        this.success = true;
+                    } catch (e) {
+                        readerElement.classList.add('hidden');
+                        this.message = 'Could not start the camera. Use “Upload QR image” instead.';
+                        this.success = false;
                     }
                 },
 
-                handleQrScan(event) {
+                stopScanner() {
+                    if (this.reader && this.scanning) {
+                        this.reader.stop().then(() => this.reader.clear()).catch(() => {});
+                    }
+                    this.scanning = false;
+
+                    const readerElement = document.getElementById('qr-reader');
+                    if (readerElement) {
+                        readerElement.classList.add('hidden');
+                        readerElement.innerHTML = '';
+                    }
+                },
+
+                onDecoded(decodedText) {
+                    // The camera fires the callback on every frame, so ignore repeats.
+                    if (! decodedText || decodedText === this.lastQr) return;
+                    this.lastQr = decodedText;
+
+                    this.qrText = decodedText;
+                    this.stopScanner();
+                    this.markAttendance();
+                },
+
+                async handleQrUpload(event) {
                     const file = event.target.files[0];
-                    if (!file) return;
+                    if (! file) return;
 
-                    this.loading = true;
+                    if (typeof Html5Qrcode === 'undefined') {
+                        this.message = 'QR scanner library not loaded. Please refresh the page.';
+                        this.success = false;
+                        return;
+                    }
+
+                    this.message = 'Reading QR code…';
+                    this.success = false;
+
+                    try {
+                        const readerElement = document.getElementById('qr-reader');
+                        readerElement.classList.remove('hidden');
+                        this.reader = new Html5Qrcode('qr-reader');
+                        const decodedText = await this.reader.scanFile(file, true);
+                        readerElement.classList.add('hidden');
+                        readerElement.innerHTML = '';
+                        this.onDecoded(decodedText);
+                    } catch (e) {
+                        const readerElement = document.getElementById('qr-reader');
+                        if (readerElement) {
+                            readerElement.classList.add('hidden');
+                            readerElement.innerHTML = '';
+                        }
+                        this.message = 'Could not read a QR code from that image. Please try again.';
+                        this.success = false;
+                    } finally {
+                        event.target.value = '';
+                    }
+                },
+
+                /**
+                 * Resolve the device location first, then submit. Submitting before
+                 * the GPS callback fires is what produced "The latitude field is
+                 * required".
+                 */
+                async markAttendance() {
+                    if (this.locating) return;
+
+                    this.locating = true;
+                    this.message = 'Locating you…';
+                    this.success = false;
+
+                    try {
+                        await this.getLocation();
+                    } catch (e) {
+                        this.message = e.message;
+                        this.success = false;
+                        this.locating = false;
+                        return;
+                    }
+
+                    this.locating = false;
                     this.message = '';
+                    this.$refs.form.requestSubmit();
+                },
 
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        const img = new Image();
-                        img.onload = () => {
-                            const canvas = document.createElement('canvas');
-                            canvas.width = img.width;
-                            canvas.height = img.height;
-                            canvas.getContext('2d').drawImage(img, 0, 0);
-                            const imageData = canvas.toDataURL('image/png');
-
-                            // Use html5-qrcode library to decode
-                            if (typeof Html5Qrcode !== 'undefined') {
-                                const html5QrCode = new Html5Qrcode("qr-reader");
-                                html5QrCode.scanFile(file, true)
-                                    .then(decodedText => {
-                                        this.qrText = decodedText;
-                                        this.getLocation();
-                                        this.message = 'QR code scanned. Click "Clock in" to mark attendance.';
-                                        this.success = true;
-                                        this.loading = false;
-
-                                        // Auto submit form
-                                        this.$nextTick(() => {
-                                            document.getElementById('attendanceForm').submit();
-                                        });
-                                    })
-                                    .catch(err => {
-                                        this.message = 'Could not read QR code. Please try again.';
-                                        this.success = false;
-                                        this.loading = false;
-                                    });
-                            } else {
-                                this.message = 'QR scanner library not loaded. Please refresh.';
-                                this.success = false;
-                                this.loading = false;
-                            }
-                        };
-                        img.src = e.target.result;
-                    };
-                    reader.readAsDataURL(file);
+                destroy() {
+                    this.stopScanner();
                 }
             }
         }
     </script>
-    <div id="qr-reader" style="display: none;"></div>
     @endpush
 </x-app-layout>
+

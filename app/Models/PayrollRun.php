@@ -18,7 +18,7 @@ class PayrollRun extends Model
 
     protected $fillable = [
         'number', 'period_start', 'period_end', 'status', 'total_gross',
-        'total_deductions', 'total_net', 'currency', 'prepared_by', 'paid_at', 'notes',
+        'total_deductions', 'total_net', 'currency', 'exchange_rate', 'prepared_by', 'paid_at', 'notes',
     ];
 
     protected function casts(): array
@@ -29,6 +29,13 @@ class PayrollRun extends Model
             'total_gross' => 'decimal:2',
             'total_deductions' => 'decimal:2',
             'total_net' => 'decimal:2',
+
+            /**
+             * Held to 8 decimal places. A rate rounded to the money scale
+             * misstates every converted figure derived from it, and the
+             * error compounds across a whole payroll run.
+             */
+            'exchange_rate' => 'decimal:8',
             'paid_at' => 'datetime',
         ];
     }

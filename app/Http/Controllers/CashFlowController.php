@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\BankAccount;
 use App\Models\BankTransaction;
 use App\Models\PurchaseInvoice;
 use App\Models\SalesInvoice;
@@ -11,12 +10,13 @@ use App\Models\SupplierPayment;
 use App\Support\ExportsCsv;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Read-only cash flow reporting across banking, sales receipts and supplier
- * payments. Money is rendered from decimal strings — never floats.
+ * payments. Money is rendered from decimal strings â€” never floats.
  */
 class CashFlowController extends Controller
 {
@@ -29,15 +29,24 @@ class CashFlowController extends Controller
         $payables = $this->payables();
 
         $now = now();
-        $monthStart = $now->copy()->startOfMonth()->toDateString();
-        $monthEnd = $now->copy()->endOfMonth()->toDateString();
-        $sixtyDaysAgo = $now->subDays(60)->toDateString();
+        $monthStart = $now->copy()->startOfMonth()->startOfDay();
+        $monthEnd = $now->copy()->endOfMonth()->endOfDay();
+        $sixtyDaysAgo = $now->copy()->subDays(60)->startOfDay()->toDateString();
 
-        $allInflows = $this->inflowRows($sixtyDaysAgo, $monthEnd);
-        $allOutflows = $this->outflowRows($sixtyDaysAgo, $monthEnd);
+        $allInflows = $this->inflowRows($sixtyDaysAgo, $monthEnd->toDateString());
+        $allOutflows = $this->outflowRows($sixtyDaysAgo, $monthEnd->toDateString());
 
-        $inflowsMonth = (float) $allInflows->filter(fn ($r) => $r['date'] >= $monthStart && $r['date'] <= $monthEnd)->sum('amount_base');
-        $outflowsMonth = (float) $allOutflows->filter(fn ($r) => $r['date'] >= $monthStart && $r['date'] <= $monthEnd)->sum('amount_base');
+        // Bounds are Carbons, not 'Y-m-d' strings. Comparing a Carbon against a
+        // date string falls back to __toString(), which yields 'Y-m-d H:i:s', so
+        // a row dated the last day of the month stringified to
+        // '2026-05-31 00:00:00' and compared greater than '2026-05-31' â€” dropping
+        // the final day from "cash in this month" on exactly the day it mattered.
+        $inMonth = fn ($r): bool => $r['date'] instanceof \DateTimeInterface
+            && $r['date'] >= $monthStart
+            && $r['date'] <= $monthEnd;
+
+        $inflowsMonth = (float) $allInflows->filter($inMonth)->sum('amount_base');
+        $outflowsMonth = (float) $allOutflows->filter($inMonth)->sum('amount_base');
 
         // Chart data: daily cash flow for the last 30 days
         $cashFlowChartData = $this->cashFlowChartData($sixtyDaysAgo, $monthEnd);
@@ -59,18 +68,30 @@ class CashFlowController extends Controller
         $allOutflows = $this->outflowRows($from, $to);
 
         // Group by day
+        //
+        // Rows are keyed by a Carbon instance, days by a 'Y-m-d' string. The
+        // comparison was `$row['date'] === $dayKey`, and `Carbon === string` is
+        // false â€” so no row ever matched and the trend chart rendered 61 days
+        // of zeros no matter how much money moved. `sortBy` still ordered
+        // correctly, which is why it looked like an empty business rather than a
+        // broken comparison.
+        $inByDay = [];
+        foreach ($allInflows as $row) {
+            $inByDay[(string) $row['date']->format('Y-m-d')] = ($inByDay[(string) $row['date']->format('Y-m-d')] ?? 0.0)
+                + (float) $row['amount_base'];
+        }
+
+        $outByDay = [];
+        foreach ($allOutflows as $row) {
+            $outByDay[(string) $row['date']->format('Y-m-d')] = ($outByDay[(string) $row['date']->format('Y-m-d')] ?? 0.0)
+                + (float) $row['amount_base'];
+        }
+
         $daily = [];
         for ($d = strtotime($from); $d <= strtotime($to); $d = strtotime('+1 day', $d)) {
             $dayKey = date('Y-m-d', $d);
-            $dayIn = 0;
-            $dayOut = 0;
-
-            foreach ($allInflows as $row) {
-                if ($row['date'] === $dayKey) $dayIn += (float) $row['amount_base'];
-            }
-            foreach ($allOutflows as $row) {
-                if ($row['date'] === $dayKey) $dayOut += (float) $row['amount_base'];
-            }
+            $dayIn = $inByDay[$dayKey] ?? 0.0;
+            $dayOut = $outByDay[$dayKey] ?? 0.0;
 
             $daily[$dayKey] = [
                 'date' => $dayKey,
@@ -130,7 +151,7 @@ class CashFlowController extends Controller
             ->whereIn('status', ['sent', 'partially_paid', 'overdue'])
             ->with('customer')
             ->get()
-            ->map(fn (SalesInvoice $i) => ['due_date' => $i->due_date, 'balance' => $i->balance(), 'amount_base' => to_base_currency($i->balance(), $i->exchange_rate), 'customer' => $i->customer?->name, 'number' => $i->number]);
+            ->map(fn (SalesInvoice $i) => ['due_date' => $i->due_date, 'balance' => $i->balance(), 'amount_base' => to_base_currency($i->balance(), $i->exchange_rate), 'customer' => $i->customer?->company_name, 'number' => $i->number]);
 
         $payablesDue = PurchaseInvoice::query()
             ->whereIn('status', ['sent', 'partially_paid', 'overdue'])
@@ -197,7 +218,7 @@ class CashFlowController extends Controller
 
         foreach ($receivablesDue as $invoice) {
             $days = (int) $today->diffInDays($invoice->due_date);
-            $rows->push(['type' => 'Inflow', 'number' => $invoice->number, 'party' => $invoice->customer?->name, 'due_date' => $invoice->due_date?->format('Y-m-d'), 'bucket' => $step(0, max(0, (($days + 29) / 30) * 30)), 'amount' => $invoice->balance()]);
+            $rows->push(['type' => 'Inflow', 'number' => $invoice->number, 'party' => $invoice->customer?->company_name, 'due_date' => $invoice->due_date?->format('Y-m-d'), 'bucket' => $step(0, max(0, (($days + 29) / 30) * 30)), 'amount' => $invoice->balance()]);
         }
 
         foreach ($payablesDue as $invoice) {
@@ -231,32 +252,114 @@ class CashFlowController extends Controller
         ]);
     }
 
+    /**
+     * Total cash and bank: every account's opening balance plus the net of its
+     * movements.
+     *
+     * Aggregated in SQL rather than by loading every account and every one of its
+     * transactions into memory. The previous version eager-loaded the entire
+     * bank_transactions table on each of the four calls this page makes, which on
+     * shared hosting exhausts the 128 MB limit well before the cash figures get
+     * interesting. The arithmetic is identical: deposits and transfer_ins add,
+     * withdrawals and transfer_outs subtract.
+     */
     private function cashAndBank(): float
     {
-        $accounts = BankAccount::query()->select('id', 'opening_balance')->with([
-            'transactions' => fn ($q) => $q->select('id', 'bank_account_id', 'type', 'amount'),
-        ])->get();
+        $movements = DB::table('bank_transactions')
+            ->selectRaw(
+                'COALESCE(SUM(CASE WHEN type IN (?, ?) THEN amount ELSE 0 END), 0) AS inflow',
+                ['deposit', 'transfer_in'],
+            )
+            ->selectRaw(
+                'COALESCE(SUM(CASE WHEN type IN (?, ?) THEN amount ELSE 0 END), 0) AS outflow',
+                ['withdrawal', 'transfer_out'],
+            )
+            ->selectRaw('bank_account_id')
+            ->groupBy('bank_account_id')
+            ->get()
+            ->keyBy('bank_account_id');
 
-        return round($accounts->sum(fn (BankAccount $a) => $a->balance()), 2);
-    }
+        $opening = DB::table('bank_accounts')->sum('opening_balance');
 
-    private function receivables(): float
-    {
-        return round((float) SalesInvoice::query()->whereIn('status', ['sent', 'partially_paid', 'overdue'])->get()->sum(fn (SalesInvoice $i) => to_base_currency($i->balance(), $i->exchange_rate)), 2);
-    }
+        $net = 0.0;
 
-    private function payables(): float
-    {
-        return round((float) PurchaseInvoice::query()->whereIn('status', ['sent', 'partially_paid', 'overdue'])->get()->sum(fn (PurchaseInvoice $i) => to_base_currency($i->balance(), $i->exchange_rate)), 2);
-    }
+        foreach ($movements as $movement) {
+            $net += (float) $movement->inflow - (float) $movement->outflow;
+        }
 
-    private function bankBalanceBefore(string $date): float
-    {
-        return round(BankAccount::query()->get()->sum(fn (BankAccount $a) => $a->balanceBefore($date)), 2);
+        return round((float) $opening + $net, 2);
     }
 
     /**
-     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     * Open receivables in base currency.
+     *
+     * Summed in SQL. The per-row expression mirrors SalesInvoice::balance()
+     * exactly -- total less payments, less customer credit already drawn down,
+     * less credit notes already applied -- and is then multiplied by the
+     * document's own exchange rate, which is what to_base_currency() did per row.
+     *
+     * The four terms are load-bearing: omitting credit_applied or
+     * credit_note_applied double-counts an invoice a customer has already
+     * settled, which is why this was moved in lockstep with the model rather than
+     * written from memory.
+     */
+    private function receivables(): float
+    {
+        return round((float) SalesInvoice::query()
+            ->whereIn('status', ['sent', 'partially_paid', 'overdue'])
+            ->selectRaw(
+                'COALESCE(SUM((total - paid_amount - credit_applied - credit_note_applied)'
+                .' * COALESCE(exchange_rate, 1)), 0) AS aggregate',
+            )
+            ->value('aggregate'), 2);
+    }
+
+    /**
+     * Open payables in base currency. Mirrors PurchaseInvoice::balance().
+     */
+    private function payables(): float
+    {
+        return round((float) PurchaseInvoice::query()
+            ->whereIn('status', ['sent', 'partially_paid', 'overdue'])
+            ->selectRaw(
+                'COALESCE(SUM((total - paid_amount) * COALESCE(exchange_rate, 1)), 0) AS aggregate',
+            )
+            ->value('aggregate'), 2);
+    }
+
+    /**
+     * Cash and bank as at the start of the period, so the report can show a
+     * closing figure. Aggregated in SQL for the same reason as cashAndBank().
+     */
+    private function bankBalanceBefore(string $date): float
+    {
+        $movements = DB::table('bank_transactions')
+            ->where('transaction_date', '<', $date)
+            ->selectRaw(
+                'COALESCE(SUM(CASE WHEN type IN (?, ?) THEN amount ELSE 0 END), 0) AS inflow',
+                ['deposit', 'transfer_in'],
+            )
+            ->selectRaw(
+                'COALESCE(SUM(CASE WHEN type IN (?, ?) THEN amount ELSE 0 END), 0) AS outflow',
+                ['withdrawal', 'transfer_out'],
+            )
+            ->selectRaw('bank_account_id')
+            ->groupBy('bank_account_id')
+            ->get();
+
+        $opening = DB::table('bank_accounts')->sum('opening_balance');
+
+        $net = 0.0;
+
+        foreach ($movements as $movement) {
+            $net += (float) $movement->inflow - (float) $movement->outflow;
+        }
+
+        return round((float) $opening + $net, 2);
+    }
+
+    /**
+     * @return Collection<int, array<string, mixed>>
      */
     private function inflowRows(string $from, string $to): Collection
     {
@@ -268,14 +371,22 @@ class CashFlowController extends Controller
                     'date' => $p->payment_date,
                     'source' => 'Customer receipt',
                     'ref' => $p->reference ?: $p->invoice?->number,
-                    'desc' => $p->customer?->name,
+                    'desc' => $p->customer?->company_name,
                     'amount' => (float) $p->amount,
                     'amount_base' => to_base_currency($p->amount, $p->exchange_rate),
                     'kind' => 'payment',
                 ]);
             });
 
-        BankTransaction::query()->with(['account'])->whereIn('type', ['deposit', 'transfer_in'])->whereBetween('transaction_date', [$from, $to])->get()
+        // Rows posted by BankLedger on behalf of a payment are excluded here: the
+        // payment is already reported in the block above, and including the
+        // derived bank leg too would count every receipt exactly twice.
+        BankTransaction::query()
+            ->with(['account'])
+            ->whereIn('type', ['deposit', 'transfer_in'])
+            ->whereNotIn('reference_type', [SalesPayment::class, SupplierPayment::class])
+            ->whereBetween('transaction_date', [$from, $to])
+            ->get()
             ->each(function (BankTransaction $t) use (&$rows) {
                 $rows->push([
                     'date' => $t->transaction_date,
@@ -292,7 +403,7 @@ class CashFlowController extends Controller
     }
 
     /**
-     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     * @return Collection<int, array<string, mixed>>
      */
     private function outflowRows(string $from, string $to): Collection
     {
@@ -311,7 +422,14 @@ class CashFlowController extends Controller
                 ]);
             });
 
-        BankTransaction::query()->with(['account'])->whereIn('type', ['withdrawal', 'transfer_out'])->whereBetween('transaction_date', [$from, $to])->get()
+        // Mirrors inflowRows: the bank leg of a supplier payment is derived from
+        // the payment itself and would double-count the disbursement.
+        BankTransaction::query()
+            ->with(['account'])
+            ->whereIn('type', ['withdrawal', 'transfer_out'])
+            ->whereNotIn('reference_type', [SalesPayment::class, SupplierPayment::class])
+            ->whereBetween('transaction_date', [$from, $to])
+            ->get()
             ->each(function (BankTransaction $t) use (&$rows) {
                 $rows->push([
                     'date' => $t->transaction_date,

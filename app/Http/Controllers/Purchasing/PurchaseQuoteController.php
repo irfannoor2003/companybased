@@ -8,17 +8,21 @@ use App\Models\PurchaseOrder;
 use App\Models\PurchaseQuote;
 use App\Models\Supplier;
 use App\Support\DocumentData;
+use App\Support\DiscountLimit;
 use App\Support\DocumentItems;
+use App\Support\DocumentReference;
 use App\Support\ExportsCsv;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PurchaseQuoteController extends Controller
 {
+    use DiscountLimit;
     use ExportsCsv;
 
     public function index(Request $request): View
@@ -42,12 +46,18 @@ class PurchaseQuoteController extends Controller
         $suppliers = Supplier::query()->orderBy('company_name')->get();
         $products = Product::query()->where('is_active', true)->orderBy('name')->get();
 
-        return view('suppliers.purchase_quotes.create', compact('suppliers', 'products'));
+        // What the tax engine expects on this document's date.
+
+        $taxHint = $this->taxRateHint('purchase', now()->toDateString());
+
+
+        return view('suppliers.purchase_quotes.create', compact('suppliers', 'products', 'taxHint'));;
     }
 
     public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([
+            'reference_number' => DocumentReference::rules('purchase_quotes'),
             'supplier_id' => ['required', 'integer', Rule::exists('suppliers', 'id')],
             'issue_date' => ['required', 'date'],
             'valid_until' => ['nullable', 'date'],
@@ -59,6 +69,7 @@ class PurchaseQuoteController extends Controller
 
         $quote = PurchaseQuote::create([
             'number' => next_document_number('purchase_quote', 'PQ'),
+            'reference_number' => DocumentReference::fromRequest($data['reference_number'] ?? null),
             'supplier_id' => $data['supplier_id'],
             'issue_date' => $data['issue_date'],
             'valid_until' => $data['valid_until'] ?? null,
@@ -67,6 +78,8 @@ class PurchaseQuoteController extends Controller
             'exchange_rate' => exchange_rate_for($data['currency'] ?? null),
             'notes' => $data['notes'] ?? null,
         ]);
+
+        $this->validateTaxRates($request->input('items', []), 'purchase', $data['issue_date'] ?? null);
 
         $totals = DocumentItems::sync($quote, $request->input('items', []));
         $quote->update(['subtotal' => $totals['subtotal'], 'tax_amount' => $totals['tax'], 'total' => $totals['total']]);
@@ -91,11 +104,11 @@ class PurchaseQuoteController extends Controller
         return view('documents.show', DocumentData::build($quote));
     }
 
-    public function pdf(PurchaseQuote $quote): \Illuminate\Http\Response
+    public function pdf(PurchaseQuote $quote): Response
     {
         $quote->load(['supplier', 'items.product']);
 
-        $html = view('pdf.document', DocumentData::build($quote))->render();
+        $html = view('documents.pdf', DocumentData::build($quote))->render();
 
         $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
 
@@ -109,6 +122,7 @@ class PurchaseQuoteController extends Controller
         }
 
         $data = $request->validate([
+            'reference_number' => DocumentReference::rules('purchase_quotes', $quote->id),
             'supplier_id' => ['required', 'integer', Rule::exists('suppliers', 'id')],
             'issue_date' => ['required', 'date'],
             'valid_until' => ['nullable', 'date'],
@@ -119,6 +133,7 @@ class PurchaseQuoteController extends Controller
         ]);
 
         $quote->update([
+            'reference_number' => DocumentReference::fromRequest($data['reference_number'] ?? null),
             'supplier_id' => $data['supplier_id'],
             'issue_date' => $data['issue_date'],
             'valid_until' => $data['valid_until'] ?? null,
@@ -127,6 +142,8 @@ class PurchaseQuoteController extends Controller
             'exchange_rate' => exchange_rate_for($data['currency'] ?? null),
             'notes' => $data['notes'] ?? null,
         ]);
+
+        $this->validateTaxRates($request->input('items', []), 'purchase', $data['issue_date'] ?? null);
 
         $totals = DocumentItems::sync($quote, $request->input('items', []));
         $quote->update(['subtotal' => $totals['subtotal'], 'tax_amount' => $totals['tax'], 'total' => $totals['total']]);

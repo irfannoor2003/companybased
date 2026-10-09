@@ -17,7 +17,7 @@ class SalesDeliveryNote extends Model
     protected $table = 'sales_delivery_notes';
 
     protected $fillable = [
-        'number', 'order_id', 'customer_id', 'issue_date', 'status',
+        'number', 'number', 'reference_number', 'order_id', 'customer_id', 'issue_date', 'status',
         'shipping_address', 'carrier', 'tracking_number', 'notes',
     ];
 

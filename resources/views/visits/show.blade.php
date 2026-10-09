@@ -49,7 +49,9 @@
                                 @csrf
                                 <input type="hidden" name="latitude" :value="latitude" />
                                 <input type="hidden" name="longitude" :value="longitude" />
-                                <x-button type="submit" icon="zap" @click="getLocation($event)">Start visit</x-button>
+                                <x-button type="submit" icon="zap" @click="getLocation($event)" ::disabled="locating">
+                                    <span x-text="locating ? 'Locating…' : 'Start visit'"></span>
+                                </x-button>
                             </form>
                         @endif
                         @if ($visit->status === 'started')
@@ -75,7 +77,9 @@
                                         @endforeach
                                     </x-select>
                                 </div>
-                                <x-button type="submit" variant="success" size="md" icon="check" @click="getLocation($event)">Complete visit</x-button>
+                                <x-button type="submit" variant="success" size="md" icon="check" @click="getLocation($event)" ::disabled="locating">
+                                    <span x-text="locating ? 'Locating…' : 'Complete visit'"></span>
+                                </x-button>
                             </form>
                         @endif
                     </div>
@@ -94,7 +98,9 @@
                         <div class="min-w-[240px] flex-1">
                             <x-input name="cancel_reason" label="Reason" required size="sm" placeholder="Why is this visit being cancelled?" :error="$errors->first('cancel_reason')" />
                         </div>
-                        <x-button type="submit" variant="danger-secondary" size="sm" icon="x" @click="getLocation($event)">Cancel visit</x-button>
+                        <x-button type="submit" variant="danger-secondary" size="sm" icon="x" @click="getLocation($event)" ::disabled="locating">
+                            <span x-text="locating ? 'Locating…' : 'Cancel visit'"></span>
+                        </x-button>
                     </form>
                     <template x-if="error">
                         <p class="mt-2 text-sm text-red-600" x-text="error"></p>
@@ -226,21 +232,47 @@
                 latitude: null,
                 longitude: null,
                 error: '',
+                locating: false,
 
+                /**
+                 * Read the device GPS and only then submit the form. Submitting
+                 * before the callback fires sends null coordinates.
+                 */
                 getLocation(event) {
-                    if (navigator.geolocation) {
+                    if (this.locating) {
                         event.preventDefault();
-                        navigator.geolocation.getCurrentPosition(
-                            (position) => {
-                                this.latitude = position.coords.latitude;
-                                this.longitude = position.coords.longitude;
-                                event.target.closest('form').requestSubmit();
-                            },
-                            (error) => {
-                                this.error = 'Location access is required to start, complete or cancel visits. Please enable location permissions.';
-                            }
-                        );
+                        return;
                     }
+
+                    event.preventDefault();
+                    this.error = '';
+                    this.locating = true;
+
+                    if (! navigator.geolocation) {
+                        this.error = 'This browser cannot report your location.';
+                        this.locating = false;
+                        return;
+                    }
+
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            this.latitude = position.coords.latitude;
+                            this.longitude = position.coords.longitude;
+                            this.locating = false;
+                            event.target.closest('form').requestSubmit();
+                        },
+                        (error) => {
+                            const messages = {
+                                1: 'Location permission was denied. Allow location access to record this visit.',
+                                2: 'Your location is unavailable. Turn on location services and try again.',
+                                3: 'Locating timed out. Please try again.',
+                            };
+                            this.error = messages[error.code]
+                                ?? 'Location access is required to start, complete or cancel visits. Please enable location permissions.';
+                            this.locating = false;
+                        },
+                        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+                    );
                 }
             }
         }

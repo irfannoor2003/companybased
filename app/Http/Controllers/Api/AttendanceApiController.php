@@ -28,7 +28,7 @@ class AttendanceApiController extends Controller
             return response()->json(['error' => 'Employee not found.'], 404);
         }
 
-        $time = $request->filled('timestamp') ? \Carbon\Carbon::parse($data['timestamp']) : now();
+        $time = $request->filled('timestamp') ? \Carbon\Carbon::parse($data['timestamp'] ?? null) : now();
 
         $result = $this->attendance->recordScan($employee, $data['method'], $time);
 

@@ -8,17 +8,21 @@ use App\Models\Product;
 use App\Models\PurchaseInvoice;
 use App\Models\Supplier;
 use App\Support\DocumentData;
+use App\Support\DiscountLimit;
 use App\Support\DocumentItems;
+use App\Support\DocumentReference;
 use App\Support\ExportsCsv;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DebitNoteController extends Controller
 {
+    use DiscountLimit;
     use ExportsCsv;
 
     public function index(Request $request): View
@@ -46,7 +50,12 @@ class DebitNoteController extends Controller
             $fromInvoice = PurchaseInvoice::query()->with(['items.product'])->findOrFail($request->invoice);
         }
 
-        return view('suppliers.debit_notes.create', compact('suppliers', 'products', 'fromInvoice'));
+        // What the tax engine expects on this document's date.
+
+        $taxHint = $this->taxRateHint('purchase', now()->toDateString());
+
+
+        return view('suppliers.debit_notes.create', compact('suppliers', 'products', 'fromInvoice', 'taxHint'));;
     }
 
     public function store(Request $request): RedirectResponse
@@ -55,6 +64,7 @@ class DebitNoteController extends Controller
 
         $note = DebitNote::create([
             'number' => next_document_number('debit_note', 'DBN'),
+            'reference_number' => DocumentReference::fromRequest($data['reference_number'] ?? null),
             'invoice_id' => $data['invoice_id'] ?? null,
             'supplier_id' => $data['supplier_id'],
             'issue_date' => $data['issue_date'],
@@ -63,6 +73,8 @@ class DebitNoteController extends Controller
             'exchange_rate' => exchange_rate_for($data['currency'] ?? null),
             'notes' => $data['notes'] ?? null,
         ]);
+
+        $this->validateTaxRates($request->input('items', []), 'purchase', $data['issue_date'] ?? null);
 
         $totals = DocumentItems::sync($note, $request->input('items', []));
         $note->update(['subtotal' => $totals['subtotal'], 'tax_amount' => $totals['tax'], 'total' => $totals['total']]);
@@ -87,11 +99,11 @@ class DebitNoteController extends Controller
         return view('documents.show', DocumentData::build($debitNote));
     }
 
-    public function pdf(DebitNote $debitNote): \Illuminate\Http\Response
+    public function pdf(DebitNote $debitNote): Response
     {
         $debitNote->load(['supplier', 'items.product', 'invoice']);
 
-        $html = view('pdf.document', DocumentData::build($debitNote))->render();
+        $html = view('documents.pdf', DocumentData::build($debitNote))->render();
 
         $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
 
@@ -100,9 +112,10 @@ class DebitNoteController extends Controller
 
     public function update(Request $request, DebitNote $debitNote): RedirectResponse
     {
-        $data = $this->validateData($request);
+        $data = $this->validateData($request, $debitNote->id);
 
         $debitNote->update([
+            'reference_number' => DocumentReference::fromRequest($data['reference_number'] ?? null),
             'invoice_id' => $data['invoice_id'] ?? null,
             'supplier_id' => $data['supplier_id'],
             'issue_date' => $data['issue_date'],
@@ -111,6 +124,8 @@ class DebitNoteController extends Controller
             'exchange_rate' => exchange_rate_for($data['currency'] ?? null),
             'notes' => $data['notes'] ?? null,
         ]);
+
+        $this->validateTaxRates($request->input('items', []), 'purchase', $data['issue_date'] ?? null);
 
         $totals = DocumentItems::sync($debitNote, $request->input('items', []));
         $debitNote->update(['subtotal' => $totals['subtotal'], 'tax_amount' => $totals['tax'], 'total' => $totals['total']]);
@@ -149,9 +164,10 @@ class DebitNoteController extends Controller
         ]));
     }
 
-    private function validateData(Request $request): array
+    private function validateData(Request $request, ?int $ignoreId = null): array
     {
         return $request->validate([
+            'reference_number' => DocumentReference::rules('debit_notes', $ignoreId),
             'invoice_id' => ['nullable', 'integer', Rule::exists('purchase_invoices', 'id')],
             'supplier_id' => ['required', 'integer', Rule::exists('suppliers', 'id')],
             'issue_date' => ['required', 'date'],

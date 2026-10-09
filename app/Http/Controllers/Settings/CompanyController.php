@@ -4,8 +4,13 @@ namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
 use App\Models\Setting;
+use Endroid\QrCode\Encoding\Encoding;
+use Endroid\QrCode\ErrorCorrectionLevel;
+use Endroid\QrCode\QrCode;
+use Endroid\QrCode\Writer\PngWriter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Response as ResponseFactory;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\Response;
@@ -78,9 +83,52 @@ class CompanyController extends Controller
             'company.longitude' => $value('longitude', settings('company.longitude')),
             'company.radius' => $value('radius', settings('company.radius', 500)) ?: 500,
             'company.qr_code_text' => $value('qr_code_text', settings('company.qr_code_text')),
+
+            // Invoice rail. Stored as empty strings rather than null, matching the
+            // team-mailbox fields: a null read back as a filled value would print
+            // a "Payment" heading with nothing under it.
+            'company.bank_account_name' => $value('bank_account_name', settings('company.bank_account_name')),
+            'company.bank_name' => $value('bank_name', settings('company.bank_name')),
+            'company.bank_account_number' => $value('bank_account_number', settings('company.bank_account_number')),
+            'company.payment_instructions' => $value('payment_instructions', settings('company.payment_instructions')),
+            'company.payment_terms' => $value('payment_terms', settings('company.payment_terms')),
         ]);
 
         return back()->with('toasts', [['type' => 'success', 'message' => 'Company profile updated.']]);
+    }
+
+    /**
+     * Render the office attendance QR code as a PNG.
+     *
+     * Accepts the text as a query parameter so the settings screen can preview
+     * exactly what the admin has typed before it is saved, and falls back to the
+     * stored value when nothing is passed.
+     */
+    public function attendanceQrCode(Request $request): Response
+    {
+        $this->authorizePermission('settings.company.manage');
+
+        $text = $request->query('text', settings('company.qr_code_text', ''));
+
+        if (! is_string($text) || trim($text) === '' || mb_strlen($text) > 255) {
+            abort(422, 'The QR code text is missing or too long.');
+        }
+
+        $qrCode = new QrCode(
+            data: trim($text),
+            encoding: new Encoding('UTF-8'),
+            errorCorrectionLevel: ErrorCorrectionLevel::High,
+            size: 400,
+            margin: 10,
+        );
+
+        $result = (new PngWriter)->write($qrCode);
+
+        return ResponseFactory::make($result->getString(), 200, [
+            'Content-Type' => 'image/png',
+            'Content-Disposition' => 'inline; filename="office-attendance-qr-code.png"',
+            'Cache-Control' => 'no-store',
+        ]);
     }
 
     public function updateBranding(Request $request): RedirectResponse

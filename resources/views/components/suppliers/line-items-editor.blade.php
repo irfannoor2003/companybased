@@ -2,9 +2,21 @@
     'products' => [],
     'initialItems' => [],
     'currency' => null,
+    // Expense-type ledger accounts a bill line can be charged to. Resolved here so
+    // every bill form does not have to query the chart of accounts itself.
+    'expenseAccounts' => null,
+    // What the tax engine expects on this document's date. Same contract as the
+    // sales editor, so purchase forms read identically to sales forms.
+    'taxHint' => null,
 ])
 
 @php
+    $expenseAccounts = $expenseAccounts ?? \App\Models\Account::query()
+        ->whereIn('type', ['expense', 'asset'])
+        ->where('is_active', true)
+        ->orderBy('code')
+        ->get();
+
     $productsMap = $products->mapWithKeys(fn ($p) => [
         $p->id => [
             'name' => $p->name,
@@ -33,6 +45,8 @@
         <x-button type="button" size="sm" variant="secondary" icon="plus" x-on:click="addRow()">Add line</x-button>
     </div>
 
+    @include('components.partials.tax-rate-hint')
+
     <template x-if="items.length === 0">
         <p class="rounded-lg border border-dashed border-line px-4 py-6 text-center text-sm text-ink-faint">
             No line items yet. Click “Add line” to build this document.
@@ -42,6 +56,18 @@
     <div class="space-y-2">
         <template x-for="(item, i) in items" :key="i">
             <div class="grid grid-cols-2 gap-2 rounded-lg border border-line bg-surface-muted/40 p-3 sm:grid-cols-7">
+                <div class="col-span-2 sm:col-span-2">
+                    <label class="field-label">Expense account</label>
+                    {{-- The account this line is charged to on the profit and loss.
+                         Without it every bill line landed in Cost of Goods Sold and
+                         the P&L could not say which costs went up. --}}
+                    <select :name="'items[' + i + '][account_id]'" x-model="item.account_id" class="select-input">
+                        <option value="">Cost of goods sold (default)</option>
+                        @foreach ($expenseAccounts as $expenseAccount)
+                            <option value="{{ $expenseAccount->id }}">{{ $expenseAccount->code }} &mdash; {{ $expenseAccount->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
                 <div class="col-span-2 sm:col-span-2">
                     <label class="field-label">Product</label>
                     <select

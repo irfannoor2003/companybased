@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\Account;
+use App\Models\FiscalPeriod;
 use App\Models\JournalEntry;
 use App\Models\JournalEntryItem;
 use Illuminate\Support\Facades\DB;
@@ -41,8 +42,21 @@ class GeneralLedger
                 JournalEntryItem::create([
                     'journal_entry_id' => $entry->id,
                     'account_id' => $account->id,
-                    'debit' => number_format($debit, 2, '.', ''),
+'debit' => number_format($debit, 2, '.', ''),
                     'credit' => number_format($credit, 2, '.', ''),
+
+                    /**
+                     * The transaction currency and the face value behind the
+                     * base-currency figure.
+                     *
+                     * Defaulted rather than required so a caller posting plain
+                     * base-currency lines need not say so, and so a line that has
+                     * an amount never carries a NULL currency.
+                     */
+                    'currency' => strtoupper((string) ($line['currency'] ?? base_currency())) ?: base_currency(),
+                    'exchange_rate' => $line['exchange_rate'] ?? 1,
+                    'original_debit' => $line['original_debit'] ?? number_format($debit, 4, '.', ''),
+                    'original_credit' => $line['original_credit'] ?? number_format($credit, 4, '.', ''),
                     'memo' => $line['memo'] ?? null,
                 ]);
             }
@@ -69,9 +83,22 @@ class GeneralLedger
                 throw new \RuntimeException('Journal must balance before posting.');
             }
 
+            /**
+             * The period gate, checked inside the same transaction and after the
+             * row lock. Checking it outside would let a close() that commits
+             * mid-flight be missed, posting into a period that just closed.
+             *
+             * The period is resolved and stamped here rather than at draft time:
+             * a draft may sit for weeks, and the period it belongs to is decided
+             * by its entry date at the moment it becomes part of the books.
+             */
+            FiscalPeriod::assertPostable($entry->entry_date);
+
             $entry->update([
                 'status' => 'posted',
                 'posted_at' => now(),
+                'fiscal_period_id' => $entry->fiscal_period_id
+                    ?? FiscalPeriod::forDate($entry->entry_date)?->id,
             ]);
         });
     }

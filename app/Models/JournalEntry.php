@@ -17,8 +17,8 @@ class JournalEntry extends Model
     protected $auditModule = 'accounting';
 
     protected $fillable = [
-        'number', 'entry_date', 'reference', 'description', 'status',
-        'created_by', 'posted_at',
+'number', 'entry_date', 'reference', 'description', 'status',
+        'created_by', 'posted_at', 'fiscal_period_id',
     ];
 
     protected function casts(): array
@@ -29,9 +29,14 @@ class JournalEntry extends Model
         ];
     }
 
-    public function items(): HasMany
+public function items(): HasMany
     {
         return $this->hasMany(JournalEntryItem::class);
+    }
+
+    public function fiscalPeriod(): BelongsTo
+    {
+        return $this->belongsTo(FiscalPeriod::class, 'fiscal_period_id');
     }
 
     public function creator(): BelongsTo

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Purchasing;
 
 use App\Http\Controllers\Controller;
+use App\Mail\PurchaseOrderMailable;
 use App\Models\InventoryWarehouse;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
@@ -10,7 +11,9 @@ use App\Models\PurchaseStatusEvent;
 use App\Models\Supplier;
 use App\Services\NotificationService;
 use App\Support\DocumentData;
+use App\Support\DiscountLimit;
 use App\Support\DocumentItems;
+use App\Support\DocumentReference;
 use App\Support\ExportsCsv;
 use App\Support\InventoryLedger;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -18,12 +21,14 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PurchaseOrderController extends Controller
 {
+    use DiscountLimit;
     use ExportsCsv;
 
     public function index(Request $request): View
@@ -49,7 +54,12 @@ class PurchaseOrderController extends Controller
         $warehouses = InventoryWarehouse::query()->orderBy('name')->get();
         $products = Product::query()->where('is_active', true)->orderBy('name')->get();
 
-        return view('suppliers.purchase_orders.create', compact('suppliers', 'warehouses', 'products'));
+        // What the tax engine expects on this document's date.
+
+        $taxHint = $this->taxRateHint('purchase', now()->toDateString());
+
+
+        return view('suppliers.purchase_orders.create', compact('suppliers', 'warehouses', 'products', 'taxHint'));;
     }
 
     public function store(Request $request): RedirectResponse
@@ -58,6 +68,7 @@ class PurchaseOrderController extends Controller
 
         $order = PurchaseOrder::create([
             'number' => next_document_number('purchase_order', 'POR'),
+            'reference_number' => DocumentReference::fromRequest($data['reference_number'] ?? null),
             'supplier_id' => $data['supplier_id'],
             'warehouse_id' => $data['warehouse_id'] ?? null,
             'order_date' => $data['order_date'],
@@ -68,6 +79,8 @@ class PurchaseOrderController extends Controller
             'shipping_address' => $data['shipping_address'] ?? null,
             'notes' => $data['notes'] ?? null,
         ]);
+
+        $this->validateTaxRates($request->input('items', []), 'purchase', $data['issue_date'] ?? null);
 
         $totals = DocumentItems::sync($order, $request->input('items', []));
         $order->update(['subtotal' => $totals['subtotal'], 'tax_amount' => $totals['tax'], 'total' => $totals['total']]);
@@ -106,11 +119,42 @@ class PurchaseOrderController extends Controller
     {
         $order->load(['supplier', 'items.product']);
 
-        $html = view('pdf.document', DocumentData::build($order))->render();
+        $html = view('documents.pdf', DocumentData::build($order))->render();
 
         $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
 
         return $pdf->stream('purchase-order-'.$order->number.'.pdf');
+    }
+
+    public function sendEmail(Request $request, PurchaseOrder $order): RedirectResponse
+    {
+        $order->loadMissing('supplier');
+
+        $data = $request->validate([
+            'recipient_email' => ['required', 'email', 'max:255'],
+            'message' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        try {
+            Mail::to($data['recipient_email'])->send(
+                new PurchaseOrderMailable($order, $data['message'] ?? null)
+            );
+
+            PurchaseStatusEvent::create([
+                'trackable_type' => PurchaseOrder::class,
+                'trackable_id' => $order->id,
+                'from_status' => $order->status,
+                'to_status' => $order->status,
+                'user_id' => auth()->id(),
+                'note' => 'Purchase order emailed to '.$data['recipient_email'],
+            ]);
+
+            return back()->with('toasts', [['type' => 'success', 'message' => "Purchase order {$order->number} sent to {$data['recipient_email']}."]]);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return back()->with('toasts', [['type' => 'error', 'message' => 'Failed to send purchase order email: '.$e->getMessage()]]);
+        }
     }
 
     public function update(Request $request, PurchaseOrder $order): RedirectResponse
@@ -119,9 +163,10 @@ class PurchaseOrderController extends Controller
             return back()->with('toasts', [['type' => 'danger', 'message' => 'Received orders are locked.']]);
         }
 
-        $data = $this->validateData($request);
+        $data = $this->validateData($request, $order->id);
 
         $order->update([
+            'reference_number' => DocumentReference::fromRequest($data['reference_number'] ?? null),
             'supplier_id' => $data['supplier_id'],
             'warehouse_id' => $data['warehouse_id'] ?? null,
             'order_date' => $data['order_date'],
@@ -132,6 +177,8 @@ class PurchaseOrderController extends Controller
             'shipping_address' => $data['shipping_address'] ?? null,
             'notes' => $data['notes'] ?? null,
         ]);
+
+        $this->validateTaxRates($request->input('items', []), 'purchase', $data['issue_date'] ?? null);
 
         $totals = DocumentItems::sync($order, $request->input('items', []));
         $order->update(['subtotal' => $totals['subtotal'], 'tax_amount' => $totals['tax'], 'total' => $totals['total']]);
@@ -312,9 +359,10 @@ class PurchaseOrderController extends Controller
         }
     }
 
-    private function validateData(Request $request): array
+    private function validateData(Request $request, ?int $ignoreId = null): array
     {
         return $request->validate([
+            'reference_number' => DocumentReference::rules('purchase_orders', $ignoreId),
             'supplier_id' => ['required', 'integer', Rule::exists('suppliers', 'id')],
             'warehouse_id' => ['nullable', 'integer', Rule::exists('inventory_warehouses', 'id')],
             'order_date' => ['required', 'date'],

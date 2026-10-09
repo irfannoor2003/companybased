@@ -56,6 +56,7 @@
                             <option value="{{ $status }}" @selected(old('status', 'sent') === $status)>{{ ucfirst(str_replace('_', ' ', $status)) }}</option>
                         @endforeach
                     </x-select>
+                    @include('documents.partials.reference-number', ['example' => 'PIN-2026-0001'])
                     <x-input name="issue_date" label="Issue date" type="date" value="{{ old('issue_date', now()->toDateString()) }}" />
                     <x-input name="due_date" label="Due date" type="date" value="{{ old('due_date') }}" />
                     <x-select name="currency" label="Currency" x-ref="currency">
@@ -69,6 +70,7 @@
                 @php
                     $initialItems = $fromProduction ? $fromProduction->items->map(fn ($line) => [
                         'product_id' => (string) ($line->componentItem?->product_id ?? ''),
+                'account_id' => '',
                         'description' => $line->componentItem?->product?->name ?? ($line->componentItem?->product?->sku ?? ''),
                         'qty' => (float) ($line->quantity_required ?? 0),
                         'unit_price' => (float) ($line->componentItem?->product?->cost_price ?? 0),
@@ -76,6 +78,7 @@
                         'tax_percent' => 0,
                     ])->all() : ($fromOrder ? $fromOrder->items->map(fn ($item) => [
                         'product_id' => (string) ($item->product_id ?? ''),
+            'account_id' => '',
                         'description' => $item->description,
                         'qty' => (float) $item->qty,
                         'unit_price' => (float) $item->unit_price,
@@ -84,7 +87,8 @@
                     ])->all() : []);
                 @endphp
 
-                <x-suppliers.line-items-editor :products="$products" :initial-items="$initialItems" :currency="old('currency', $fromOrder?->currency ?? settings('company.currency', 'USD'))" />
+                <x-suppliers.line-items-editor
+                    :products="$products" :initial-items="$initialItems" :currency="old('currency', $fromOrder?->currency ?? settings('company.currency', 'USD'))" :tax-hint="$taxHint" />
 
                 <x-textarea name="notes" label="Notes" rows="3">{{ old('notes') }}</x-textarea>
 

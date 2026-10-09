@@ -20,16 +20,56 @@
         </include>
     </source>
 
+    <!--
+        force="true" and the mirrored <server> block are both required.
+
+        Two separate reasons, and dropping either one silently re-breaks this:
+
+        1. force="true" — by default PHPUnit only applies an <env> value when the
+           variable is not already set. `php artisan test` boots the app first,
+           which loads the real .env, and the PHPUnit subprocess inherits it.
+
+        2. <server> — <env> only writes getenv() and $_ENV. Laravel's env()
+           helper reads $_SERVER first, and the inherited $_SERVER still holds
+           APP_ENV=production and DB_CONNECTION=mysql from the parent process.
+           Without this block config('app.env') stays 'production' even though
+           getenv('APP_ENV') correctly says 'testing'.
+
+        Together these guarantee the suite can never touch the real database.
+
+        DB_CONNECTION is `mysql_testing`, a connection defined only for the test
+        environment and pointed at DB_TEST_DATABASE (default `companybased_test`)
+        — never the application's `mysql` connection. The suite runs on MySQL
+        deliberately: the previous SQLite setup diverged from production in ways
+        that produced false bug reports around date casts and range queries.
+        Tests\TestCase::guardAgainstProductionDatabase() re-checks the resolved
+        schema on every run, so a misconfigured DB_TEST_DATABASE aborts the run
+        instead of migrating:fresh over real data.
+    -->
     <php>
-        <env name="APP_ENV" value="testing"/>
-        <env name="APP_MAINTENANCE_DRIVER" value="file"/>
-        <env name="BCRYPT_ROUNDS" value="4"/>
-        <env name="CACHE_STORE" value="array"/>
-        <env name="DB_CONNECTION" value="sqlite"/>
-        <env name="DB_DATABASE" value=":memory:"/>
-        <env name="MAIL_MAILER" value="array"/>
-        <env name="QUEUE_CONNECTION" value="sync"/>
-        <env name="SESSION_DRIVER" value="array"/>
-        <env name="TELESCOPE_ENABLED" value="false"/>
+        <!-- RouteSmokeTest renders every GET route in one method: 600+ full pages
+             with layouts and nav. At the 128M default that is marginal, and a child
+             that dies mid-run leaves PHPUnit waiting on a corpse with no error. -->
+        <ini name="memory_limit" value="1G"/>
+        <env name="APP_ENV" value="testing" force="true"/>
+        <env name="APP_MAINTANCE_DRIVER" value="file" force="true"/>
+        <env name="BCRYPT_ROUNDS" value="4" force="true"/>
+        <env name="CACHE_STORE" value="array" force="true"/>
+        <env name="DB_CONNECTION" value="mysql_testing" force="true"/>
+        <env name="DB_TEST_DATABASE" value="companybased_test" force="true"/>
+        <env name="MAIL_MAILER" value="array" force="true"/>
+        <env name="QUEUE_CONNECTION" value="sync" force="true"/>
+        <env name="SESSION_DRIVER" value="array" force="true"/>
+        <env name="TELESCOPE_ENABLED" value="false" force="true"/>
+        <server name="APP_ENV" value="testing" force="true"/>
+        <server name="APP_MAINTENANCE_DRIVER" value="file" force="true"/>
+        <server name="BCRYPT_ROUNDS" value="4" force="true"/>
+        <server name="CACHE_STORE" value="array" force="true"/>
+        <server name="DB_CONNECTION" value="mysql_testing" force="true"/>
+        <server name="DB_TEST_DATABASE" value="companybased_test" force="true"/>
+        <server name="MAIL_MAILER" value="array" force="true"/>
+        <server name="QUEUE_CONNECTION" value="sync" force="true"/>
+        <server name="SESSION_DRIVER" value="array" force="true"/>
+        <server name="TELESCOPE_ENABLED" value="false" force="true"/>
     </php>
 </phpunit>

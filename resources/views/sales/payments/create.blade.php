@@ -9,23 +9,31 @@
 
     <div class="mt-6 max-w-4xl">
         <x-card title="Payment details">
-             <form method="POST" action="{{ route('sales.sales_payments.store') }}" class="space-y-5" x-data="currencyFromEntity()" x-init="initCurrencySelect()">
+             <form method="POST" action="{{ route('sales.sales_payments.store') }}" class="space-y-5" x-data="currencyFromEntity() paymentOverpayment()" x-init="initCurrencySelect()">
                  @csrf
 
+                 {{-- Set only by the confirmation dialog; the server refuses an
+                      overpayment without it. --}}
+                 <input type="hidden" name="overpayment_confirmed" x-bind:value="confirmed ? 1 : 0">
+
                  <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                     @include('documents.partials.reference-number', [
+                         'label' => 'Manual receipt number',
+                         'example' => 'RC-OS-4471',
+                     ])
                      <x-select name="customer_id" label="Customer" required @change="$event.target.value && syncCurrency($event.target)">
                          <option value="">— Select customer —</option>
                          @foreach ($customers as $customer)
                              <option value="{{ $customer->id }}" data-currency="{{ $customer->currency ?? '' }}" @selected(old('customer_id', $fromInvoice?->customer_id) == $customer->id)>{{ $customer->company_name }}</option>
                          @endforeach
                      </x-select>
-                     <x-select name="invoice_id" label="Against invoice">
+                     <x-select name="invoice_id" label="Against invoice" x-on:change="confirmed = false">
                          <option value="">— None —</option>
                          @foreach ($invoices as $inv)
-                             <option value="{{ $inv->id }}" @selected(old('invoice_id', $fromInvoice?->id) == $inv->id)>{{ $inv->number }} · {{ $inv->customer?->company_name }} · balance {{ money($inv->balance(), $inv->currency) }}</option>
+                             <option value="{{ $inv->id }}" data-balance="{{ $inv->balance() }}" @selected(old('invoice_id', $fromInvoice?->id) == $inv->id)>{{ $inv->number }} · {{ $inv->customer?->company_name }} · balance {{ money($inv->balance(), $inv->currency) }}</option>
                          @endforeach
                      </x-select>
-                     <x-input name="amount" label="Amount" type="number" step="0.01" min="0.01" :value="old('amount', $fromInvoice?->balance())" required />
+                     <x-input name="amount" label="Amount" type="number" step="0.01" min="0.01" :value="old('amount', $fromInvoice?->balance())" required x-on:input="confirmed = false" />
                      <x-input name="payment_date" label="Payment date" type="date" value="{{ old('payment_date', now()->toDateString()) }}" required />
                      <x-select name="method" label="Method" required>
                          @foreach (\App\Models\SalesPayment::methodOptions() as $method)
@@ -44,9 +52,20 @@
 
                  <x-textarea name="notes" label="Notes" rows="3">{{ old('notes') }}</x-textarea>
 
+                 {{-- The split is stated before saving, not only in a dialog that may be
+                      dismissed without reading. --}}
+                 <div x-show="isOverpayment()" x-cloak class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+                     <p class="font-semibold">This is more than the invoice is owed.</p>
+                     <p class="mt-1">
+                         <span x-text="format(applied())"></span> will settle the invoice and
+                         <span x-text="format(surplus())"></span> will be held as credit on the
+                         customer's account, deducted automatically from their next invoice.
+                     </p>
+                 </div>
+
                  <div class="flex justify-end gap-3 border-t border-line pt-4">
                      <x-button href="{{ route('sales.sales_payments.index') }}" variant="ghost">Cancel</x-button>
-                     <x-button type="submit" icon="save">Record payment</x-button>
+                     <x-button type="submit" icon="save" x-on:click="confirm($event)">Record payment</x-button>
                  </div>
              </form>
         </x-card>

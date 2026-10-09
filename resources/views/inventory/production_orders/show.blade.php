@@ -50,6 +50,72 @@
                     </div>
                 @endif
             </x-card>
+        <x-card :padding="false">
+                <div class="border-b border-line px-5 py-4">
+                    <h2 class="text-sm font-semibold text-ink">Labour</h2>
+                    <p class="mt-1 text-xs text-ink-faint">
+                        Time recorded here is capitalised into work in progress, and transferred to the finished goods when this order completes.
+                    </p>
+                </div>
+
+                @if (auth()->user()->can('inventory.production_orders.record_labour') && ! in_array($order->status, ['completed', 'cancelled']))
+                    <form method="POST" action="{{ route('inventory.production_orders.labour.store', $order) }}"
+                        class="grid grid-wrap items-end gap-3 border-b border-line px-5 py-4">
+                        @csrf
+                        <div class="min-w-[180px] flex-1">
+                            <x-select name="employee_id" label="Employee" size="sm" required>
+                                <option value="">Select an employee</option>
+                                @foreach ($employees as $employee)
+                                    <option value="{{ $employee->id }}" @selected(old('employee_id') == $employee->id)>
+                                        {{ $employee->first_name }} {{ $employee->last_name }}
+                                    </option>
+                                @endforeach
+                            </x-select>
+                        </div>
+                        <div class="w-32">
+                            <x-input type="number" name="minutes" label="Minutes" size="sm" min="1" max="1440"
+                                value="{{ old('minutes') }}" required />
+                        </div>
+                        <div class="w-40">
+                            <x-input type="date" name="work_date" label="Work date" size="sm"
+                                value="{{ old('work_date', now()->toDateString()) }}" required />
+                        </div>
+                        <x-button type="submit" size="sm" icon="plus">Record</x-button>
+                    </form>
+                @endif
+
+                @if ($labour->isEmpty())
+                    <x-empty-state icon="clock" title="No labour recorded"
+                        description="Time worked on this order will appear here and be absorbed into work in progress." />
+                @else
+                    <div class="table-wrap !border-0 !rounded-none">
+                        <table class="table-base">
+                            <thead>
+                                <tr>
+                                    <th>Employee</th>
+                                    <th>Date</th>
+                                    <th class="text-right">Minutes</th>
+                                    <th class="text-right">Rate</th>
+                                    <th class="text-right">Cost</th>
+                                    <th>Absorbed</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($labour as $entry)
+                                    <tr>
+                                        <td class="font-medium text-ink">{{ $entry->employee?->first_name }} {{ $entry->employee?->last_name }}</td>
+                                        <td class="text-ink-soft">{{ $entry->work_date?->format('Y-m-d') }}</td>
+                                        <td class="text-right text-ink">{{ $entry->minutes }}</td>
+                                        <td class="text-right text-ink-soft">{{ number_format((float) $entry->hourly_rate, 2) }}</td>
+                                        <td class="text-right font-medium text-ink">{{ number_format((float) $entry->labour_cost, 2) }}</td>
+                                        <td class="text-ink-soft">{{ $entry->absorbed_at ? 'Yes' : 'No' }}</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @endif
+            </x-card>
         </div>
 
         <div class="space-y-6">

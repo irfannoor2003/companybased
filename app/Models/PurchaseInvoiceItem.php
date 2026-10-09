@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class PurchaseInvoiceItem extends Model
 {
     protected $fillable = [
-        'invoice_id', 'product_id', 'description', 'qty', 'unit_price',
+        'invoice_id', 'product_id', 'account_id', 'description', 'qty', 'unit_price',
         'discount_percent', 'tax_percent', 'line_total',
     ];
 
@@ -31,5 +31,13 @@ class PurchaseInvoiceItem extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class, 'product_id');
+    }
+
+    /**
+     * The expense account this line is charged to on the profit and loss.
+     */
+    public function account(): BelongsTo
+    {
+        return $this->belongsTo(Account::class, 'account_id');
     }
 }

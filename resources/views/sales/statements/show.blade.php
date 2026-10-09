@@ -13,6 +13,12 @@
     <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <x-card title="Opening / billed">
             <p class="text-xl font-semibold text-ink">{{ money($ledger->where('type', 'Invoice')->sum('debit'), $customer->currency) }}</p>
+            @if ($customer->openingBalance() != 0.0)
+                <p class="mt-1 text-xs text-ink-faint">
+                    Plus opening balance of {{ money(abs($customer->openingBalance()), $customer->currency) }}
+                    {{ $customer->openingBalance() > 0 ? 'owed' : 'in credit' }} brought forward.
+                </p>
+            @endif
         </x-card>
         <x-card title="Credits & payments">
             <p class="text-xl font-semibold text-emerald-600 dark:text-emerald-400">{{ money($ledger->sum('credit') ?? 0, $customer->currency) }}</p>

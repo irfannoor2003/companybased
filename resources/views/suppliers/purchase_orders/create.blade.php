@@ -39,13 +39,15 @@
                             <option value="{{ $code }}" @selected(old('currency', settings('company.currency', 'USD')) === $code)>{{ $label }}</option>
                         @endforeach
                     </x-select>
+                    @include('documents.partials.reference-number', ['example' => 'POR-2026-0001'])
                     <x-input name="order_date" label="Order date" type="date" value="{{ old('order_date', now()->toDateString()) }}" />
                     <x-input name="expected_delivery_date" label="Expected delivery" type="date" value="{{ old('expected_delivery_date') }}" />
                 </div>
 
                 <x-input name="shipping_address" label="Shipping address" value="{{ old('shipping_address') }}" placeholder="Supplier address by default…" />
 
-                <x-suppliers.line-items-editor :products="$products" :initial-items="[]" :currency="old('currency', settings('company.currency', 'USD'))" />
+                <x-suppliers.line-items-editor
+                    :products="$products" :initial-items="[]" :currency="old('currency', settings('company.currency', 'USD'))" :tax-hint="$taxHint" />
 
                 <x-textarea name="notes" label="Notes" rows="3">{{ old('notes') }}</x-textarea>
 

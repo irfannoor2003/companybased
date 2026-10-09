@@ -89,9 +89,26 @@
                                     <td><x-accounting.status-badge :status="$claim->status" /></td>
                                     <td class="text-right font-medium text-ink">{{ money($claim->amount, $claim->currency) }}</td>
                                     <td class="text-right">
-                                        <a href="{{ route('accounting.expense_claims.show', $claim) }}" class="btn-ghost btn-icon btn-sm" title="View">
-                                            <x-icon name="eye" class="size-4" />
-                                        </a>
+                                        <div class="flex items-center justify-end gap-1">
+                                            <a href="{{ route('accounting.expense_claims.show', $claim) }}" class="btn-ghost btn-icon btn-sm" title="View">
+                                                <x-icon name="eye" class="size-4" />
+                                            </a>
+                                            @can('accounting.expense_claims.edit')
+                                                <a href="{{ route('accounting.expense_claims.edit', $claim) }}" class="btn-ghost btn-icon btn-sm" title="Edit">
+                                                    <x-icon name="edit" class="size-4" />
+                                                </a>
+                                            @endcan
+                                            @can('accounting.expense_claims.delete')
+                                                <form method="POST" action="{{ route('accounting.expense_claims.destroy', $claim) }}"
+                                                    onsubmit="return confirm('Delete expense claim {{ $claim->number }}?');">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="btn-ghost btn-icon btn-sm text-rose-500" title="Delete">
+                                                        <x-icon name="trash" class="size-4" />
+                                                    </button>
+                                                </form>
+                                            @endcan
+                                        </div>
                                     </td>
                                 </tr>
                             @endforeach

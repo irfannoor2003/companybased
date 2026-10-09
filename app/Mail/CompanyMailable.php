@@ -5,8 +5,10 @@ namespace App\Mail;
 use App\Support\Branding;
 use App\Support\MailIdentity;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Mail\Factory as MailFactory;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Mail;
 
 /**
  * Base class for company-branded mail.
@@ -18,6 +20,10 @@ use Illuminate\Queue\SerializesModels;
  * Choose an identity with the fluent helpers:
  *   useSystemIdentity()   → from no-reply@, reply-to info@   (welcome, order status, alerts)
  *   usePersonalIdentity() → from info@                        (staff emailing a customer)
+ *
+ * Personal mail is additionally routed through the team transport when a
+ * separate team login is configured, because the two mailboxes authenticate
+ * with different passwords on the same SMTP host.
  */
 abstract class CompanyMailable extends Mailable
 {
@@ -49,9 +55,47 @@ abstract class CompanyMailable extends Mailable
         return $this;
     }
 
+    /**
+     * Send as Accounts / Billing: invoices, receipts, payment reminders.
+     */
+    public function useAccountsIdentity(): static
+    {
+        $this->identity = 'accounts';
+
+        return $this;
+    }
+
+    /**
+     * Send as Sales: quotes, orders, customer proposals.
+     * Optionally scope to the assigned Salesman if configured.
+     */
+    public function useSalesIdentity(?\App\Models\User $salesman = null): static
+    {
+        $this->identity = 'sales';
+        $this->salesman = $salesman;
+
+        return $this;
+    }
+
     private ?string $personalFallbackEmail = null;
 
     private ?string $personalFallbackName = null;
+
+    private ?\App\Models\User $salesman = null;
+
+    /**
+     * The transport this identity should be sent through, or null to stay on
+     * whatever the caller handed us.
+     */
+    private function transportForIdentity(): ?string
+    {
+        return match ($this->identity) {
+            'personal' => MailIdentity::teamMailerName(),
+            'accounts' => MailIdentity::accountsMailerName(),
+            'sales' => MailIdentity::salesMailerName(),
+            default => null,
+        };
+    }
 
     /**
      * Apply the identity to the outgoing message.
@@ -68,6 +112,16 @@ abstract class CompanyMailable extends Mailable
                 MailIdentity::personalFromAddress($this->personalFallbackEmail),
                 MailIdentity::personalFromName((string) $this->personalFallbackName),
             );
+        } elseif ($this->identity === 'accounts') {
+            $this->from(
+                MailIdentity::accountsFromAddress(),
+                MailIdentity::accountsFromName(),
+            );
+        } elseif ($this->identity === 'sales') {
+            $this->from(
+                MailIdentity::salesFromAddress($this->salesman),
+                MailIdentity::salesFromName($this->salesman),
+            );
         } else {
             $this->from(MailIdentity::systemFromAddress(), MailIdentity::systemFromName());
         }
@@ -82,6 +136,21 @@ abstract class CompanyMailable extends Mailable
     public function send($mailer)
     {
         $this->applyIdentity();
+
+        if (($transport = $this->transportForIdentity()) !== null) {
+            // Record the choice on the mailable, which is what a queued job
+            // reads to resolve the transport.
+            $this->mailer($transport);
+
+            // `Mailable::send()` only consults `$this->mailer` when it is handed
+            // a MailFactory, which is the queued path. On a synchronous send
+            // Laravel passes an already-resolved Mailer and the property is
+            // ignored, so the transport has to be swapped here or the team
+            // mailbox login would be silently bypassed.
+            if (! $mailer instanceof MailFactory) {
+                $mailer = Mail::mailer($transport);
+            }
+        }
 
         return parent::send($mailer);
     }

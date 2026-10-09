@@ -71,16 +71,20 @@
                             <td class="text-ink-soft">{{ $customer->contact_name ?: '—' }}</td>
                                 <td class="text-ink-soft">{{ $customer->city ?: ($customer->country ?: '—') }}</td>
                                 <td class="text-right">
-                                    @php
-                                        $billed = (float) $customer->invoices->sum('total');
-                                        $paid = (float) $customer->payments->sum('amount');
-                                        $credited = (float) $customer->creditNotes->sum('applied_amount');
-                                        $balance = round($billed - $paid - $credited, 2);
-                                    @endphp
+                                    {{-- Taken from the model, not re-derived here.
+                                         This column had its own arithmetic that
+                                         omitted the opening balance and excluded
+                                         settled invoices, so a fully paid customer
+                                         read as being 2,000 in credit on the list
+                                         while their own page showed 0.00. Two
+                                         formulas for one number is how they drift. --}}
+                                    @php $balance = $customer->balance(); @endphp
                                     @if ($balance > 0)
                                         <span class="font-medium text-rose-600 dark:text-rose-400">{{ money($balance, $customer->currency) }}</span>
-                                    @else
+                                    @elseif ($balance < 0)
                                         <span class="font-medium text-emerald-600 dark:text-emerald-400">{{ money($balance, $customer->currency) }}</span>
+                                    @else
+                                        <span class="font-medium text-ink-faint">{{ money(0, $customer->currency) }}</span>
                                     @endif
                                 </td>
                                 <td>

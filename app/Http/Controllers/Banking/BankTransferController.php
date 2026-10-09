@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Banking;
 use App\Http\Controllers\Controller;
 use App\Models\BankAccount;
 use App\Models\BankTransfer;
+use App\Services\Accounting\LedgerPosting;
 use App\Support\BankLedger;
 use App\Support\ExportsCsv;
 use Illuminate\Http\RedirectResponse;
@@ -135,11 +136,40 @@ class BankTransferController extends Controller
 
                     BankLedger::postTransfer($transfer);
                     $transfer->update(['status' => 'completed', 'completed_at' => now()]);
+
+                    /**
+                     * Reach the balance sheet.
+                     *
+                     * BankLedger only writes the two bank_transactions rows, so
+                     * without this the money moved in the bank ledger while neither
+                     * side of the trial balance changed -- and nothing reported the
+                     * disagreement. Posted inside the same transaction: the bank legs
+                     * and the journal stand or fall together.
+                     */
+                    app(LedgerPosting::class)->bankTransferPosted($transfer->fresh());
                 } elseif ($toStatus === 'cancelled' && $transfer->isCompleted()) {
                     BankLedger::reverseTransfer($transfer);
                     $transfer->update(['status' => 'cancelled', 'completed_at' => null]);
+
+                    // The journal goes with the bank legs it belongs to.
+                    app(LedgerPosting::class)->reverseBankMovement($transfer);
                 } else {
-                    $transfer->update(['status' => $toStatus]);
+                    // Moving a completed transfer back to `draft` has to unwind
+                    // the ledger first. It used to fall into this branch and just
+                    // rewrite the status, leaving both BankTransaction legs in
+                    // place and completed_at still set. Completing it again then
+                    // posted a *second* pair of legs, so both account balances
+                    // were wrong by the transfer amount in each direction and
+                    // cancelling afterwards only removed one pair.
+                    if ($transfer->isCompleted()) {
+                        BankLedger::reverseTransfer($transfer);
+                        app(LedgerPosting::class)->reverseBankMovement($transfer);
+                    }
+
+                    $transfer->update([
+                        'status' => $toStatus,
+                        'completed_at' => null,
+                    ]);
                 }
             });
         } catch (\RuntimeException $e) {

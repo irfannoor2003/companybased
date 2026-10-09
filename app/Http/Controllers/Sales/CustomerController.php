@@ -50,23 +50,7 @@ class CustomerController extends Controller
     {
         $data = $this->validateData($request);
 
-        $customer = SalesCustomer::create([
-            'company_name' => $data['company_name'],
-            'short_code' => $data['short_code'] ?? null,
-            'contact_name' => $data['contact_name'] ?? null,
-            'email' => $data['email'] ?? null,
-            'phone' => $data['phone'] ?? null,
-            'mobile' => $data['mobile'] ?? null,
-            'address' => $data['address'] ?? null,
-            'city' => $data['city'] ?? null,
-            'country' => $data['country'] ?? null,
-            'tax_number' => $data['tax_number'] ?? null,
-            'price_list_id' => $data['price_list_id'] ?? null,
-            'credit_limit' => $data['credit_limit'] ?? 0,
-            'currency' => $data['currency'] ?? null,
-            'is_active' => $request->boolean('is_active', true),
-            'notes' => $data['notes'] ?? null,
-        ]);
+        $customer = SalesCustomer::create($this->attributes($request, $data));
 
         $this->sendWelcomeEmail($customer);
 
@@ -77,6 +61,14 @@ class CustomerController extends Controller
     /**
      * Let the customer know they are now on file. Queued, so a slow or
      * unreachable mail server never blocks the create request.
+     *
+     * Still wrapped, because "queued" is not the same as "cannot throw":
+     * resolving the mailer builds the transport eagerly in order to dispatch
+     * to the queue, so a misconfigured mail server raised out of `->queue()`
+     * itself and failed the create request — after the customer was already
+     * committed. That reported a 500 for a record that had in fact saved, and
+     * a retry then tripped the unique constraint on the short code or email.
+     * A welcome email is never worth a failed customer record.
      */
     private function sendWelcomeEmail(SalesCustomer $customer): void
     {
@@ -84,7 +76,11 @@ class CustomerController extends Controller
             return;
         }
 
-        Mail::to($customer->email)->queue(new CustomerWelcome($customer));
+        try {
+            Mail::to($customer->email)->queue(new CustomerWelcome($customer));
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     public function show(SalesCustomer $customer): View
@@ -109,7 +105,18 @@ class CustomerController extends Controller
     {
         $data = $this->validateData($request, $customer->id);
 
-        $customer->update([
+        $customer->update($this->attributes($request, $data));
+
+        return back()->with('toasts', [['type' => 'success', 'message' => "Customer \"{$customer->company_name}\" updated."]]);
+    }
+
+    /**
+     * The writable customer attributes, shared by store and update so the two
+     * cannot drift apart.
+     */
+    private function attributes(Request $request, array $data): array
+    {
+        return [
             'company_name' => $data['company_name'],
             'short_code' => $data['short_code'] ?? null,
             'contact_name' => $data['contact_name'] ?? null,
@@ -122,12 +129,34 @@ class CustomerController extends Controller
             'tax_number' => $data['tax_number'] ?? null,
             'price_list_id' => $data['price_list_id'] ?? null,
             'credit_limit' => $data['credit_limit'] ?? 0,
+            'opening_balance' => $this->signedOpeningBalance($data),
+            'opening_balance_date' => $this->signedOpeningBalance($data) == 0.0
+                ? null
+                : ($data['opening_balance_date'] ?? null),
             'currency' => $data['currency'] ?? null,
             'is_active' => $request->boolean('is_active', true),
             'notes' => $data['notes'] ?? null,
-        ]);
+        ];
+    }
 
-        return back()->with('toasts', [['type' => 'success', 'message' => "Customer \"{$customer->company_name}\" updated."]]);
+    /**
+     * The opening balance as a signed figure.
+     *
+     * The form takes a magnitude plus a direction, because "the customer already
+     * owes us 500" and "the customer is 500 in credit with us" are both entered
+     * as 500 and are distinguished only by intent. Collapsing the two into one
+     * signed value at the boundary means the direction can never be stored
+     * inconsistently with the amount.
+     */
+    private function signedOpeningBalance(array $data): float
+    {
+        $amount = round((float) ($data['opening_balance'] ?? 0), 2);
+
+        if ($amount == 0.0) {
+            return 0.0;
+        }
+
+        return ($data['opening_balance_direction'] ?? 'debit') === 'credit' ? -$amount : $amount;
     }
 
     public function destroy(SalesCustomer $customer): RedirectResponse
@@ -160,11 +189,6 @@ class CustomerController extends Controller
             $c->balance(),
             $c->is_active ? 'Active' : 'Inactive',
         ]));
-    }
-
-    public function statement(SalesCustomer $customer): View
-    {
-        return view('sales.customers.statement', compact('customer'));
     }
 
     public function suggestShortCode(Request $request): JsonResponse
@@ -230,9 +254,14 @@ class CustomerController extends Controller
             'tax_number' => ['nullable', 'string', 'max:120'],
             'price_list_id' => ['nullable', 'integer', Rule::exists('price_lists', 'id')],
             'credit_limit' => ['nullable', 'numeric', 'min:0'],
+            'opening_balance' => ['nullable', 'numeric', 'min:0'],
+            'opening_balance_direction' => ['required_with:opening_balance', Rule::in(['debit', 'credit'])],
+            'opening_balance_date' => ['nullable', 'date'],
             'currency' => ['nullable', 'string', 'max:8'],
             'is_active' => ['boolean'],
             'notes' => ['nullable', 'string', 'max:5000'],
+        ], [
+            'opening_balance_direction.required_with' => 'Choose whether this opening balance is owed to you (+) or is a credit held for the customer (-).',
         ]);
     }
 }

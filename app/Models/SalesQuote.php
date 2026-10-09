@@ -16,7 +16,7 @@ class SalesQuote extends Model
     protected $table = 'sales_quotes';
 
     protected $fillable = [
-        'number', 'customer_id', 'price_list_id', 'issue_date', 'valid_until',
+        'number', 'reference_number', 'customer_id', 'salesman_id', 'price_list_id', 'issue_date', 'valid_until',
         'status', 'currency', 'exchange_rate', 'subtotal', 'discount_amount', 'tax_amount', 'total',
         'notes', 'converted_to_order_id',
     ];
@@ -44,6 +44,16 @@ class SalesQuote extends Model
     public function priceList(): BelongsTo
     {
         return $this->belongsTo(PriceList::class, 'price_list_id');
+    }
+
+    /**
+     * The salesperson a quotation is attributed to. Read by SalesQuoteMailable
+     * so the Sales mail identity can send from this rep's own address when
+     * mail.sales_use_salesman_address is enabled.
+     */
+    public function salesman(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'salesman_id');
     }
 
     public function items(): HasMany

@@ -71,6 +71,7 @@
                     <thead>
                         <tr>
                             <th>Customer</th>
+                            <th class="text-right">Opening</th>
                             <th class="text-right">Billed</th>
                             <th class="text-right">Paid</th>
                             <th class="text-right">Overdue</th>
@@ -85,6 +86,16 @@
                                 <td>
                                     <p class="font-medium text-ink">{{ $c->company_name }}</p>
                                     <p class="text-xs text-ink-faint">{{ $c->email ?: $c->contact_name }}</p>
+                                </td>
+                                <td class="text-right text-ink-soft">
+                                    @if ($row['opening'] != 0.0)
+                                        <span class="{{ $row['opening'] < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-ink-soft' }}"
+                                            title="Brought forward from before this customer was set up here">
+                                            {{ ($row['opening'] > 0 ? '+' : '−').money(abs($row['opening']), $c->currency) }}
+                                        </span>
+                                    @else
+                                        <span class="text-ink-faint">—</span>
+                                    @endif
                                 </td>
                                 <td class="text-right text-ink-soft">{{ money($row['billed'], $c->currency) }}</td>
                                 <td class="text-right text-ink-soft">{{ money($row['paid'], $c->currency) }}</td>

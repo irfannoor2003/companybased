@@ -28,7 +28,11 @@
                                 <option value="{{ $status }}" @selected(old('status', $deliveryNote->status) === $status)>{{ ucfirst($status) }}</option>
                             @endforeach
                         </x-select>
-                        <x-input name="issue_date" label="Issue date" type="date" value="{{ old('issue_date', $deliveryNote->issue_date?->format('Y-m-d')) }}" />
+                        @include('documents.partials.reference-number', [
+                        'value' => $deliveryNote->reference_number,
+                        'example' => 'DN-2026-0001',
+                    ])
+                    <x-input name="issue_date" label="Issue date" type="date" value="{{ old('issue_date', $deliveryNote->issue_date?->format('Y-m-d')) }}" />
                         <x-input name="carrier" label="Carrier" value="{{ old('carrier', $deliveryNote->carrier) }}" />
                         <x-input name="tracking_number" label="Tracking number" value="{{ old('tracking_number', $deliveryNote->tracking_number) }}" />
                     </div>

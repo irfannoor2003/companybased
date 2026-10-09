@@ -6,8 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\InventoryItem;
 use App\Models\InventoryWarehouse;
 use App\Models\InventoryWriteOff;
+use App\Services\Accounting\LedgerPosting;
 use App\Support\ExportsCsv;
 use App\Support\InventoryLedger;
+use App\Support\Money;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -115,6 +117,15 @@ class WriteOffController extends Controller
 
             try {
                 InventoryLedger::applyWriteOff($writeOff);
+
+                // The stock is gone, so the inventory asset has to fall by what it
+                // was worth. Without this the write-off reduced quantities and left
+                // the balance sheet still carrying the value, so the two disagreed
+                // permanently.
+                app(LedgerPosting::class)->inventoryValuationLoss(
+                    $writeOff,
+                    $this->writeOffCostValue($writeOff),
+                );
             } catch (\DomainException $e) {
                 return back()->with('toasts', [['type' => 'error', 'message' => $e->getMessage()]]);
             }
@@ -123,6 +134,35 @@ class WriteOffController extends Controller
         $writeOff->update(['status' => $data['status']]);
 
         return back()->with('toasts', [['type' => 'success', 'message' => "Write-off {$writeOff->number} marked as {$data['status']}."]]);
+    }
+
+    /**
+     * What the written-off stock was worth.
+     *
+     * Valued from the inventory ledger rows the write-off just produced, falling
+     * back to the line quantity times the item's cost price. Valuation loss is
+     * posted at cost, never at sale price -- the loss is what the stock was worth
+     * to the business, not what it would have fetched.
+     */
+    private function writeOffCostValue(InventoryWriteOff $writeOff): string
+    {
+        $total = '0';
+
+        foreach ($writeOff->items()->with('item.product')->get() as $line) {
+            $quantity = abs((float) ($line->quantity ?? 0));
+
+            $unitCost = $line->item?->product?->cost_price;
+
+            if ($unitCost === null) {
+                // No cost on file: post nothing rather than invent a figure. A wrong
+                // loss is harder to spot and correct than a missing one.
+                continue;
+            }
+
+            $total = Money::add($total, Money::multiply((string) $unitCost, (string) $quantity));
+        }
+
+        return $total;
     }
 
     public function destroy(InventoryWriteOff $writeOff): RedirectResponse

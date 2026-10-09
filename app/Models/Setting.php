@@ -24,15 +24,41 @@ class Setting extends Model
         return $values[$key] ?? $default;
     }
 
-    public static function set(string $key, mixed $value, string $group = 'general', bool $isPublic = false): void
-    {
-        static::updateOrCreate(
-            ['key' => $key],
-            ['value' => is_scalar($value) ? (string) $value : json_encode($value), 'group' => $group, 'is_public' => $isPublic]
-        );
-
-        static::flushCache();
+/**
+ * Normalise a value for storage.
+ *
+ * `json_encode(null)` returns the four-character string "null", not a null. Any
+ * setting saved as null was therefore stored as that literal text, which reads
+ * back as a *filled* value — so `$company->tax_number` printed as the words
+ * "null" on the footer of every invoice, and every `filled(settings(...))`
+ * guard in the codebase behaved as though the field had content.
+ *
+ * An empty string is used instead, because it is falsy everywhere and is what
+ * the rest of the code already expects: an absent setting and a blank setting
+ * should be indistinguishable, and neither should ever render.
+ */
+private static function normalise(mixed $value): string
+{
+    if ($value === null) {
+        return '';
     }
+
+    if (is_bool($value)) {
+        return $value ? '1' : '0';
+    }
+
+    return is_scalar($value) ? (string) $value : (string) json_encode($value);
+}
+
+public static function set(string $key, mixed $value, string $group = 'general', bool $isPublic = false): void
+{
+    static::updateOrCreate(
+        ['key' => $key],
+        ['value' => static::normalise($value), 'group' => $group, 'is_public' => $isPublic]
+    );
+
+    static::flushCache();
+}
 
     public static function forget(string $key): void
     {
@@ -52,7 +78,7 @@ class Setting extends Model
         foreach ($values as $key => $value) {
             $rows[] = [
                 'key' => $key,
-                'value' => is_scalar($value) ? (string) $value : json_encode($value),
+                'value' => static::normalise($value),
                 'group' => $group,
                 'created_at' => $now,
                 'updated_at' => $now,

@@ -51,8 +51,36 @@
                     <span class="text-2xl font-semibold {{ $customer->balance() > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400' }}">
                         {{ money($customer->balance(), $customer->currency) }}
                     </span>
-                    <span class="text-sm text-ink-faint">outstanding</span>
+                    <span class="text-sm text-ink-faint">
+                        {{ $customer->balance() > 0 ? 'outstanding' : ($customer->balance() < 0 ? 'in credit' : 'settled') }}
+                    </span>
                 </div>
+
+                @if ($customer->hasCredit())
+                    {{-- Spelled out because this is spendable money: it is taken off
+                         the next invoice automatically, so it is not a figure to be
+                         merely noted in passing. --}}
+                    <div class="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200">
+                        <p class="font-semibold">
+                            {{ money($customer->creditAvailable(), $customer->currency) }} held in credit
+                        </p>
+                        <p class="mt-1 leading-5">
+                            Already received and not yet billed. It is deducted from the next
+                            invoice automatically, and shown on that invoice as a credit line.
+                        </p>
+                    </div>
+                @endif
+                @if ($customer->openingBalance() != 0.0)
+                    <p class="mt-2 text-xs text-ink-faint">
+                        Includes an opening balance of
+                        {{ money(abs($customer->openingBalance()), $customer->currency) }}
+                        {{ $customer->openingBalance() > 0 ? 'owed to you' : 'held in credit' }}
+                        @if ($customer->opening_balance_date)
+                            as at {{ $customer->opening_balance_date->format('d M Y') }}
+                        @endif
+                        — carried forward from before this customer was set up here.
+                    </p>
+                @endif
                 @if ((float) $customer->credit_limit > 0)
                     <p class="mt-2 text-sm text-ink-soft">Credit limit: {{ money($customer->credit_limit, $customer->currency) }}</p>
                 @endif

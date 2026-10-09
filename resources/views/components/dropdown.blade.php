@@ -1,5 +1,6 @@
 @props([
     'align' => 'right',
+    'width' => 'w-48',
 ])
 
 @php
@@ -25,7 +26,7 @@
         x-transition:leave-end="opacity-0 scale-95"
         @keydown.escape.window="open = false"
         x-cloak
-        class="absolute {{ $alignClass }} z-30 mt-2 w-48 rounded-xl border border-line bg-surface p-1.5 shadow-lift animate-pop-in"
+        class="absolute {{ $alignClass }} z-30 mt-2 {{ $width }} rounded-xl border border-line bg-surface p-1.5 shadow-lift animate-pop-in"
     >
         {{ $slot }}
     </div>

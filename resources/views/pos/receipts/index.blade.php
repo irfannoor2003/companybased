@@ -2,7 +2,12 @@
     <x-slot name="header">
         <x-page-header title="Receipts" description="Transaction slip history from the till." icon="document">
             <x-slot name="actions">
-                @if (auth()->user()->can('pos.receipts.export'))
+                {{-- pos.receipts has no `export` or `show` action; the registry grants
+                     view/create/print/reprint, and both routes are gated on
+                     pos.receipts.view. Checking the non-existent names meant the
+                     export button and every receipt link were withheld from all
+                     users, leaving the list with no way to open a receipt. --}}
+                @if (auth()->user()->can('pos.receipts.view'))
                     <x-export route="pos.receipts.export" />
                 @endif
             </x-slot>
@@ -59,7 +64,7 @@
                                     <td class="text-right font-semibold text-ink">{{ money($sale->total) }}</td>
                                     <td class="text-ink-soft">{{ $sale->sold_at?->format('Y-m-d H:i') }}</td>
                                     <td class="text-right">
-                                        @if (auth()->user()->can('pos.receipts.show'))
+                                        @if (auth()->user()->can('pos.receipts.view'))
                                             <a href="{{ route('pos.receipts.show', $sale->receipt_number) }}" class="btn-ghost btn-icon btn-sm" title="View receipt">
                                                 <x-icon name="document" class="size-4" />
                                             </a>

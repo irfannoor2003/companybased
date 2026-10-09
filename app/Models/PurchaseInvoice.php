@@ -15,7 +15,7 @@ class PurchaseInvoice extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'number', 'order_id', 'production_order_id', 'supplier_id', 'issue_date', 'due_date',
+        'number', 'reference_number', 'order_id', 'production_order_id', 'supplier_id', 'issue_date', 'due_date',
         'status', 'template', 'currency', 'exchange_rate', 'subtotal', 'discount_amount', 'tax_amount', 'total',
         'paid_amount', 'notes',
     ];

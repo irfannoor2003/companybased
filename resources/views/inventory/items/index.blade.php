@@ -124,6 +124,16 @@
                                                 <x-icon name="edit" class="size-4" />
                                             </a>
                                         @endif
+                                        @if (auth()->user()->can('inventory.items.delete'))
+                                            <form method="POST" action="{{ route('inventory.items.destroy', $item) }}"
+                                                onsubmit="return confirm('Remove {{ $item->product?->name ?? 'this item' }} from inventory?');">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="btn-ghost btn-icon btn-sm text-rose-500" title="Delete">
+                                                    <x-icon name="trash" class="size-4" />
+                                                </button>
+                                            </form>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>

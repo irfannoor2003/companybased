@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\PurchaseInvoice;
 use App\Models\SalesInvoice;
 use App\Models\SalesPayment;
+use App\Models\SalesStatusEvent;
 use App\Models\SupplierPayment;
 use App\Services\InvoicePaymentService;
 use Tests\SeedsDatabase;
@@ -189,8 +190,12 @@ class InvoicePaymentTest extends TestCase
         );
     }
 
-    public function test_a_payment_cannot_be_reassigned_to_another_invoice(): void
+    public function test_a_payment_can_be_moved_to_another_invoice(): void
     {
+        // Re-pointing a receipt is allowed, as it is in Odoo, Xero and Sage: a
+        // payment landing on the wrong bill is common, and the fix should not
+        // require destroying the receipt and losing its bank reference. Both
+        // invoices must end up truthful about what they received.
         $invoice = $this->invoice(1000.00);
         $other = $this->invoice(1000.00);
         $user = $this->userForRole('Admin');
@@ -201,6 +206,68 @@ class InvoicePaymentTest extends TestCase
 
         $this->actingAs($user)
             ->put("/sales/payment-in/{$payment->id}", $this->payload($other))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame($other->id, $payment->fresh()->invoice_id, 'the link moves');
+        $this->assertEqualsWithDelta(
+            0.0,
+            (float) $invoice->fresh()->paid_amount,
+            0.0005,
+            'the invoice it left goes back to unpaid',
+        );
+        $this->assertEqualsWithDelta(
+            100.0,
+            (float) $other->fresh()->paid_amount,
+            0.0005,
+            'the invoice it joined carries the receipt',
+        );
+        $this->assertSame('sent', $invoice->fresh()->status, 'and its status follows it back to unpaid');
+        $this->assertSame('partially_paid', $other->fresh()->status);
+    }
+
+    public function test_moving_a_payment_is_recorded_on_both_invoices(): void
+    {
+        $invoice = $this->invoice(1000.00);
+        $other = $this->invoice(1000.00);
+        $user = $this->userForRole('Admin');
+
+        $this->actingAs($user)->post('/sales/payment-in', $this->payload($invoice));
+
+        $payment = SalesPayment::firstOrFail();
+
+        $this->actingAs($user)->put("/sales/payment-in/{$payment->id}", $this->payload($other));
+
+        foreach ([$invoice, $other] as $touched) {
+            $notes = SalesStatusEvent::where('trackable_id', $touched->id)
+                ->where('trackable_type', SalesInvoice::class)
+                ->pluck('note');
+
+            $this->assertTrue(
+                $notes->contains(fn (string $note): bool => str_contains($note, $payment->number)),
+                'a receipt moving between invoices has to leave a trail on each of them',
+            );
+        }
+    }
+
+    public function test_a_payment_cannot_be_moved_to_an_invoice_the_customer_does_not_own(): void
+    {
+        // Reassignment must not become a way to move money between customers.
+        $invoice = $this->invoice(1000.00);
+        $stranger = $this->invoice(1000.00);
+        $user = $this->userForRole('Admin');
+
+        $this->actingAs($user)->post('/sales/payment-in', $this->payload($invoice));
+
+        $payment = SalesPayment::firstOrFail();
+
+        $this->actingAs($user)
+            ->put("/sales/payment-in/{$payment->id}", [
+                'invoice_id' => $stranger->id,
+                'customer_id' => $invoice->customer_id,
+                'amount' => '1000.00',
+                'payment_date' => now()->toDateString(),
+                'method' => 'cash',
+            ])
             ->assertSessionHas('toasts');
 
         $this->assertSame($invoice->id, $payment->fresh()->invoice_id, 'the link must not move');

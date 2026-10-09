@@ -21,7 +21,12 @@ class StatementController extends Controller
         $customers = SalesCustomer::query()
             ->withCount(['invoices', 'payments'])
             ->with([
-                'invoices' => fn ($q) => $q->whereIn('status', ['sent', 'partially_paid', 'overdue']),
+                // `paid` is included because the payments that settled those
+                // invoices are still subtracted below. Leaving it out made every
+                // fully paid customer read as being in credit by the value of
+                // their invoices, which made the "Total outstanding" card report
+                // a large negative number for a book of business fully settled.
+                'invoices' => fn ($q) => $q->whereIn('status', ['sent', 'partially_paid', 'overdue', 'paid']),
                 'payments',
                 'creditNotes',
             ])
@@ -35,6 +40,7 @@ class StatementController extends Controller
                 'overdue' => $this->overdueTotal($customer),
                 'billed' => $customer->invoices->sum('total'),
                 'paid' => $customer->payments->sum('amount'),
+                'opening' => $customer->openingBalance(),
             ]);
 
         $grandTotal = round($customers->sum(fn ($row) => $row['amount_base']), 2);
@@ -44,11 +50,12 @@ class StatementController extends Controller
 
     private function nativeBalance(SalesCustomer $customer): float
     {
-        $billed = (float) $customer->invoices->sum('total');
-        $paid = (float) $customer->payments->sum('amount');
-        $credited = (float) $customer->creditNotes->sum('applied_amount');
-
-        return round($billed - $paid - $credited, 2);
+        // Delegated to the model rather than recomputed. This method existed
+        // alongside SalesCustomer::balance() as a second implementation of the
+        // same formula, and they had already diverged — which is exactly the
+        // shape of bug where the list, the detail page and the statement each
+        // report a different number for one customer.
+        return $customer->balance();
     }
 
     /**
@@ -59,6 +66,8 @@ class StatementController extends Controller
      */
     private function baseBalance(SalesCustomer $customer): float
     {
+        $opening = to_base_currency($customer->openingBalance(), exchange_rate_for($customer->currency));
+
         $billed = $customer->invoices
             ->sum(fn (SalesInvoice $invoice) => to_base_currency($invoice->total, $invoice->exchange_rate));
 
@@ -68,7 +77,7 @@ class StatementController extends Controller
         $credited = $customer->creditNotes
             ->sum(fn (SalesCreditNote $note) => to_base_currency($note->applied_amount, $note->exchange_rate));
 
-        return round((float) $billed - (float) $paid - (float) $credited, 2);
+        return round($opening - (float) $paid - (float) $credited + (float) $billed, 2);
     }
 
     private function overdueTotal(SalesCustomer $customer): float
@@ -88,6 +97,22 @@ class StatementController extends Controller
         ]);
 
         $ledger = collect();
+
+        // The opening balance is the first line of the ledger, dated so the
+        // running balance starts where the previous system left off. Without it
+        // every subsequent running balance is off by the opening amount.
+        if ($customer->openingBalance() != 0.0) {
+            $opening = $customer->openingBalance();
+
+            $ledger->push([
+                'date' => $customer->opening_balance_date?->copy()->startOfDay() ?? now()->startOfDay(),
+                'type' => 'Opening balance',
+                'reference' => 'Brought forward',
+                'debit' => $opening > 0 ? $opening : null,
+                'credit' => $opening < 0 ? abs($opening) : null,
+                'url' => null,
+            ]);
+        }
 
         foreach ($customer->invoices as $invoice) {
             $ledger->push([
@@ -117,12 +142,30 @@ class StatementController extends Controller
                 'type' => 'Credit note',
                 'reference' => $note->number,
                 'debit' => null,
-                'credit' => $note->total,
+                // applied_amount, not total: a credit note can be issued for more
+                // than was applied against invoices, and crediting the full total
+                // here made the running balance disagree with the closing balance
+                // shown above the table, which is computed from applied_amount.
+                'credit' => $note->applied_amount,
                 'url' => route('sales.credit_notes.edit', $note),
             ]);
         }
 
-        $ledger = $ledger->sortBy('date')->values();
+        // The opening balance is set aside and prepended rather than sorted in
+        // with the rest. It is by definition prior to every document on the
+        // account, and it may carry a date inside the same period, in which case
+        // a plain date sort would interleave it mid-table and the running
+        // balance would start from zero.
+        $opening = $ledger->firstWhere('type', 'Opening balance');
+
+        $ledger = $ledger
+            ->reject(fn (array $row): bool => $row['type'] === 'Opening balance')
+            ->sortBy(fn (array $row): int => $row['date']?->getTimestamp() ?? 0)
+            ->values();
+
+        if ($opening !== null) {
+            $ledger->prepend($opening);
+        }
 
         $running = 0.0;
         $ledger = $ledger->map(function (array $row) use (&$running) {
@@ -138,6 +181,20 @@ class StatementController extends Controller
     {
         $rows = [];
 
+        // Same row set and the same ordering rules as show(), so the CSV and the
+        // on-screen statement can never disagree.
+        $opening = $customer->openingBalance();
+
+        if ($opening != 0.0) {
+            $rows[] = [
+                ($customer->opening_balance_date ?? now())->format('Y-m-d'),
+                'Opening balance',
+                'Brought forward',
+                $opening > 0 ? $opening : null,
+                $opening < 0 ? abs($opening) : null,
+            ];
+        }
+
         foreach ($customer->invoices()->orderBy('issue_date')->get() as $invoice) {
             $rows[] = [$invoice->issue_date->format('Y-m-d'), 'Invoice', $invoice->number, $invoice->total, null];
         }
@@ -147,10 +204,18 @@ class StatementController extends Controller
         }
 
         foreach ($customer->creditNotes()->orderBy('issue_date')->get() as $note) {
-            $rows[] = [$note->issue_date->format('Y-m-d'), 'Credit note', $note->number, null, $note->total];
+            $rows[] = [$note->issue_date->format('Y-m-d'), 'Credit note', $note->number, null, $note->applied_amount];
         }
 
-        usort($rows, fn ($a, $b) => strcmp($a[0], $b[0]));
+        $isOpening = fn (array $row): bool => $row[1] === 'Opening balance';
+
+        usort($rows, function (array $a, array $b) use ($isOpening): int {
+            if ($isOpening($a) !== $isOpening($b)) {
+                return $isOpening($a) ? -1 : 1;
+            }
+
+            return strcmp($a[0], $b[0]);
+        });
 
         $running = 0.0;
         $ledger = [];

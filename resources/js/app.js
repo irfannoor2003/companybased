@@ -180,65 +180,349 @@ document.addEventListener('alpine:init', () => {
         },
     }));
 
+    /**
+     * Guards a payment form against an amount above the selected invoice.
+     *
+     * Overpaying is allowed — the surplus is kept as customer credit and spent on
+     * a later invoice — but it has to be a decision rather than a typo. This
+     * states the split in the operator's own figures before anything is saved,
+     * and only then sets the flag the server checks.
+     *
+     * The server refuses an unconfirmed overpayment regardless of what this does,
+     * so dismissing the dialog is the correct outcome here and a bypass is not
+     * possible.
+     */
+    Alpine.data('paymentOverpayment', () => ({
+        confirmed: false,
+
+        /** Outstanding balance of the invoice currently chosen, or 0 for none. */
+        balance() {
+            const sel = this.$el.querySelector('[name="invoice_id"]');
+            const raw = sel?.selectedOptions[0]?.dataset?.balance;
+            return raw === undefined || raw === '' ? 0 : Number(raw);
+        },
+
+        amount() {
+            const raw = this.$el.querySelector('[name="amount"]')?.value;
+            return raw === undefined || raw === '' ? 0 : Number(raw);
+        },
+
+        /** The part that settles the bill; the rest becomes customer credit. */
+        applied() {
+            return Math.min(this.amount(), this.balance());
+        },
+
+        surplus() {
+            return Math.max(0, this.amount() - this.balance());
+        },
+
+        isOverpayment() {
+            return this.surplus() > 0.005;
+        },
+
+        format(value) {
+            return new Intl.NumberFormat(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+            }).format(value);
+        },
+
+        /** Ask first, then set the flag. A cancel leaves the form untouched. */
+        confirm(event) {
+            if (!this.isOverpayment()) {
+                this.confirmed = false;
+                return true;
+            }
+
+            const applied = this.format(this.applied());
+            const surplus = this.format(this.surplus());
+
+            const ok = window.confirm(
+                `This payment is more than the invoice is owed.\n\n`
+                + `  ${applied} settles the invoice.\n`
+                + `  ${surplus} will be held as credit on the customer's account\n`
+                + `  and deducted from their next invoice.\n\n`
+                + `Continue?`
+            );
+
+            this.confirmed = ok;
+
+            if (!ok) {
+                event.preventDefault();
+            }
+
+            return ok;
+        },
+    }));
+
+    /**
+     * The trigger button and the overlay are two separate Alpine roots — the
+     * button sits inline in the page header, the overlay is pushed to a stack
+     * outside <main> so printing can hide the form without hiding the document.
+     * They are therefore coordinated by a document-level event rather than by
+     * sharing one `show` property, which they no longer can.
+     *
+     * A single event name is used in both directions:
+     *   'document-preview:open'  — show the overlay
+     *   'document-preview:close' — hide it
+     * Escape and the Close button dispatch 'close'. Any instance may receive an
+     * event it did not originate, so each guards on its own current state to
+     * avoid a refresh loop.
+     */
+    const previewEvent = (name) => `document-preview:${name}`;
+
     Alpine.data('documentPreview', (config) => ({
         show: false,
+        /** Set while applying a change that arrived from the other root. */
+        _remote: false,
+        type: config.type || 'Document',
+        /**
+         * The optional manual / external number. Read live from the form so the
+         * preview shows both numbers exactly as the saved document will, rather
+         * than a placeholder that quietly hides the field from the user.
+         */
+        referenceNumber: '',
+        /**
+         * The panel is a full-viewport overlay, so the party heading has to
+         * describe whoever the document is for. It used to be hardcoded
+         * "Bill to", which is wrong on every supplier-side document
+         * (purchase quote/order/invoice, debit note).
+         */
+        partyLabel: config.partyLabel || 'Bill to',
+        /** Delivery notes carry no money, so they get a different closing line. */
+        footer: config.footer || 'Thank you for your business.',
+        /** Delivery notes have no price/discount/tax columns at all. */
+        pricing: config.pricing !== false,
+        /** Only documents with a due date show one. */
+        showDueDate: config.showDueDate !== false,
         customerName: config.customerName || '',
         issueDate: config.issueDate || '',
         dueDate: config.dueDate || '',
         currency: config.currency || 'USD',
         notes: config.notes || '',
         items: [],
-        refreshPreview() {
-            let form = this.$el.closest('form');
-            if (!form) {
-                form = document.querySelector(
-                    'form:has([name^="items"]), form:has([name="issue_date"]), form:has([name="invoice_date"]), form:has([name="order_date"]), form:has([name="quote_date"]), form:has([name="delivery_date"])'
-                ) || document.querySelector('form');
+        /**
+         * The document form this previews.
+         *
+         * The preview button lives in the page header, which is a *sibling* of
+         * <main>, so `closest('form')` from here always returns null — it only
+         * worked by accident via the document.querySelector fallback below.
+         * That fallback is not safe either: the layout renders a logout form in
+         * the header, so a bare querySelector('form') can latch onto the wrong
+         * form entirely. Select by the fields a document form actually has.
+         */
+        targetForm() {
+            if (this._form && document.contains(this._form)) {
+                return this._form;
             }
+
+            const selector = 'form:has([name*="[qty]"]), form:has([name="issue_date"]), form:has([name="invoice_date"]), form:has([name="order_date"]), form:has([name="quote_date"]), form:has([name="delivery_date"]), form:has([name="bill_date"]), form:has([name="payment_date"])';
+
+            this._form = document.querySelector(selector);
+
+            return this._form;
+        },
+        init() {
+            const isTrigger = ! config.isOverlay;
+
+            // Re-read the form on every open, and keep it live while open, so
+            // typing a line item or changing the customer is reflected without
+            // having to press Refresh.
+            this.$watch('show', (isOpen) => {
+                // The body class is what the print stylesheet keys off, and the
+                // overlay lives outside the app shell so hiding the shell cannot
+                // take the document with it. Both roots toggle it, which is
+                // idempotent.
+                document.body.classList.toggle('document-preview-open', isOpen);
+
+                if (! isTrigger) {
+                    if (isOpen) {
+                        this.refreshPreview();
+                        this.startSync();
+                    } else {
+                        this.stopSync();
+                    }
+                }
+
+                // Announce the change to the other root. The trigger owns the
+                // button label and the overlay owns the Close button and Escape,
+                // so a change made in one must reach the other or the label is
+                // left reading "Hide preview" after the panel is gone.
+                //
+                // The remote flag stops it echoing straight back: both roots
+                // listen *and* broadcast, so without it the two would trade
+                // events indefinitely.
+                if (this._remote) {
+                    this._remote = false;
+
+                    return;
+                }
+
+                document.dispatchEvent(
+                    new CustomEvent(previewEvent(isOpen ? 'open' : 'close'))
+                );
+            });
+
+            if (isTrigger) {
+                return;
+            }
+
+            const receive = (isOpen) => {
+                if (this.show === isOpen) {
+                    return;
+                }
+
+                this._remote = true;
+                this.show = isOpen;
+            };
+
+            document.addEventListener(previewEvent('open'), () => receive(true));
+            document.addEventListener(previewEvent('close'), () => receive(false));
+        },
+        printPreview() {
+            this.refreshPreview();
+            window.print();
+        },
+        startSync() {
+            const form = this.targetForm();
+            if (!form || this._bound) {
+                return;
+            }
+
+            this._bound = true;
+            this._handler = () => this.refreshPreview();
+            form.addEventListener('input', this._handler);
+            form.addEventListener('change', this._handler);
+        },
+        stopSync() {
+            const form = this._form;
+
+            if (form && this._handler) {
+                form.removeEventListener('input', this._handler);
+                form.removeEventListener('change', this._handler);
+            }
+
+            this._bound = false;
+            this._handler = null;
+        },
+        refreshPreview() {
+            const form = this.targetForm();
             if (!form) return;
 
-            const custSel = form.querySelector('[name=customer_id]');
+            const custSel = form.querySelector('[name=customer_id], [name=supplier_id]');
             if (custSel && custSel.selectedOptions[0]) {
-                this.customerName = custSel.selectedOptions[0].text.replace('— Select customer —', '').replace('— None —', '').trim();
+                this.customerName = custSel.selectedOptions[0].text
+                    .replace('— Select customer —', '')
+                    .replace('— Select supplier —', '')
+                    .replace('— None —', '')
+                    .trim();
             }
 
-            const issueInput = form.querySelector('[name=issue_date]');
-            if (issueInput) this.issueDate = issueInput.value;
+            // Date inputs render as yyyy-mm-dd; show them the way the company
+            // formats dates elsewhere instead of leaking the raw ISO string.
+            const issueInput = form.querySelector('[name=issue_date], [name=invoice_date], [name=order_date], [name=quote_date], [name=delivery_date], [name=bill_date]');
+            if (issueInput) this.issueDate = this.formatDate(issueInput.value);
 
             const dueInput = form.querySelector('[name=due_date]');
-            if (dueInput) this.dueDate = dueInput.value;
+            if (dueInput) this.dueDate = this.formatDate(dueInput.value);
 
             const curSel = form.querySelector('[name=currency]');
-            if (curSel && curSel.selectedOptions[0]) {
+            if (curSel) {
                 this.currency = curSel.value || config.fallbackCurrency || 'USD';
             }
 
             const notesInput = form.querySelector('[name=notes]');
             if (notesInput) this.notes = notesInput.value;
 
-            this.items = [];
-            const descInputs = form.querySelectorAll('[name*="[description]"]');
-            const qtyInputs = form.querySelectorAll('[name*="[qty]"]');
-            const priceInputs = form.querySelectorAll('[name*="[unit_price]"]');
-            const discInputs = form.querySelectorAll('[name*="[discount_percent]"]');
-            const taxInputs = form.querySelectorAll('[name*="[tax_percent]"]');
+            const refInput = form.querySelector('[name=reference_number]');
+            this.referenceNumber = refInput ? refInput.value.trim() : '';
 
-            for (let i = 0; i < qtyInputs.length; i++) {
-                const qty = parseFloat(qtyInputs[i]?.value) || 0;
-                const price = parseFloat(priceInputs[i]?.value) || 0;
-                const disc = parseFloat(discInputs[i]?.value) || 0;
-                const tax = parseFloat(taxInputs[i]?.value) || 0;
-                const gross = qty * price;
-                const net = gross * (1 - disc / 100);
-                const taxAmt = net * (tax / 100);
+            this.items = this.readLineItems(form);
+        },
+        /**
+         * Read the line-item editor's rows.
+         *
+         * Rows are collected by parsing the index out of each input's name
+         * (`items[2][qty]`) and grouping on it. Matching five separate
+         * querySelectorAll lists by array position is what produced wrong
+         * totals: any page where those lists differ in length or order — an
+         * extra qty field, a non-monetary editor, a row mid-render — silently
+         * pairs one row's qty with another row's unit price. That is how
+         * 10 x 6.50 displayed as 70.
+         *
+         * Money is rounded per line to 2dp, matching how the server stores and
+         * totals the same figures, so the preview cannot disagree with the saved
+         * invoice by a fraction of a unit.
+         */
+        readLineItems(form) {
+            const byIndex = new Map();
 
-                this.items.push({
-                    description: descInputs[i]?.value || '',
-                    qty, unit_price: price, discount_percent: disc, tax_percent: tax,
-                    gross, discount: gross - net,
-                    net, tax: taxAmt, total: net + taxAmt,
-                });
-            }
+            const record = (index, field, value) => {
+                if (! byIndex.has(index)) {
+                    byIndex.set(index, { index });
+                }
+
+                byIndex.get(index)[field] = value;
+            };
+
+            form.querySelectorAll('input[name], select[name], textarea[name]').forEach((el) => {
+                const match = /^items\[(\d+)\]\[(\w+)\]$/.exec(el.name || '');
+
+                if (! match) {
+                    return;
+                }
+
+                const index = Number(match[1]);
+                const field = match[2];
+
+                if (field === 'description' || field === 'product_id') {
+                    record(index, field, el.value);
+                } else {
+                    record(index, field, parseFloat(el.value) || 0);
+                }
+            });
+
+            const round = (v) => Math.round((v + Number.EPSILON) * 100) / 100;
+
+            return [...byIndex.values()]
+                .sort((a, b) => a.index - b.index)
+                .map((row) => {
+                    const qty = row.qty || 0;
+                    const price = row.unit_price || 0;
+                    const disc = row.discount_percent || 0;
+                    const tax = row.tax_percent || 0;
+
+                    // A row the user has not touched yet is still in the DOM;
+                    // listing it as a zero line reads as a phantom invoice row.
+                    const desc = row.description || '';
+                    const touched = desc !== '' || qty !== 0 || price !== 0;
+
+                    if (! touched) {
+                        return null;
+                    }
+
+                    const gross = round(qty * price);
+                    const net = round(gross * (1 - disc / 100));
+                    const taxAmt = round(net * (tax / 100));
+
+                    return {
+                        description: desc,
+                        qty, unit_price: price, discount_percent: disc, tax_percent: tax,
+                        gross, discount: round(gross - net),
+                        net, tax: taxAmt, total: round(net + taxAmt),
+                    };
+                })
+                .filter(Boolean);
+        },
+        formatDate(value) {
+            if (!value) return '';
+
+            const [y, m, d] = value.split('-').map(Number);
+            if (!y || !m || !d) return value;
+
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+            return `${d} ${months[m - 1]} ${y}`;
         },
         grossTotal() { return this.items.reduce((s, i) => s + i.gross, 0); },
         discountTotal() { return this.items.reduce((s, i) => s + i.discount, 0); },
@@ -321,7 +605,7 @@ document.addEventListener('alpine:init', () => {
         products: config.products || {},
         items: config.items || [],
         addRow() {
-            this.items.push({ product_id: '', description: '', qty: 1, unit_price: 0, discount_percent: 0, tax_percent: 0 });
+            this.items.push({ product_id: '', account_id: '', description: '', qty: 1, unit_price: 0, discount_percent: 0, tax_percent: 0 });
         },
         removeRow(i) {
             this.items.splice(i, 1);
