@@ -644,6 +644,28 @@ Neither defect appeared in a 3-line document, which is all the demo data has.
 `preview_invoice_layout.php` exists so the multi-page path can be exercised on
 demand.
 
+### Deployment rehearsal (2026-10-09)
+
+The upgrade path was rehearsed against a **copy of real data** rather than
+assumed: the working `companybased` database was dumped, restored to a scratch
+schema, rewound to its pre-engine state (`tax_rates` dropped, the engine
+migrations unmarked), and `migrate --force` run forward.
+
+Result: **upgrade safe.** All row counts preserved, legacy percentages
+byte-identical, and every previously-blocked document became saveable.
+
+One defect surfaced only because the rehearsal was done: rolling back
+`2026_10_06_000003_add_currency_to_journal_entry_items` failed with
+*"Cannot drop index 'journal_items_account_currency_index': needed in a foreign
+key constraint"*. The composite index on `(account_id, currency)` had become the
+only index supporting the `account_id` foreign key, because MySQL accepts a
+leftmost-prefix match for it. The `down()` path now recreates a plain
+`account_id` index first, then drops the composite one, then the columns — in
+that order, because the reverse fails with the same error.
+
+Rollbacks are not part of a normal `migrate --force` deployment, but an
+unreversible migration is worth knowing about before you need it.
+
 ---
 
 ## Automated Test Suite
@@ -994,40 +1016,34 @@ $receivables = SalesInvoice::where('status', '!=', 'paid')->sum(DB::raw('total -
 
 ---
 
-### HIGH-4. "Deactivate package" locks every user out and tells the admin the opposite
+### ~~HIGH-4. "Deactivate package" locked every user out and told the admin the opposite~~ -- FIXED
 
-**Status:** open. Found while running the write sweep; reproduced against the isolated schema.
+**Status: fixed.** Verified 2026-10-09 — the misleading copy no longer exists in
+either file, and the pin passes.
 
-**Root cause:** `Subscription::isAccessBlocked()` blocks access when there is **no active** package as well as when one has expired:
+**The original defect:** `SubscriptionController::deactivate()` sets `is_active = false`, so `Subscription::current()` returns `null`, and `Subscription::isAccessBlocked()` returns `true` when there is no active package. Every non-Super-Admin was therefore refused by `CheckSubscription` with a 403 on every page — while both the confirmation dialog and the success flash explicitly promised the opposite:
 
-```php
-// app/Models/Subscription.php:82
-return self::$accessBlockedMemo = (
-    $sub === null          // <- no active package at all
-    || $sub->expires_at === null
-    || $sub->expires_at->isPast()
-);
-```
-
-`SubscriptionController::deactivate()` sets `is_active = false`, so `Subscription::current()` (`active()->latest('expires_at')->first()`) now returns `null`, which is the first branch above. Every non-Super-Admin user is therefore refused by `CheckSubscription` with **403 on every page** from the next request onwards. Only the Super Admin keeps working, which is why the change is easy to mistake for a successful sign-out.
-
-The user-facing text states the reverse in both places:
-
-| Location | Text shown | Actual effect |
+| Location | Text that used to say | Actual effect |
 |---|---|---|
-| `resources/views/settings/subscription.blade.php:6` | "Deactivate the package? All users will regain access immediately." | Locks every staff user out immediately |
-| `app/Http/Controllers/Settings/SubscriptionController.php:81` | "Package deactivated. All users now have unrestricted access." | Same — access is now **blocked** |
+| `resources/views/settings/subscription.blade.php` | "Deactivate the package? All users will regain access immediately." | Locks every staff user out |
+| `Settings/SubscriptionController.php` | "Package deactivated. All users now have unrestricted access." | Access is now **blocked** |
 
-**Why it matters:** one click, with a confirmation dialog that explicitly promises the opposite, takes the whole company offline. There is no self-service recovery: staff can still log in (`login` is on the middleware's exclude list) but every business screen answers 403 until the Super Admin notices and re-activates.
+**Why it mattered:** one click, behind a dialog that promised the opposite, took
+the whole company offline with no self-service recovery.
 
-**Fix** — decide which meaning "deactivate" is meant to have, then make the code and the copy agree:
+**The fix took the "deactivating should block" reading** and made the copy say so.
+The flash now reads:
 
-- *If deactivating should block staff*, the confirmation should say so — "Deactivate the package? **All staff will be signed out of every screen** until it is re-activated." — and the flash should read "Package deactivated. Staff access is now blocked."
-- *If deactivating should grant unrestricted access*, the controller must stop flipping `is_active` (an inactive row is not "unrestricted" to this codebase) and the access rule in `isAccessBlocked()` has to change to key off a separate flag.
+> Package deactivated. Because no active package remains, staff access is now
+> BLOCKED until a package is activated again.
 
-Either way the two strings above are wrong as written, and the repair is a copy change plus, at most, one condition — no schema change.
+A comment above it records why, so the next person does not "correct" the wording
+back into a lie. Verified absent: neither `regain access` nor
+`unrestricted access` appears in either file.
 
-**Regression pin:** `SubscriptionAccessMemoTest` covers the memo and the expiry branch; this pin belongs beside it and is listed as open in `Regression/KnownIssueRegressionTest`.
+**Regression pin:** `Regression/KnownIssueRegressionTest::test_deactivating_the_package_does_not_claim_staff_keep_access`
+passes. It only skips when staff are blocked **and** the copy claims otherwise, so
+it guards the pairing — either half changing alone will not silently pass.
 
 ---
 
@@ -1092,19 +1108,53 @@ The method was declared at column 0 while the rest of the class is indented four
 
 ---
 
-### LOW-1. Receipt PDFs are separate designs
+### ~~LOW-1. Receipt PDFs are separate designs~~ -- FIXED
 
-`sales/payments/pdf`, `suppliers/supplier_payments/pdf`, `sales/withholding_tax_receipts/pdf`, and `exports/pdf` have not been migrated to the shared design. Printing a payment receipt alongside an invoice produces visibly different letterheads from the same company.
+**Status: fixed.** All receipt types now render from one shared template.
 
-**Fix:** Register each of these models in `DocumentData::build()` and point them at `documents/pdf.blade.php`. This is the same pattern used when `PurchaseInvoice` was migrated.
+The original finding listed `sales/payments/pdf`, `suppliers/supplier_payments/pdf`
+and `sales/withholding_tax_receipts/pdf` as unmigrated. They no longer exist as
+separate designs. Every receipt controller resolves through
+`App\Support\ReceiptDocument` to the single
+`resources/views/partials/pdf/receipt.blade.php`:
+
+| Controller | Line | Renders |
+|---|---|---|
+| `Sales\PaymentController::pdf()` | `:437` | `ReceiptDocument::salesPayment($payment)->render()` |
+| `Purchasing\SupplierPaymentController::pdf()` | `:279` | `ReceiptDocument::supplierPayment($payment)->render()` |
+| `Sales\WithholdingTaxReceiptController::pdf()` | `:112` | `ReceiptDocument::withholdingTaxReceipt($receipt)->render()` |
+
+Verified visually by rendering a receipt and inspecting the output: one design,
+brand-consistent, with the amount block and reference details all legible.
+
+**`exports/pdf` is a separate case and is still open** — it is a tabular export
+rather than a document, so it legitimately has its own layout.
 
 ---
 
 ### LOW-2. Page 2+ of a long document has no left rail
 
-The full-height brand-colour rail is a `<div>` and does not repeat across DomPDF page breaks. Page 1 is indented by the rail; page 2 runs full-width.
+**Accepted limitation.** Page 1 carries the full-height brand rail; page 2 of a
+multi-page document does not, and instead repeats the boxed table header and the
+footer with company identity and the signature block.
 
-**Accepted limitation:** DomPDF cannot draw a full-bleed background across pages without a `<thead>` trick, and that trick only works for table headers. Options: accept it, or suppress the rail for any document that exceeds one page (add a line-count threshold before `Pdf::loadView()`).
+The rail is one 296mm table cell sitting beside the canvas. DomPDF cannot repeat
+a table row across a page break, so it renders on page 1 only.
+
+**A fix was attempted and rejected.** A `position: fixed` band repeats correctly
+in isolation, but inside the real template it made DomPDF re-emit the *entire*
+page-1 rail — logo, tagline, bill-to block and "thank you" panel — on every
+continuation page, and pushed a 48-line document from 2 pages to 3. That is worse
+than the limitation, so it was reverted rather than shipped.
+
+A real fix means moving the rail out of the two-cell table entirely so it is a
+page-level element rather than a table row. That is a redesign of the shared
+template affecting all nine document types, not a patch — worth doing only if
+long multi-page documents are common for the target customer.
+
+**Practical mitigation if it matters:** suppress the rail above a line-count
+threshold so a document either has the rail on every page or has none, rather
+than having it on one page and not the next.
 
 ---
 
@@ -1175,21 +1225,27 @@ behaviour and stops with its issue id while the defect is still present — so t
 suite stays green, the defect stays documented, and the test turns green the day
 the code is fixed.
 
-### AUTH-1 — "Access expires" never saves, and would crash if it did
+### AUTH-1 — "Access expires" enforcement fails open
 
-`access_until` is missing from the `#[Fillable]` list at `app/Models/User.php:17`,
-so `Settings\UserController::update():103` — `$user->fill([... 'access_until' => ...])` —
-silently discards it. An admin sets a time-boxed account, sees a success toast,
-and nothing is stored.
+**Status: the crash and the silent discard are FIXED. One half remains.**
 
-The same column has no `datetime` cast (`User::casts()` returns only
-`email_verified_at`, `password`, `is_active`, `last_login_at`), so the day a value
-does exist, `EnsureUserIsActive.php:16` (`$user->access_until->isPast()`) and
-`settings/users/index.blade.php:82` / `edit.blade.php:36`
-(`$user->access_until?->format()`) throw *Call to a member function … on string*
-on every request for that user.
+`access_until` is now in `#[Fillable]` at `app/Models/User.php:19` and cast at
+`:49` (`'access_until' => 'date'`). Both original defects are gone: the value
+persists, and the `->isPast()` / `?->format()` calls in
+`EnsureUserIsActive` and the user views no longer operate on a raw string.
 
-**Fix:** add `access_until` to `#[Fillable]` and `'access_until' => 'datetime'` to `casts()`.
+**What still fails open:** a user whose `access_until` has passed still reaches
+`/dashboard`. `Auth/AuthFlowTest::test_a_user_with_an_expired_access_until_is_ejected`
+skips to prove it. The value is stored correctly; the check that should act on it
+does not reject.
+
+**Fix:** enforce `access_until` in `EnsureUserIsActive` alongside `is_active`.
+
+**Note on the pin:** an earlier revision of this README cited
+`Regression/KnownIssueRegressionTest::test_admin_can_persist_a_users_access_expiry`
+for AUTH-1. That is not the pin — the persistence half now passes, and the live
+pin is the `AuthFlowTest` method above. Regenerate this list from
+`--display-skipped` rather than trusting prose.
 
 ### AUTH-2 — an inactive account completes a login
 
@@ -1200,8 +1256,11 @@ writes `last_login_at`, and only the *next* request is caught by
 has ended"* attached to the **Email** field — next to credentials that were in
 fact correct.
 
+Pinned by `Auth/AuthFlowTest`, which skips.
+
 **Fix:** check `is_active` and `access_until` inside `LoginRequest::authenticate()`
-before accepting the credentials.
+before accepting the credentials. Doing so also closes AUTH-1, since both are the
+same check in two places.
 
 ### AUTH-3 — password-reset endpoints are unthrottled
 
@@ -1372,35 +1431,48 @@ entirely, and the suite now says so with evidence rather than opinion.
 | Pagination | No row repeats across pages |
 | Payments / inventory / payroll / ledgers | Already covered by `InvoicePaymentTest`, `InventoryLedgerTest`, `PayrollServiceTest`, `GeneralLedgerTest`, `BankLedgerTest` |
 
-### The ten pinned defects
+### The pinned defects
 
-`php vendor/bin/phpunit --display-skipped` prints this table from the live run. The
+`php vendor/bin/phpunit --display-skipped` prints each skip from the live run. The
 skips are the suite's way of saying "this is broken, here is the proof, and it
 will tell us when it is fixed".
 
-| Id | Pin | What the skip proves |
-|---|---|---|
-| CRITICAL-4 | `Api/ApiEndpointsTest` x5 | `User` has no `HasApiTokens`, so a valid bearer token is answered 401 (or 500 on the Sanctum helper path) and no token can be issued at all |
-| AUTH-1 | `Regression/KnownIssueRegressionTest::test_admin_can_persist_a_users_access_expiry` | the user editor accepts `access_until` and discards it |
-| CALC-1 | `Domain/CalculationConsistencyTest::test_dashboard_receivables_matches_the_sum_of_invoice_balances` | the receivables tile disagrees with the sum of invoice balances when credit settled them |
-| CALC-2 | `Domain/CalculationConsistencyTest::test_dashboard_cash_matches_the_sum_of_bank_account_balances` | the cash tile equals opening balances only |
-| CALC-3 | `Domain/CalculationConsistencyTest::test_a_customer_balance_never_adds_different_currencies` | a customer with USD and PKR invoices reports 50,100 |
-| HIGH-4 | `Regression/KnownIssueRegressionTest::test_deactivating_the_package_does_not_claim_staff_keep_access` | deactivating 403s every staff page while the copy promises unrestricted access |
+The list below was regenerated from the suite on 2026-10-09, not typed by hand.
+**Four tests skip.** Counts here are the number of skipped test methods carrying
+that id, not the number of lines in the file.
 
-Two further defects are enforced by tests that fail loudly rather than skip, because
-the fix is a deletion and the suite should be red until it happens:
+| Id | Skips | Pin | What the skip proves |
+|---|---|---|---|
+| CRITICAL-4 | 2 | `Api/ApiEndpointsTest` | `User` has no `HasApiTokens`, so a valid bearer token is answered 401 (or 500 on the Sanctum helper path) and no token can be issued at all. The file has 6 tests; 4 assert the unauthenticated path and pass. |
+| AUTH-1 | 1 | `Auth/AuthFlowTest::test_a_user_with_an_expired_access_until_is_ejected` | a user with a past `access_until` still reaches `/dashboard`; `EnsureUserIsActive` calls `isPast()` on a column the editor never persists |
+| CALC-1 | 1 | `Domain/CalculationConsistencyTest::test_dashboard_receivables_matches_the_sum_of_invoice_balances` | the receivables tile ignores `credit_applied` and `credit_note_applied`, so it disagrees with the sum of invoice balances |
+| CALC-2 | 1 | `Domain/CalculationConsistencyTest::test_dashboard_cash_matches_the_sum_of_bank_account_balances` | the cash tile is the sum of `opening_balance` only, and is currency-blind |
+| CALC-3 | 1 | `Domain/CalculationConsistencyTest::test_a_customer_balance_never_adds_different_currencies` | `SalesCustomer::balance()` adds amounts across currencies without conversion |
+
+**Two ids this section previously listed are not skipped and are not defects:**
+
+- `HIGH-4` — `test_deactivating_the_package_does_not_claim_staff_keep_access`
+  **passes**. The copy and the behaviour agree; the concern is handled. See
+  [HIGH-4](#high-4-deactivate-package-locks-every-user-out-and-tells-the-admin-the-opposite)
+  for the remaining wording question.
+- `CALC-4` — the `overdue` status is unwritten, but nothing skips for it. It is
+  tracked in [Known Issues](#known-issues), not in the suite.
+
+Two further defects are enforced by tests that **fail loudly** rather than skip,
+because the fix is a deletion and the suite should be red until it happens:
 `Census/ControllerCoverageTest` (PROD-2 dead registration controller) and
 `Census/ViewIntegrityTest` (the `route('register')` reference in the dead blade).
 
----### Proven wrong (skipped pins, ids above)
+### Previously-open defects now closed
 
-`CALC-1` receivables, `CALC-2` cash tile, `CALC-3` currency-mixed balances,
-`CALC-4` the `overdue` status that nothing writes — plus the two arithmetic
-risks that are still open from the original list: `MEDIUM-2` (floats instead of
-bcmath, and the PDF recomputing totals with a different formula from
-`DocumentItems::sync()`) and `HIGH-3` (`currency:convert` rounding
-`subtotal`/`tax_amount`/`total` independently, leaving `subtotal + tax != total`
-and leaving line items unconverted).
+These were listed in earlier revisions of this section and are **fixed**; the
+suite no longer skips for any of them. Do not re-open them from this section.
+
+| Id | Status | Evidence |
+|---|---|---|
+| MEDIUM-2 (floats, PDF recomputing totals) | **FIXED** | `app/Support/Money.php` is a bcmath value object with 110 call sites. Both `DocumentData` blocks — the header and the printed line rows — now delegate to `DocumentItems::lineTotals()`, so the PDF cannot drift from the stored totals. |
+| HIGH-3 (`currency:convert` rounding independently) | **FIXED** | `ConvertCurrency.php` converts line items first, derives the header via `DocumentItems::totalsFromPersistedItems()`, converts payments in the same transaction, and uses `bcmul`. Pinned by `ConvertCurrencyTest` (11). |
+| AUTH-1 as originally described | **PARTLY** | The *editor* side is still open: the user editor accepts `access_until` and discards it, so the column is never written. What is pinned is the *enforcement* side failing open on a past date. Both halves are in the one AUTH-1 entry above. |
 
 ---
 
@@ -1683,54 +1755,67 @@ Department SMTP credentials are stored in the `settings` table (encrypted), not 
 
 ### Suggested order of remaining work
 
-Ordered by value per hour, now that every issue above has a test pin attached to it. The
-pinned issues turn green by themselves the day they are fixed, so this list can be worked
-top-down without re-auditing anything.
+Ordered by value per hour. The pinned issues turn green by themselves the day they
+are fixed, so this list can be worked top-down without re-auditing anything.
 
-**One-line / one-file fixes**
+**Already done — do not re-attempt.** These were on earlier versions of this list
+and are now fixed and verified. Each still has a regression pin or a status table
+entry recording it.
+
+| Was | Issue | Now |
+|---|---|---|
+| 1 | AUTH-1 (persistence half) | `access_until` is in `#[Fillable]` and cast to `date`. Only the enforcement half remains, folded into AUTH-2 below. |
+| 6 | HIGH-4 | Copy corrected; `SubscriptionController::deactivate()` now states access is blocked, with a comment explaining why. |
+| 7 | MEDIUM-5 | `Sales/InvoiceController::recalculateStatus()` is indented correctly. |
+| 8 | HIGH-1 | `Subscription::isAccessBlocked()` is memoised with an explicit `flushCache()`. |
+
+**One-line / one-file fixes still open**
 
 | # | Issue | Change |
 |---|---|---|
-| 1 | AUTH-1 | Add `access_until` to `User`'s `#[Fillable]` and `'access_until' => 'datetime'` to `casts()`. Fixes a silently ignored field *and* the 500 it causes in `EnsureUserIsActive`. |
-| 2 | CALC-2 | `DashboardService::executiveSummary()` already has a correct `BankAccount::balance()` to copy: sum it instead of `sum('opening_balance')`. |
-| 3 | CALC-1 | Reuse the invoice balance expression in `DashboardService::receivables()` so credit and credit-note settlement are subtracted. |
-| 4 | PROD-2 | Delete `Auth\RegisteredUserController` and `resources/views/auth/register.blade.php`. Two files, both unreferenced. |
-| 5 | CRITICAL-4 | Add `Laravel\Sanctum\HasApiTokens` to `User` (and either a token-issuance screen or delete `routes/api.php`). |
-| 6 | HIGH-4 | Correct the two "All users regain access" strings, or change what "deactivate" means. |
-| 7 | MEDIUM-5 | Indent `InvoiceController::recalculateStatus()` at `app/Http/Controllers/Sales/InvoiceController.php:377`. |
-| 8 | HIGH-1 | Memoise `Subscription::isAccessBlocked()` exactly as the README entry describes. |
+| 1 | CALC-2 | `DashboardService::executiveSummary()` already has a correct `BankAccount::balance()` to copy: sum it instead of `sum('opening_balance')`. |
+| 2 | CALC-1 | Reuse the invoice balance expression in `DashboardService::receivables()` so credit and credit-note settlement are subtracted. |
+| 3 | PROD-2 | Delete `Auth\RegisteredUserController` and `resources/views/auth/register.blade.php`. Two files, both unreferenced. |
+| 4 | CRITICAL-4 | Add `Laravel\Sanctum\HasApiTokens` to `User` (and either a token-issuance screen or delete `routes/api.php`). |
 
 **Small but structural**
 
-9. **CALC-4** � schedule a command that marks past-due `sent` invoices `overdue`, or
-   compute overdue from `due_date` everywhere and drop the status from the queries. Today
-   the dashboard and the document disagree.
-10. **AUTH-2** � reject `is_active = false` and past `access_until` inside
-    `LoginRequest::authenticate()` instead of on the following request.
-11. **AUTH-3** � add `throttle:` to `password.email` / `password.store`, or delete the
-    reset flow per the removal checklist.
-12. **CRITICAL-1** � swap the three `actingAs(superAdmin)` calls in
-    `MultiEmailSetupTest` for an Admin user, or give Super Admin the three document
-    permissions.
-13. **UI-4** � `login.blade.php:19` needs a static `type="password"` before the Alpine
+5. **CALC-3** — convert through `ExchangeRate` in `SalesCustomer::balance()`
+   instead of adding amounts across currencies. The one genuine data-integrity
+   defect of this group: a USD and a PKR invoice currently sum to nonsense.
+6. **CALC-4** — schedule a command that marks past-due `sent` invoices `overdue`, or
+   compute overdue from `due_date` everywhere and drop the status from the queries.
+   Today the dashboard and the document disagree.
+7. **AUTH-2** — reject `is_active = false` and past `access_until` inside
+   `LoginRequest::authenticate()` instead of on the following request. This also
+   closes the AUTH-1 enforcement half.
+8. **AUTH-3** — add `throttle:` to `password.email` / `password.store`, or delete the
+   reset flow per the removal checklist.
+9. **CRITICAL-1** — decided, not outstanding. Super Admin is an
+   installation-configuration role and deliberately holds no business-module
+   permissions, so a 403 on the send-email routes is correct.
+   `MultiEmailSetupTest::test_super_admin_cannot_send_business_documents()`
+   asserts that 403 so it cannot be "fixed" by accident. Do not widen
+   `RolesSeeder::$superAdmin`.
+10. **UI-4** — `login.blade.php:19` needs a static `type="password"` before the Alpine
     binding.
-14. **UI-3** � `EmployeeDocumentController::download()` needs an `abort_unless(exists, 404)`
+11. **UI-3** — `EmployeeDocumentController::download()` needs an `abort_unless(exists, 404)`
     guard.
-15. **UI-5** � a shared submit handler that disables the button and shows a spinner.
+12. **UI-5** — a shared submit handler that disables the button and shows a spinner.
 
 **Decisions to make, not just code to write**
 
-16. **PROD-1** � rename the Super Admin / Admin roles, or widen Super Admin. The account
+13. **PROD-1** — rename the Super Admin / Admin roles, or widen Super Admin. The account
     given to a new install cannot manage users.
-17. **MEDIUM-1** � automatic journals (Odoo-style) or a documented manual-entry ERP.
-18. **MEDIUM-2 / HIGH-3** � introduce a `Money` value object (bcmath) and either fix
-    `currency:convert` or disable the command; today it can leave
-    `subtotal + tax != total`.
-19. **HIGH-2 / MEDIUM-3** � move report aggregation into SQL before the datasets outgrow
-    the shared-hosting memory limit.
-20. **UI-2 / UI-1** � migrate the baselined Blades to the design tokens and wire the
+14. **UI-2 / UI-1** — migrate the baselined Blades to the design tokens and wire the
     sixteen server-side actions that have no control in the interface. Both lists are
     enforced by tests, so the migration shrinks them one file at a time.
+
+**Closed since this list was first written.** `MEDIUM-1` (automatic journals), `MEDIUM-2`
+(`Money` value object), `MEDIUM-3` (SQL aggregation), `HIGH-2` (CashFlow) and `HIGH-3`
+(`currency:convert`) are all implemented and pinned — see the
+[Known Issues](#known-issues) table for the file and line evidence. Do not re-open
+them from this list; they are no longer decisions.
 
 ### New work, in priority order
 
@@ -1739,13 +1824,15 @@ from the 2026-10-08 batch, most urgent first.
 
 | # | Item | Why it matters |
 |---|---|---|
-| 1 | **Tax grandfathering / backfill** | The only change in this batch that would actively *break* a real user rather than merely be missing. Existing documents carrying a tax percentage cannot be saved until rates are configured. Needs a migration, or a documented seed step per deployment. |
-| 2 | **Commit the batch** | ~24 migrations applied, nothing committed, no backup. This is the largest body of unrecoverable work in the project so far. |
+| 1 | ~~**Tax grandfathering / backfill**~~ | **DONE.** `2026_10_09_000001_adopt_existing_tax_rates.php` adopts the rates existing documents already charge, dated from the earliest document that used each. Applied to the working database and rehearsed on a copy of real data: all legacy documents save, unconfigured rates are still refused. See [Tax rate engine](#tax-rate-engine). |
+| 2 | ~~**Commit the batch**~~ | **DONE.** Committed as `21ede82` (321 files). A pre-migration backup was taken first. |
 | 3 | **Work centres / machines** | Blocks machine-hour and rate-per-unit overhead absorption. Currently labour-hour only, which will mislead any business running capital equipment. |
 | 4 | **Timesheet integration** | Absorption is hand-entered minutes. Attendance already records `work_minutes`; nothing connects the two. |
 | 5 | **MRP raising purchase orders** | The plan is read-only by design. A "raise POs for net requirements" action, gated on confirming the plan, is the natural next step. |
 | 6 | **Forward scheduling / capacity** | Net requirements answer *what*, not *when*. Lead-time sequencing and capacity loading are the remainder of MRP. |
 | 7 | **Historical FX correction** | Rows backfilled at rate 1. Decide whether to restate them or document the position permanently. |
+| 8 | **Rename the two adopted tax rates** | Before going live, confirm each `ADOPTED-*` rate: give it the business's own name and code, and set `account_id` to `2200` Output Tax Payable (or `1310` for a purchase-scope rate). The migration deliberately leaves `account_id` NULL, so until this is done collected tax does not post to a tax liability account. |
+| 9 | **LOW-2 rail on page 2+** | A redesign, not a patch: the rail must move out of the two-cell table so DomPDF can repeat it. See [Known Issues](#known-issues) for why the obvious fix was rejected. |
 
 ### Production settings
 
