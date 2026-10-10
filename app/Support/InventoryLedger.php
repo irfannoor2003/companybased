@@ -8,11 +8,14 @@ use App\Models\InventoryMovement;
 use App\Models\InventoryProductionOrder;
 use App\Models\InventoryStock;
 use App\Models\InventoryTransfer;
+use App\Models\InventoryWarehouse;
 use App\Models\InventoryWriteOff;
 use App\Models\PurchaseOrder;
+use App\Models\SalesDeliveryNote;
 use App\Services\LowStockService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Stock ledger: the single source of truth for on-hand quantities and every
@@ -25,6 +28,11 @@ final class InventoryLedger
         'initial', 'adjustment', 'transfer_in', 'transfer_out',
         'write_off', 'production_in', 'production_out', 'purchase_in',
         'incoming_shipment', 'pos_sale',
+        // Goods physically leaving the building on a delivery note. Distinct from
+        // `pos_sale` because the two relieve stock for different reasons on
+        // different documents, and reconciling a warehouse against movements needs
+        // to tell "we shipped it" from "we sold it over the counter".
+        'delivery_out', 'delivery_in',
     ];
 
     /**
@@ -116,6 +124,77 @@ final class InventoryLedger
             // Evaluate the reorder level only once the movement is committed, so
             // an alert can never be sent for stock that later rolls back.
             app(LowStockService::class)->checkItemAfterCommit($itemId);
+        });
+    }
+
+    /**
+     * Relief stock for goods that physically left on a delivery note.
+     *
+     * A delivery note is a *fulfilment* document: the goods went out. Creating one
+     * without moving stock meant the warehouse kept showing inventory that had
+     * already been loaded onto a van, and the only place it was ever relieved was
+     * the COGS leg when the invoice happened to be raised -- which for
+     * deliver-then-bill is after the goods are gone, and for a lost delivery is
+     * never.
+     *
+     * Cost of goods sold is deliberately NOT touched here. This moves quantity, not
+     * value; the P&L recognises cost when the invoice is raised, which is the same
+     * rule the rest of the application follows. A delivery note therefore reduces
+     * what is on the shelf without reducing what the P&L says was sold.
+     *
+     * `delivery` is called only when the note is actually dispatched -- a draft or
+     * pending note is a promise, not a movement.
+     */
+    public static function applyDelivery(SalesDeliveryNote $note, bool $returned = false): void
+    {
+        DB::transaction(function () use ($note, $returned) {
+            // Delivery notes carry no warehouse of their own, so the goods leave
+            // the one active warehouse -- the same rule the POS screen uses. If
+            // there is more than one warehouse this becomes ambiguous, so it is
+            // stated rather than hidden: log which one was relieved.
+            $warehouseId = InventoryWarehouse::query()
+                ->where('is_active', true)
+                ->orderBy('id')
+                ->value('id');
+
+            if ($warehouseId === null) {
+                Log::warning("Delivery note {$note->number}: no active warehouse, stock not moved.");
+
+                return;
+            }
+
+            foreach ($note->items as $item) {
+                if ($item->product_id === null) {
+                    continue; // A service line has no stock.
+                }
+
+                // The delivery line carries a product; the ledger is keyed on the
+                // inventory item. Using the product id directly would adjust the
+                // wrong row whenever the two ids differ, which is exactly the kind
+                // of silent off-by-id that leaves stock unaccounted for.
+                $inventoryItemId = InventoryItem::query()
+                    ->where('product_id', $item->product_id)
+                    ->value('id');
+
+                if ($inventoryItemId === null) {
+                    Log::warning("Delivery note {$note->number}: product {$item->product_id} has no inventory item, stock not moved.");
+
+                    continue;
+                }
+
+                static::adjust(
+                    $inventoryItemId,
+                    $warehouseId,
+                    // `qty`, not `quantity`: the delivery-note line column is
+                    // `qty`. Reading a non-existent property yields null, which
+                    // casts to 0, and `adjust()` treats a change under 0.0005 as a
+                    // no-op -- so the whole delivery silently moved nothing.
+                    ($returned ? '' : '-').$item->qty,
+                    $returned ? 'delivery_in' : 'delivery_out',
+                    $note,
+                    $note->number,
+                );
+            }
         });
     }
 

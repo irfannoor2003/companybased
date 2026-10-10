@@ -85,14 +85,22 @@ class PayrollRunController extends Controller
     /**
      * Employee tax withheld across the run's payslips.
      *
-     * Taken from the payslip notes' dedicated column when the run carries one, and
-     * otherwise derived as gross less net so the journal balances. Deriving it is
-     * not a guess about the tax rate: gross minus net is the amount that was
-     * withheld from the employee by definition, whatever it was composed of.
+     * Summed from the payslips' own `statutory_deductions`, which the payroll
+     * service computes from the employee's configured rates.
+     *
+     * This used to be `gross - net`. That was wrong, and wrong in a way that
+     * reached the balance sheet: gross less net also contains lateness and absence,
+     * which were never tax. Posting the whole difference to Payroll Tax Payable
+     * made the company owe an authority money it did not owe, and left the wage
+     * expense overstated because the attendance element was sitting in a tax
+     * liability instead of coming back out of the cost.
+     *
+     * A run whose structures have no statutory rates configured now withholds
+     * nothing, and says so -- an explicit zero rather than an invented liability.
      */
     private function withheldFor(PayrollRun $run): string
     {
-        return Money::subtract($run->total_gross, $run->total_net);
+        return Money::of($run->payslips()->sum('statutory_deductions'));
     }
 
     public function store(Request $request): RedirectResponse

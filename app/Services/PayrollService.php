@@ -155,7 +155,31 @@ class PayrollService
             $attendanceDeductions = Money::of($gross);
         }
 
-        $net = Money::subtract($gross, $attendanceDeductions);
+        /**
+         * Statutory withholding, computed from the employee's own rates.
+         *
+         * Deliberately separate from attendance above. The two are different kinds
+         * of money: attendance is a smaller wage earned, which comes back out of
+         * the expense; statutory withholding is money held on behalf of an
+         * authority, which is a liability and never touches the P&L at all.
+         *
+         * Both rates default to zero, so a structure that has not been configured
+         * produces a payslip with no withholding rather than a fabricated one.
+         */
+        $statutoryDeductions = Money::add(
+            Money::percentageOf($gross, (string) ($structure->statutory_tax_percent ?? 0)),
+            Money::percentageOf($gross, (string) ($structure->statutory_social_percent ?? 0)),
+        );
+
+        $totalDeductions = Money::add($attendanceDeductions, $statutoryDeductions);
+
+        // The cap is applied to the combined total: whatever the reason, an employee
+        // does not pay back more than they earn.
+        if (Money::isGreaterThan($totalDeductions, $gross)) {
+            $totalDeductions = Money::of($gross);
+        }
+
+        $net = Money::subtract($gross, $totalDeductions);
 
         return $run->payslips()->create([
             'employee_id' => $employee->id,
@@ -168,7 +192,8 @@ class PayrollService
             'days_half_day' => $counts['half_day'],
             'days_absent' => $counts['absent'],
             'attendance_deductions' => $attendanceDeductions,
-            'total_deductions' => $attendanceDeductions,
+            'statutory_deductions' => $statutoryDeductions,
+            'total_deductions' => $totalDeductions,
             'net_pay' => $net,
         ]);
     }

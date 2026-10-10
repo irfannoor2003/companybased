@@ -17,7 +17,7 @@ class Payslip extends Model
     protected $fillable = [
         'payroll_run_id', 'employee_id', 'basic_salary', 'allowances', 'gross_pay',
         'days_present', 'days_late', 'days_short_leave', 'days_half_day', 'days_absent',
-        'attendance_deductions', 'total_deductions', 'net_pay', 'notes',
+        'attendance_deductions', 'statutory_deductions', 'total_deductions', 'net_pay', 'notes',
     ];
 
     protected function casts(): array
@@ -27,6 +27,7 @@ class Payslip extends Model
             'allowances' => 'decimal:2',
             'gross_pay' => 'decimal:2',
             'attendance_deductions' => 'decimal:2',
+            'statutory_deductions' => 'decimal:2',
             'total_deductions' => 'decimal:2',
             'net_pay' => 'decimal:2',
         ];

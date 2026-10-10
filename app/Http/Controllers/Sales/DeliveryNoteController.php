@@ -183,7 +183,22 @@ class DeliveryNoteController extends Controller
             'note' => $data['note'] ?? null,
         ]);
 
+        $previousStatus = $deliveryNote->status;
         $deliveryNote->update(['status' => $data['status']]);
+
+        // Goods have physically left once the note is marked shipped, so stock is
+        // relieved at that transition and not before: `pending` and `packed` are
+        // still sitting on the shelf, and relieving them there would let a note
+        // that never ships quietly consume inventory.
+        //
+        // Guarded on the transition so re-saving a shipped note does not deduct
+        // a second time, and so a delivery that goes back to `packed` (a carrier
+        // failed to collect) puts the stock back rather than double-counting.
+        if ($previousStatus !== 'shipped' && $data['status'] === 'shipped') {
+            app(\App\Support\InventoryLedger::class)->applyDelivery($deliveryNote->fresh());
+        } elseif ($previousStatus === 'shipped' && $data['status'] === 'packed') {
+            app(\App\Support\InventoryLedger::class)->applyDelivery($deliveryNote->fresh(), returned: true);
+        }
 
         // Notify the order's customer when the shipment reaches a user-facing state.
         if (in_array($data['status'], ['packed', 'shipped', 'delivered'], true)) {

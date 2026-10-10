@@ -16,7 +16,8 @@ class SalaryStructure extends Model
 
     protected $fillable = [
         'employee_id', 'effective_from', 'basic_salary', 'housing_allowance',
-        'transport_allowance', 'other_allowance', 'is_active', 'notes',
+        'transport_allowance', 'other_allowance', 'statutory_tax_percent',
+        'statutory_social_percent', 'is_active', 'notes',
     ];
 
     protected function casts(): array
@@ -27,6 +28,10 @@ class SalaryStructure extends Model
             'housing_allowance' => 'decimal:2',
             'transport_allowance' => 'decimal:2',
             'other_allowance' => 'decimal:2',
+            // Four places: a rate like 0.1834 must not be rounded to 0.18 and
+            // silently under-withhold on every payslip.
+            'statutory_tax_percent' => 'decimal:4',
+            'statutory_social_percent' => 'decimal:4',
             'is_active' => 'boolean',
         ];
     }
