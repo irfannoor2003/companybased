@@ -79,6 +79,11 @@ class DebitNoteController extends Controller
         $totals = DocumentItems::sync($note, $request->input('items', []));
         $note->update(['subtotal' => $totals['subtotal'], 'tax_amount' => $totals['tax'], 'total' => $totals['total']]);
 
+        // Reverse the payable, the expense and the input tax. Without this the
+        // supplier's balance fell but the P&L stayed overstated and input tax
+        // remained receivable on goods the business no longer holds.
+        app(\App\Services\Accounting\LedgerPosting::class)->debitNoteIssued($note->fresh());
+
         return redirect()->route('suppliers.debit_notes.index')
             ->with('toasts', [['type' => 'success', 'message' => "Debit note {$note->number} created."]]);
     }
@@ -130,12 +135,29 @@ class DebitNoteController extends Controller
         $totals = DocumentItems::sync($debitNote, $request->input('items', []));
         $debitNote->update(['subtotal' => $totals['subtotal'], 'tax_amount' => $totals['tax'], 'total' => $totals['total']]);
 
+        // Void-and-repost: the original journal carries the figures as first
+        // issued, so an amended note would otherwise leave the ledger showing
+        // amounts the document no longer says.
+        app(\App\Services\Accounting\LedgerPosting::class)->repost(
+            $debitNote->fresh(),
+            fn ($ledger) => $ledger->debitNoteIssued($debitNote->fresh()),
+        );
+
         return back()->with('toasts', [['type' => 'success', 'message' => "Debit note {$debitNote->number} updated."]]);
     }
 
     public function destroy(DebitNote $debitNote): RedirectResponse
     {
         $number = $debitNote->number;
+
+        // Void before the row goes, or the ledger keeps an expense credited and
+        // input tax receivable claimed for a document that no longer exists.
+        $posting = app(\App\Services\Accounting\LedgerPosting::class);
+
+        if ($posting->hasJournalFor($debitNote)) {
+            $posting->reverse($debitNote, 'Debit note deleted');
+        }
+
         $debitNote->delete();
 
         return redirect()->route('suppliers.debit_notes.index')

@@ -3,9 +3,11 @@
 namespace App\Services\Accounting;
 
 use App\Models\Account;
+use App\Models\DebitNote;
 use App\Models\JournalEntry;
 use App\Models\Product;
 use App\Models\PurchaseInvoice;
+use App\Models\SalesCreditNote;
 use App\Models\SalesInvoice;
 use App\Support\GeneralLedger;
 use App\Support\Money;
@@ -67,7 +69,19 @@ class LedgerPosting
     public const OUTPUT_TAX_PAYABLE = '2200';
     public const INPUT_TAX_RECEIVABLE = '1310';
 
-public const SALES_REVENUE = '4000';
+    public const SALES_REVENUE = '4000';
+
+    /**
+     * Sales returned against, as a debit.
+     *
+     * A contra-revenue account rather than a debit to Sales Revenue itself: a
+     * credit note does not erase the original sale, it records that part of it came
+     * back. Netting them keeps the gross revenue figure the business actually
+     * invoiced intact for period-on-period comparison, which is the whole reason a
+     * return is a return and not an erasure.
+     */
+    public const SALES_RETURNS = '4300';
+
     public const COST_OF_GOODS_SOLD = '5000';
     public const INVENTORY_ADJUSTMENT = '6400';
 
@@ -113,6 +127,10 @@ public const SALES_REVENUE = '4000';
         $required = [
             self::ACCOUNTS_RECEIVABLE, self::ACCOUNTS_PAYABLE, self::SALES_REVENUE,
             self::OUTPUT_TAX_PAYABLE, self::INPUT_TAX_RECEIVABLE, self::CASH, self::BANK,
+            // Needed by credit notes. A deployment whose chart predates 4300 will
+            // report it missing and skip posting rather than raising an exception
+            // mid-document-save; the warning names the seeder to re-run.
+            self::SALES_RETURNS,
         ];
 
         $found = Account::whereIn('code', $required)->pluck('code')->all();
@@ -327,7 +345,126 @@ public function salesInvoiceIssued(SalesInvoice $invoice): ?JournalEntry
         ], "Payment {$payment->number} received");
     }
 
+    /**
+     * A sales credit note reverses what the original invoice recognised.
+     *
+     *   Dr Sales Returns            net
+     *   Dr Output Tax Payable       tax
+     *       Cr Accounts Receivable  gross
+     *
+     * Without this the credit note moved the customer's sub-ledger balance but left
+     * revenue, output tax and the receivable standing in the general ledger, so a
+     * single credit note made the balance sheet disagree with the sales register.
+     * The sub-ledger and the ledger have to move together, exactly as they do when
+     * an invoice is issued and when it is paid.
+     *
+     * Cost of goods sold is deliberately NOT reversed here, and that is a real
+     * limitation rather than an oversight. Reversing it means putting the goods back
+     * into stock, but a credit note is a document: it does not prove the goods came
+     * back off the shelf. Restoring inventory on the strength of a piece of paper
+     * would invent stock that may never have returned and make the valuation wrong
+     * in the other direction.
+     *
+     * When the goods genuinely do come back, the reversal is an inventory receipt --
+     * an explicit, auditable event that moves stock and credits COGS together. That
+     * is a separate deliberate step, not something the credit note should assume.
+     */
+    public function creditNoteIssued(SalesCreditNote $note): ?JournalEntry
+    {
+        $gross = Money::of($note->total);
+        $tax = Money::of($note->tax_amount);
+        $net = Money::subtract($gross, $tax);
+
+        $lines = [
+            ['code' => self::SALES_RETURNS, 'debit' => $net],
+            ['code' => self::OUTPUT_TAX_PAYABLE, 'debit' => $tax],
+            ['code' => self::ACCOUNTS_RECEIVABLE, 'credit' => $gross],
+        ];
+
+        return $this->post($note, $lines, "Credit note {$note->number} issued", $note->issue_date?->toDateString());
+    }
+
     // ── Purchasing ───────────────────────────────────────────────────────────
+
+    /**
+     * A purchase debit note reverses what the original bill recognised.
+     *
+     *   Dr Accounts Payable        gross
+     *       Cr <expense account>     net
+     *       Cr Input Tax Receivable  tax
+     *
+     * Without this the supplier's sub-ledger balance fell but the expense and the
+     * input tax stayed in the general ledger, so a purchase return left the P&L
+     * overstated and left input tax receivable claiming back tax on goods the
+     * business no longer holds.
+     *
+     * Each line is credited back to the SAME account the bill charged it to, read
+     * from the original invoice where there is one. Crediting a single account
+     * instead would put a purchase return against the wrong cost line, which is
+     * how a P&L stops answering "which costs went up".
+     *
+     * Reversing the input tax matters more than it looks: input tax is money the
+     * business expects back from the authority, and leaving it claimed on returned
+     * goods is an overclaim.
+     */
+    public function debitNoteIssued(DebitNote $note): ?JournalEntry
+    {
+        $gross = Money::of($note->total);
+        $tax = Money::of($note->tax_amount);
+
+        $byAccount = [];
+
+        foreach ($note->items()->get() as $item) {
+            $code = $this->accountForDebitNoteLine($item, $note);
+
+            $byAccount[$code] = Money::add(
+                $byAccount[$code] ?? '0',
+                Money::of($item->line_total),
+            );
+        }
+
+        if ($byAccount === []) {
+            $byAccount[self::COST_OF_GOODS_SOLD] = Money::subtract($gross, $tax);
+        }
+
+        $lines = [['code' => self::ACCOUNTS_PAYABLE, 'debit' => $gross]];
+
+        foreach ($byAccount as $code => $amount) {
+            $lines[] = ['code' => $code, 'credit' => $amount];
+        }
+
+        if (Money::isGreaterThan($tax, '0')) {
+            $lines[] = ['code' => self::INPUT_TAX_RECEIVABLE, 'credit' => $tax];
+        }
+
+        return $this->post($note, $lines, "Debit note {$note->number} issued", $note->issue_date?->toDateString());
+    }
+
+    /**
+     * The account a debit-note line reverses, preferring the original bill's line.
+     */
+    private function accountForDebitNoteLine(object $item, DebitNote $note): string
+    {
+        if ($item->account_id !== null) {
+            return Account::find($item->account_id)?->code ?? self::COST_OF_GOODS_SOLD;
+        }
+
+        // No account on the note's own line: fall back to the matching line on the
+        // invoice being credited, matched in order, so the reversal lands on the
+        // cost the original purchase was charged to.
+        if ($note->invoice_id !== null) {
+            $original = PurchaseInvoice::find($note->invoice_id)?->items()?->get()
+                ?->filter(fn ($i) => Money::equals(Money::of($i->line_total), Money::of($item->line_total)))
+                ?->first();
+
+            if ($original?->account_id !== null) {
+                return Account::find($original->account_id)?->code ?? self::COST_OF_GOODS_SOLD;
+            }
+        }
+
+        return self::COST_OF_GOODS_SOLD;
+    }
+
 
     /**
      * A purchase bill recognises the liability and the recoverable input tax.

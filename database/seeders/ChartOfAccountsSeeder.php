@@ -53,7 +53,8 @@ class ChartOfAccountsSeeder extends Seeder
         // ── Revenue ────────────────────────────────────────────────────────────
         '4000' => ['Sales Revenue', 'revenue', 'operating', 'Goods and services invoiced to customers.'],
         '4100' => ['Other Income', 'revenue', 'other', 'Interest, discounts and incidental income.'],
-  '4200' => ['Sales Discounts', 'revenue', 'contra', 'Discounts and price reductions given to customers. Contra-revenue.'],
+          '4200' => ['Sales Discounts', 'revenue', 'contra', 'Discounts and price reductions given to customers. Contra-revenue.'],
+        '4300' => ['Sales Returns', 'revenue', 'contra', 'Goods and services credited back to customers. Contra-revenue: a credit note records that part of a sale came back rather than erasing it, so gross invoiced revenue stays intact for period-on-period comparison.'],
 
         // ── Expenses ───────────────────────────────────────────────────────────
         '5000' => ['Cost of Goods Sold', 'expense', 'cost', 'Direct cost of goods sold.'],

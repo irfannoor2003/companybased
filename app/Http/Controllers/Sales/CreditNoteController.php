@@ -83,6 +83,12 @@ class CreditNoteController extends Controller
 
         $applied = CreditNoteApplication::sync($note->fresh());
 
+        // Reverse the revenue, the output tax and the receivable in the general
+        // ledger. Without this the credit note settled on the customer's balance
+        // but left the original sale standing in the books, so one credit note was
+        // enough to make the balance sheet disagree with the sales register.
+        app(\App\Services\Accounting\LedgerPosting::class)->creditNoteIssued($note->fresh());
+
         $message = "Credit note {$note->number} created.";
 
         if ($applied > 0.0) {
@@ -145,6 +151,14 @@ class CreditNoteController extends Controller
 
         CreditNoteApplication::sync($creditNote->fresh());
 
+        // Re-post rather than post again. The original journal carries the figures
+        // as first issued, so an amended note would otherwise leave the ledger
+        // showing the superseded amounts while the document shows the new ones.
+        app(\App\Services\Accounting\LedgerPosting::class)->repost(
+            $creditNote->fresh(),
+            fn ($ledger) => $ledger->creditNoteIssued($creditNote->fresh()),
+        );
+
         // Re-pointing a note leaves its old invoice carrying credit that is no
         // longer applied to it, which would leave that bill reading as settled
         // by a note that no longer refers to it.
@@ -159,6 +173,15 @@ class CreditNoteController extends Controller
     {
         $number = $creditNote->number;
         $invoiceId = $creditNote->invoice_id;
+
+        // Void the journal before the row goes, or the ledger keeps revenue and
+        // output tax recognised for a document that no longer exists. Voiding
+        // rather than deleting is what leaves the reversal on the audit trail.
+        $posting = app(\App\Services\Accounting\LedgerPosting::class);
+
+        if ($posting->hasJournalFor($creditNote)) {
+            $posting->reverse($creditNote, 'Credit note deleted');
+        }
 
         $creditNote->delete();
 
