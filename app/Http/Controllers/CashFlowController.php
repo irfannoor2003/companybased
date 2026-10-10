@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\BankTransaction;
+use App\Models\PosSale;
 use App\Models\PurchaseInvoice;
 use App\Models\SalesInvoice;
 use App\Models\SalesPayment;
 use App\Models\SupplierPayment;
+use App\Services\Accounting\LedgerPosting;
 use App\Support\ExportsCsv;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -287,7 +289,28 @@ class CashFlowController extends Controller
             $net += (float) $movement->inflow - (float) $movement->outflow;
         }
 
-        return round((float) $opening + $net, 2);
+        /**
+         * The till.
+         *
+         * A POS sale taken in cash posts a debit to account 1000 and never touches
+         * `bank_transactions`, so reading only the bank left every till takings
+         * invisible: cash and bank did not reconcile to the trial balance, and a
+         * business that trades mostly over the counter would show a cash figure that
+         * bore no relation to the money in the shop.
+         *
+         * Read from the LEDGER rather than from the POS sale rows, so what the cash
+         * flow statement reports is exactly the cash the books record. A cash sale
+         * that has not been posted yet is correctly absent.
+         */
+        $till = DB::table('journal_entry_items')
+            ->join('journal_entries', 'journal_entries.id', '=', 'journal_entry_items.journal_entry_id')
+            ->join('accounts', 'accounts.id', '=', 'journal_entry_items.account_id')
+            ->where('accounts.code', LedgerPosting::CASH)
+            ->where('journal_entries.status', 'posted')
+            ->selectRaw('COALESCE(SUM(journal_entry_items.debit - journal_entry_items.credit), 0) AS aggregate')
+            ->value('aggregate');
+
+        return round((float) $opening + $net + (float) $till, 2);
     }
 
     /**
@@ -396,6 +419,42 @@ class CashFlowController extends Controller
                     'amount' => (float) $t->amount,
                     'amount_base' => (float) $t->amount,
                     'kind' => 'bank',
+                ]);
+            });
+
+        /**
+         * Cash taken over the counter at the POS.
+         *
+         * A cash sale posts a debit to the till (account 1000) and never reaches
+         * `bank_transactions`, so reading only the bank left every till taking
+         * invisible. A shop that trades mostly over the counter would report a cash
+         * flow with no income in it, and its cash would not reconcile to the trial
+         * balance.
+         *
+         * Only `is_cash` methods. A card sale clears through a bank account and is
+         * already in the rows above; counting it here too would double every card
+         * day's takings.
+         */
+        PosSale::query()
+            ->where('status', 'completed')
+            ->whereBetween('sold_at', [$from, $to])
+            ->with('paymentMethod')
+            ->get()
+            ->each(function (PosSale $sale) use (&$rows) {
+                // An unrecorded method is treated as cash: the till is where an
+                // unclassified counter sale physically sits.
+                if ($sale->paymentMethod !== null && ! $sale->paymentMethod->is_cash) {
+                    return;
+                }
+
+                $rows->push([
+                    'date' => $sale->sold_at,
+                    'source' => 'POS cash sale',
+                    'ref' => $sale->receipt_number,
+                    'desc' => $sale->customer_name ?: 'Counter sale',
+                    'amount' => (float) $sale->total,
+                    'amount_base' => (float) $sale->total,
+                    'kind' => 'pos',
                 ]);
             });
 
