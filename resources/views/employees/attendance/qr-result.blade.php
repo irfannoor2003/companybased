@@ -7,7 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="flex min-h-screen items-center justify-center bg-slate-100 p-6">
-    <div class="w-full max-w-sm rounded-2xl bg-white p-8 text-center shadow-lg">
+    <div class="w-full max-w-sm rounded-2xl bg-surface p-8 text-center shadow-lg">
         <div class="mx-auto flex size-16 items-center justify-center rounded-full {{ $ok ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600' }}">
             @if ($ok)
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-8">

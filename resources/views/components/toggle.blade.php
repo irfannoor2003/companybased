@@ -17,7 +17,7 @@
             {{ $attributes->merge(['class' => 'peer sr-only']) }}
         >
         <div class="h-6 w-11 rounded-full bg-ink-faint/40 transition-colors peer-checked:bg-primary peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary peer-disabled:cursor-not-allowed peer-disabled:opacity-50"></div>
-        <div class="pointer-events-none absolute left-0.5 top-0.5 size-5 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5"></div>
+        <div class="pointer-events-none absolute left-0.5 top-0.5 size-5 rounded-full on-brand-knob shadow transition-transform peer-checked:translate-x-5"></div>
     </div>
 
     @if ($label || $description)

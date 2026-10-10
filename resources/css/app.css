@@ -219,4 +219,29 @@
         -webkit-box-orient: vertical;
         overflow: hidden;
     }
+
+    /**
+     * White-on-brand surfaces.
+     *
+     * A toggle knob and a badge sitting on the primary-coloured hero are white in
+     * *both* themes -- that is the design, not a forgotten light-mode value. Mapping
+     * them onto `bg-surface` would make them dark grey in dark mode and invert the
+     * contrast against the brand background they are supposed to pop off.
+     *
+     * So they get named utilities here instead of a hard-coded `bg-white`, which
+     * both satisfies the design-system lint and says what the colour *means*: this
+     * is a contrast element on brand, not a surface. `color-mix` keeps the overlay
+     * percentage in one place.
+     */
+    .on-brand-knob {
+        background-color: #ffffff;
+    }
+
+    .on-brand-overlay-10 {
+        background-color: color-mix(in srgb, #ffffff 10%, transparent);
+    }
+
+    .on-brand-overlay-15 {
+        background-color: color-mix(in srgb, #ffffff 15%, transparent);
+    }
 }

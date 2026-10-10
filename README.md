@@ -35,11 +35,11 @@ not defects: see [Still missing](#still-missing) and LOW-2/LOW-3 in
 
 | Status | Count |
 |---|---|
-| Passing | **1,237 tests** |
-| Assertions | **3,185** |
+| Passing | **1,247 tests** |
+| Assertions | **3,214** |
 | Failures / errors | **0** |
 | Skipped | 1 (`InvoicePdfSampleTest`, needs `SAMPLE_PDF_PATH` — a visual helper, not an assertion) |
-| Wall clock | ~22 min (Feature suite; there is no Unit suite) |
+| Wall clock | ~31 min (Feature suite; there is no Unit suite) |
 
 **No test skips for a known defect.** The CALC-1/2/3 arithmetic skips, and the
 CRITICAL-4 / AUTH-1 / AUTH-2 / HIGH-4 entries this file listed for several
@@ -1138,29 +1138,45 @@ rather than a document, so it legitimately has its own layout.
 
 ---
 
-### LOW-2. Page 2+ of a long document has no left rail
+### ~~LOW-2 — page 2+ of a long document has no left rail~~ — FIXED
 
-**Accepted limitation.** Page 1 carries the full-height brand rail; page 2 of a
-multi-page document does not, and instead repeats the boxed table header and the
-footer with company identity and the signature block.
+**Status: fixed.** The rail is now a `position: fixed` block outside the flow,
+and the canvas is inset with a margin to clear it.
 
-The rail is one 296mm table cell sitting beside the canvas. DomPDF cannot repeat
-a table row across a page break, so it renders on page 1 only.
+The rail used to be a single 296mm `<td>` beside the canvas. DomPDF cannot repeat
+a table row across a page break, so it rendered on **page 1 only** and page 2 of a
+long document came out as an anonymous sheet of numbers: no brand, no company
+name, no bill-to. DomPDF *does* re-emit a fixed-position block on every page.
 
-**A fix was attempted and rejected.** A `position: fixed` band repeats correctly
-in isolation, but inside the real template it made DomPDF re-emit the *entire*
-page-1 rail — logo, tagline, bill-to block and "thank you" panel — on every
-continuation page, and pushed a 48-line document from 2 pages to 3. That is worse
-than the limitation, so it was reverted rather than shipped.
+Verified by rendering a 48-line quote: all three pages now carry the rail — logo,
+company name, tagline, bill-to, "Thank you" — and the totals still sit clear of
+the right edge.
 
-A real fix means moving the rail out of the two-cell table entirely so it is a
-page-level element rather than a table row. That is a redesign of the shared
-template affecting all nine document types, not a patch — worth doing only if
-long multi-page documents are common for the target customer.
+Two failures had to be cleared on the way, both of which had been invisible until
+the pages were actually looked at:
 
-**Practical mitigation if it matters:** suppress the rail above a line-count
-threshold so a document either has the rail on every page or has none, rather
-than having it on one page and not the next.
+1. **Duplication.** The first attempt added a fixed band but *left the rail cell
+   in place*. DomPDF then re-emitted the entire page-1 layout on every
+   continuation page and pushed the 48-line document from 2 pages to 3 — worse
+   than the limitation. The rail has to leave the table, not be duplicated
+   beside it.
+
+2. **Overlap.** DomPDF adds an element's padding *outside* its declared width and
+   ignores `box-sizing: border-box` when it does. At `width: 28.5%` with 10mm of
+   padding the painted band reached 33.3% of the page against a 33% canvas inset,
+   so the rail covered the first character of every heading — "QUOTE" rendered as
+   "Q U O T E", "Date" as "ate". The width is now 23.5%, which leaves the painted
+   band at ~28.3%.
+
+Pinned by `DocumentRailTest` (5), which asserts the rail is fixed, is not back in
+a table cell, and that its width leaves room for its padding. It cannot prove the
+rendering — that needs a rasterised page — so `preview_document_pdfs.php` plus
+`render_invoice_pdf.py` remains the visual check.
+
+**Page numbers are still absent.** `@page { @bottom-center }` does not render
+while the page margin is `0`, which the full-bleed rail requires. The rail carrying
+the company identity on every page is the better trade, but it is not a
+substitute for "page 2 of 3" on a legal or tax document.
 
 ---
 
@@ -1402,25 +1418,38 @@ after its due date passes. Both screens now agree, because the status is on the
 record rather than re-derived differently in each.
 
 ---
-### UI-1 — sixteen implemented routes are unreachable from the interface
+### ~~UI-1 — sixteen implemented routes unreachable from the interface~~ — FIXED
 
-Found by `tests/Feature/WiredFeatureTest.php`: the delete actions on ten index
-screens (budgets, expense claims, tax returns, reconciliations, departments,
-employees, salary structures, inventory items …), four status transitions, the
-holiday editor and the sales-invoice template picker exist on the server with no
-control in the markup. "The route exists" and "a user can reach it" are different
-claims, and only per-feature controller tests were checking the first.
+**Status: fixed.** The delete actions, four status transitions, the holiday editor
+and the invoice template picker are all reachable from the markup, and
+`tests/Feature/WiredFeatureTest.php` (21 tests) asserts each one — including the
+guards that *withhold* a delete while payments exist, a site is in use, or a
+reconciliation is complete. Those guard tests are the point: a delete control that
+appears unconditionally is as wrong as one that is missing.
 
-### UI-2 — legacy Breeze styling on the auth and profile screens
+### ~~UI-2 — legacy Breeze styling on the auth and profile screens~~ — FIXED
 
-`DesignSystemLintTest` freezes the current list of templates that still use
-`bg-white`, `text-gray-*` and `focus:ring-indigo-*` instead of the
-`ink` / `surface` / `primary` tokens: every auth screen except `login`,
-`components/auth-session-status`, all four `profile/` files,
-`settings/modules`, `settings/notification-rules`, and three unused Breeze
-components (`nav-link`, `responsive-nav-link`, `dropdown-link`). They ignore the
-brand colour and break in dark mode. The lint fails if the list grows **or** if
-an entry stops violating, so the cleanup cannot rot unnoticed.
+**Status: fixed, and the ratchet is now fully locked.** `DesignSystemLintTest`'s
+`BASELINE` is **empty**.
+
+Every one of the sixteen templates has been migrated to the `ink` / `surface` /
+`primary` tokens, so no view in the application contains `bg-white`,
+`text-gray-*`, `focus:ring-indigo-*`, `bg-gray-*` or `border-gray-*`. The lint
+still exists and still fails the build on any of them, so the ratchet has nowhere
+left to give.
+
+Two judgement calls worth recording:
+
+- **`bg-white` on brand is not a violation.** A toggle knob or a badge sitting on
+  the primary-coloured hero is white in *both* themes — that is the design.
+  Mapping them onto `bg-surface` would make them dark grey in dark mode and invert
+  the contrast they are supposed to pop off. They became named utilities
+  (`on-brand-knob`, `on-brand-overlay-10`, `on-brand-overlay-15`) so the colour's
+  *meaning* is recorded rather than its value.
+- **`indigo-*` mapped to `primary-*`.** The old utilities were not neutral
+  greys; they were indigo, i.e. a hard-coded copy of the default brand colour that
+  ignored whatever the user set. Renaming them to the token is what makes them
+  follow the brand.
 
 ### ~~UI-3 — a missing employee document 500s instead of 404ing~~ — FIXED
 
@@ -1458,9 +1487,38 @@ the show/hide toggle works as intended.
 
 ### UI-5 — no form anywhere disables itself while submitting
 
-No Blade form uses a submit handler, so a double click on **Sign in** (or Save
-on any screen) submits twice. A shared `x-on:submit` that disables the button and
-shows a spinner belongs on every form.
+### ~~UI-5 — no form anywhere disables itself while submitting~~ — FIXED
+
+**Status: fixed.** One capture-phase `submit` listener in `resources/js/app.js`
+now guards every form:
+
+```js
+document.addEventListener('submit', (event) => { ... }, true);
+```
+
+On first submit it marks the form, disables every `button[type=submit]` inside it
+and sets `aria-busy`. A second submit while the first is in flight is
+`preventDefault`ed and `stopImmediatePropagation`ed, so the document cannot be
+posted twice. An 8-second timeout releases the buttons, because a form that never
+navigates — a fetch submit, or a validation failure re-rendering in place —
+would otherwise stay locked for ever.
+
+**Global, not per-form.** There are hundreds of forms in this application, and an
+`x-on:submit` on each is exactly the kind of thing that gets forgotten on the four
+hundredth screen. One listener covers all of them, including forms added later.
+Keyed on the *form* rather than the button, so a form with several submit buttons
+is still protected once any of them is used.
+
+An explicit `data-submitting-guard="off"` escape hatch exists for forms that
+legitimately need to submit twice.
+
+**Limitation, stated plainly.** There is no JS test runner in this project, so
+nothing executes this handler. `DoubleSubmitGuardTest` (5 tests) pins its
+*structure* — that the listener exists, runs in the capture phase, blocks a repeat
+and releases the buttons — and `app.js` is syntax-checked with `node --check`. It
+does not prove the browser behaviour. Adding Vitest and jsdom for one handler is
+not worth the dependency; if a JS runner is ever added, that is the test to
+replace with a real one.
 
 ### TEST-1 — the authentication flow had no tests at all
 
@@ -1843,12 +1901,11 @@ None. Every defect with a file-level fix is now closed.
 
 | Issue | What it is |
 |---|---|
-| PROD-1 | Rename Super Admin / Admin, or widen Super Admin. The account handed to a new install cannot manage users. Working as designed; pinned so it cannot drift. |
-| UI-1 / UI-2 | Sixteen implemented routes have no control in the interface, and the auth/profile screens still use raw Breeze utilities instead of design tokens. Both lists are enforced by tests, so the migration shrinks them one file at a time. |
-| UI-5 | No form disables itself while submitting, so a double click submits twice. A shared `x-on:submit` belongs on every form. |
-| LOW-2 | Page 2+ of a long document has no left rail. Redesign, not a patch — see [Known Issues](#known-issues) for why the obvious fix was rejected. |
-| LOW-3 | 1 factory for 101 models; `SearchRegistry` wildcard `LIKE`. Test ergonomics and search UX. |
-| AUTH-3 removal | The e-mail password reset flow is still shipped but unreachable from the login page. The checklist above describes how to delete it; it is throttled meanwhile. |
+| PROD-1 | Rename Super Admin / Admin, or widen Super Admin. The account handed to a new install cannot manage users. Working as designed; pinned so it cannot drift. This is a **naming/product decision** and renaming roles touches seeded data and every permission string, so it is not something to do unilaterally. |
+| LOW-3 | 1 factory for 101 models; `SearchRegistry` wildcard `LIKE`. Test ergonomics and search UX. A `FULLTEXT` index is the right answer for the search half and is a schema change worth its own migration. |
+| AUTH-3 removal | The e-mail password reset flow is still shipped but unreachable from the login page. Throttled meanwhile; the removal checklist above describes how to delete it. Whether a business wants self-service resets is a product decision, not a bug. |
+
+**Closed this pass:** CALC-1/2/3/4, AUTH-1/2/3, PROD-2, UI-1/2/3/4/5, LOW-2.
 
 **Small but structural**
 

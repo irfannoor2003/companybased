@@ -66,7 +66,7 @@
         aria-modal="true"
         aria-label="Document preview"
     >
-        <div class="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b border-line bg-white px-4 py-3 shadow-sm sm:px-6">
+        <div class="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b border-line bg-surface px-4 py-3 shadow-sm sm:px-6">
             <div class="min-w-0">
                 <h3 class="text-sm font-semibold text-ink">{{ $type }} preview</h3>
                 <p class="truncate text-xs text-ink-faint">Nothing is saved until you save the form.</p>
@@ -90,7 +90,7 @@
              different colours for the same brand.
         --}}
         <div class="flex justify-center px-4 py-8 sm:px-6">
-            <div class="document-preview-sheet flex w-full max-w-4xl overflow-hidden rounded-lg bg-white text-ink shadow-2xl">
+            <div class="document-preview-sheet flex w-full max-w-4xl overflow-hidden rounded-lg bg-surface text-ink shadow-2xl">
                 {{-- Rail --}}
                 <div class="hidden w-60 shrink-0 flex-col px-6 py-8 text-white md:flex"
                      style="background-color: {{ darken_hex(settings('branding.primary_color', '#4f46e5'), 62) }};">

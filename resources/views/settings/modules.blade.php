@@ -27,7 +27,7 @@
 
                         @if ($module->is_core)
                             <span class="relative inline-flex h-6 w-11 cursor-not-allowed items-center rounded-full bg-primary opacity-60" title="Core module — always enabled">
-                                <span class="inline-block size-4 translate-x-6 transform rounded-full bg-white shadow"></span>
+                                <span class="inline-block size-4 translate-x-6 transform rounded-full on-brand-knob shadow"></span>
                             </span>
                         @else
                             <form method="POST" action="{{ route('settings.modules.update', $module) }}" x-data="{ enabled: {{ $module->enabled ? 'true' : 'false' }} }">
@@ -43,7 +43,7 @@
                                     role="switch"
                                     :title="enabled ? 'Click to disable' : 'Click to enable'"
                                 >
-                                    <span class="inline-block size-4 transform rounded-full bg-white shadow transition-transform duration-200" :class="enabled ? 'translate-x-6' : 'translate-x-1'"></span>
+                                    <span class="inline-block size-4 transform rounded-full on-brand-knob shadow transition-transform duration-200" :class="enabled ? 'translate-x-6' : 'translate-x-1'"></span>
                                 </button>
                             </form>
                         @endif

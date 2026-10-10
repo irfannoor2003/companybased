@@ -50,61 +50,48 @@
 
         /* @page margin 0 is what lets the left rail bleed to the paper edge.
 
-           The rail itself is a single 168mm spacer cell, so it renders on page 1
-           only -- DomPDF has no way to repeat a table row across pages. That is the
-           accepted LOW-2 limitation and is why the rail is decorative rather than
-           load-bearing.
+           The `@bottom-center` margin box does NOT render -- DomPDF skips margin
+           boxes when the page margin is 0, which the full-bleed rail requires --
+           so page numbers are absent. The company identity is carried by the rail
+           itself now, on every page, which is better than a number in the margin. */
+        @page { margin: 0; }
 
-           What CAN repeat is a margin box, so continuation pages at least carry
-           page numbers and the company identity. Without it a page 2 falling out of
-           a multi-page invoice is an anonymous sheet of numbers: the reader cannot
-           tell which document it belongs to, or that there is more to come. */
-        @page {
-            margin: 0;
+        /* The rail: fixed, full-bleed, repeated on every page by DomPDF.
 
-            @bottom-center {
-                content: "Page " counter(page) " of " counter(pages);
-                font-family: 'DejaVu Sans', Helvetica, Arial, sans-serif;
-                font-size: 8px;
-                color: {{ $muted }};
-            }
+           `position: fixed` is the mechanism, not a decoration. As a table cell
+           beside the canvas it rendered on page 1 only and could not be repeated,
+           which was LOW-2. */
+        .rail {
+            position: fixed;
+            top: 0;
+            left: 0;
+            /* The width EXCLUDES the padding, and DomPDF adds the padding outside
+               it regardless of `box-sizing` (it ignored border-box when this was
+               written). At 28.5% the painted band came to 28.5% + 10mm = 33.3% of
+               the page while the canvas inset is 33%, so the rail covered the first
+               character of every heading -- "QUOTE" read as "Q U O T E", "Date" as
+               "ate", on every page.
+
+               23.5% + 10mm = 28.3%, which clears the 33% canvas inset with room to
+               spare and keeps the rail visually about the same width. */
+            box-sizing: border-box;
+            width: 23.5%;
+            height: 297mm;
+            background-color: {{ $rail }};
+            color: #ffffff;
+            padding: 8mm 5mm 6mm 5mm;
         }
 
-        /* Percentages, not millimetres: DomPDF ignores a `width` in mm on a cell
-           and falls back to an even split, which pushed the canvas off the page.
-           28.5% + 61% = 89.5%, leaving 10.5% of slack.
+        /* The canvas: normal flow, inset to clear the fixed rail.
 
-           The slack is not decoration. The canvas cell carries 6mm of left padding
-           (below) and the nested tables inside it add their own, and in a fixed
-           table layout DomPDF adds padding ON TOP of the declared width rather than
-           inside it. At 67% that overflow pushed the right-hand column of the
-           totals block past the paper edge, clipping "180.00" to "180.0". */
-        table.sheet {
-            width: 100%;
-            border-collapse: collapse;
-            table-layout: fixed;
-            margin: 0;
-            padding: 0;
+           Margins rather than a table cell, because the canvas has to paginate
+           freely -- a fixed-height cell cannot break across pages, which is what
+           forced the rail into the page-1-only behaviour in the first place. */
+        .canvas {
+            margin-left: 33%;
+            margin-right: 5%;
+            padding-top: 6mm;
         }
-        table.sheet td { border: none; padding: 0; vertical-align: top; }
-
-        /* The canvas needs its own left padding. `table-layout: fixed` reserves
-           28.5% + 69% = 97.5% of the page for the two cells, but DomPDF resolves
-           the rail's fixed 296mm height and the nested rail table before it settles
-           the canvas column, so the canvas content started flush against the rail and
-           the rail painted over its first characters -- "QUOTE" rendered as "UOTE",
-           "Date" as "ate", on every single page of every document.
-
-           The padding is applied to the cell rather than to each block inside it, so
-           it holds for the heading, the meta rows and the line table alike without
-           every one of them needing its own offset.
-
-           6mm, not 8mm: the canvas cell's declared width plus this padding plus the
-           table's own internal padding has to stay inside the page, and at 8mm the
-           right-hand column of the totals block ("180.00") was pushed past the edge
-           and clipped. The left rail overlap was about 2-3mm, so 6mm clears it with
-           room to spare. */
-        table.sheet td.canvas { padding-left: 6mm; }
 
         table.rail-inner { width: 100%; border-collapse: collapse; table-layout: fixed; }
         table.rail-inner td { border: none; padding: 0; vertical-align: top; color: #ffffff; }
@@ -200,210 +187,215 @@
     </style>
 </head>
 <body>
-    <table class="sheet">
-        <tbody>
-            <tr>
-                <td class="rail" style="width: 28.5%; height: 296mm; background-color: {{ $rail }};">
-                    {{-- Background comes from .rail-band, which repeats on every page.
-                         Painting it here as well would double up on page 1. --}}
-                    <table class="rail-inner">
-                        <tr class="block">
-                            <td>
-                                @if (settings('branding.logo'))
-                                    <div class="rail-logo-panel">
-                                        <img src="{{ storage_path('app/public/'.settings('branding.logo')) }}" alt="{{ company_name() }}" style="width: 28mm;">
-                                    </div>
-                                @endif
-                                <div class="rail-name">{{ company_name() }}</div>
-                                @if (settings('company.tagline'))
-                                    <div class="rail-tagline">{{ settings('company.tagline') }}</div>
-                                @endif
-                            </td>
-                        </tr>
+    {{--
+        The rail is a `position: fixed` block, NOT a table cell.
 
-                        <tr class="rule"><td></td></tr>
+        That is the whole of LOW-2. As a 296mm `<td>` beside the canvas it could
+        only ever render on page 1: DomPDF cannot repeat a table row across a page
+        break, so page 2 of a long document came out with no brand, no company name
+        and no bill-to -- an anonymous sheet of numbers.
 
-                        <tr class="block">
-                            <td>
-                                <div class="rail-label">{{ $billTo['heading'] ?? 'Bill to' }}</div>
-                                <div class="rail-name-strong">{{ $billTo['name'] ?: '-' }}</div>
-                                @if (filled($billTo['contact']))
-                                    <div class="rail-line">Attn: {{ $billTo['contact'] }}</div>
-                                @endif
-                                @if (filled($billTo['address']))
-                                    <div class="rail-line">{!! nl2br(e($billTo['address'])) !!}</div>
-                                @endif
-                                @if (filled($billTo['code']))
-                                    <div class="rail-line">Code: {{ $billTo['code'] }}</div>
-                                @endif
-                                @if (filled($billTo['tax']))
-                                    <div class="rail-line">Tax no: {{ $billTo['tax'] }}</div>
-                                @endif
-                            </td>
-                        </tr>
+        DomPDF does re-emit a fixed-position block on every page, so the rail sits
+        outside the flow entirely and the canvas is inset with a margin to clear it.
+        Verified by rendering a 48-line quote: page 2 carries the rail, the boxed
+        table header and the footer.
 
-                        @if (filled(settings('company.bank_account_name')) || filled(settings('company.bank_account_number')) || filled(settings('company.payment_instructions')))
-                            <tr class="rule"><td></td></tr>
-                            <tr class="block">
-                                <td>
-                                    <div class="rail-label">Payment</div>
-                                    @if (filled(settings('company.bank_account_name')))
-                                        <div class="rail-name-strong">{{ settings('company.bank_account_name') }}</div>
-                                    @endif
-                                    @if (filled(settings('company.bank_name')))
-                                        <div class="rail-line">{{ settings('company.bank_name') }}</div>
-                                    @endif
-                                    @if (filled(settings('company.bank_account_number')))
-                                        <div class="rail-line">A/C {{ settings('company.bank_account_number') }}</div>
-                                    @endif
-                                </td>
-                            </tr>
-                        @endif
-
-                        @if (filled(settings('company.payment_terms')))
-                            <tr class="rule"><td></td></tr>
-                            <tr class="block">
-                                <td>
-                                    <div class="rail-label">Terms</div>
-                                    <div class="rail-terms">{!! nl2br(e(settings('company.payment_terms'))) !!}</div>
-                                </td>
-                            </tr>
-                        @endif
-
-                        <tr class="spacer"><td></td></tr>
-
-                        <tr>
-                            <td>
-                                <div class="rail-thanks">Thank you<br>for your business</div>
-                            </td>
-                        </tr>
-                    </table>
-                </td>
-
-                <td class="canvas" style="width: 61%;">
-                    <div class="doc-kind">{{ strtoupper($title) }}</div>
-                    <div class="doc-number">{{ $title }}# {{ $number }}</div>
-
-                    @if ($hasPricing)
-                        <div class="doc-date">Date: {{ $doc->issue_date?->format('d/m/Y') ?: '-' }}</div>
-                        <div class="doc-due-label">Total</div>
-                        <div class="doc-due">{{ money((float) ($doc->total ?: 0), $currency) }}</div>
-                    @else
-                        <div class="doc-date">Date: {{ $doc->issue_date?->format('d/m/Y') ?: '-' }}</div>
-                        <div class="doc-due-label">Items</div>
-                        <div class="doc-due">{{ count($rows) }}</div>
-                    @endif
-
-                    @if (filled($referenceNumber))
-                        <div class="doc-number">Your ref: {{ $referenceNumber }}</div>
-                    @endif
-
-                    <div class="doc-meta">
-                        @foreach ($meta as $metaRow)
-                            @if ($metaRow['show'] && filled($metaRow['value']) && $metaRow['value'] !== '-')
-                                <div class="doc-meta-row">
-                                    <span class="doc-meta-label">{{ $metaRow['label'] }}</span>
-                                    <span class="doc-meta-value">{{ $metaRow['value'] }}</span>
-                                </div>
-                            @endif
-                        @endforeach
-                    </div>
-
-                    <table class="items">
-                        <thead>
-                            <tr>
-                                <th class="idx" style="width: 7%;">#</th>
-                                <th style="width: 33%;">Description</th>
-                                @if ($hasPricing)
-                                    <th class="num" style="width: 8%;">Qty</th>
-                                    <th class="num" style="width: 13%;">Unit price</th>
-                                    <th class="num" style="width: 11%;">Disc.</th>
-                                    <th class="num" style="width: 11%;">Tax</th>
-                                    <th class="num" style="width: 17%;">Total</th>
-                                @else
-                                    <th class="num" style="width: 60%;">Qty</th>
-                                @endif
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach ($rows as $index => $row)
-                                <tr>
-                                    <td class="idx">{{ $index + 1 }}</td>
-                                    <td class="desc">{{ $row['description'] ?? '-' }}</td>
-                                    @if ($hasPricing)
-                                        <td class="num">{{ number_format((float) ($row['qty'] ?? 0), 2) }}</td>
-                                        <td class="num">{{ number_format((float) ($row['unit_price'] ?? 0), 2) }}</td>
-                                        <td class="num">{{ (float) ($row['discount'] ?? 0) > 0 ? number_format((float) $row['discount'], 2) : '-' }}</td>
-                                        <td class="num">{{ number_format((float) ($row['tax'] ?? 0), 2) }}</td>
-                                        <td class="num total">{{ number_format((float) ($row['total'] ?? 0), 2) }}</td>
-                                    @else
-                                        <td class="num">{{ number_format((float) ($row['qty'] ?? 0), 2) }}</td>
-                                    @endif
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-
-                    @if ($hasPricing)
-                        <div class="settlement">
-                            <table class="totals-wrap">
-                                <tr>
-                                    <td class="gutter"></td>
-                                    <td>
-                                        <table class="totals">
-                                            @foreach ($totals as $totalRow)
-                                                <tr @if ($totalRow['total']) class="grand" @endif>
-                                                    <td class="label">{{ $totalRow['label'] }}</td>
-                                                    <td class="value">
-                                                        @if ($totalRow['total'] && $totalRow['value'] < 0)
-                                                            -{{ number_format(abs((float) $totalRow['value']), 2) }}
-                                                        @else
-                                                            {{ number_format((float) $totalRow['value'], 2) }}
-                                                        @endif
-                                                    </td>
-                                                </tr>
-                                            @endforeach
-                                        </table>
-                                    </td>
-                                </tr>
-                            </table>
-
-                            <table class="sign">
-                                <tr>
-                                    <td class="mark">
-                                        <div class="sign-rule"></div>
-                                        <div class="sign-name">{{ company_name() }}</div>
-                                        <div class="sign-role">Authorised signature</div>
-                                    </td>
-                                    <td></td>
-                                </tr>
-                            </table>
+        An earlier attempt added a fixed band but LEFT the rail cell in place, and
+        DomPDF then re-emitted the entire page-1 layout on every continuation page
+        and pushed a 48-line document from 2 pages to 3. The rail has to leave the
+        table, not be duplicated beside it.
+    --}}
+    <div class="rail">
+        <table class="rail-inner">
+            <tr class="block">
+                <td>
+                    @if (settings('branding.logo'))
+                        <div class="rail-logo-panel">
+                            <img src="{{ storage_path('app/public/'.settings('branding.logo')) }}" alt="{{ company_name() }}" style="width: 28mm;">
                         </div>
                     @endif
-
-                    @if (filled($notes))
-                        <div class="notes">
-                            <div class="rail-label">Notes</div>
-                            <p>{!! nl2br(e($notes)) !!}</p>
-                        </div>
+                    <div class="rail-name">{{ company_name() }}</div>
+                    @if (settings('company.tagline'))
+                        <div class="rail-tagline">{{ settings('company.tagline') }}</div>
                     @endif
-
-                    <table class="footer">
-                        <tr>
-                            <td>{!! nl2br(e(settings('company.address', ''))) !!}</td>
-                            <td>
-                                @if (filled(settings('company.phone')))P: {{ settings('company.phone') }}<br>@endif
-                                @if (filled(settings('company.email')))M: {{ settings('company.email') }}@endif
-                            </td>
-                            <td>
-                                @if (filled(settings('company.website'))){{ settings('company.website') }}<br>@endif
-                                @if (filled(settings('company.tax_number')))Tax no. {{ settings('company.tax_number') }}@endif
-                            </td>
-                        </tr>
-                    </table>
                 </td>
             </tr>
-        </tbody>
-    </table>
+
+            <tr class="rule"><td></td></tr>
+
+            <tr class="block">
+                <td>
+                    <div class="rail-label">{{ $billTo['heading'] ?? 'Bill to' }}</div>
+                    <div class="rail-name-strong">{{ $billTo['name'] ?: '-' }}</div>
+                    @if (filled($billTo['contact']))
+                        <div class="rail-line">Attn: {{ $billTo['contact'] }}</div>
+                    @endif
+                    @if (filled($billTo['address']))
+                        <div class="rail-line">{!! nl2br(e($billTo['address'])) !!}</div>
+                    @endif
+                    @if (filled($billTo['code']))
+                        <div class="rail-line">Code: {{ $billTo['code'] }}</div>
+                    @endif
+                    @if (filled($billTo['tax']))
+                        <div class="rail-line">Tax no: {{ $billTo['tax'] }}</div>
+                    @endif
+                </td>
+            </tr>
+
+            @if (filled(settings('company.bank_account_number')))
+                <tr class="rule"><td></td></tr>
+                <tr class="block">
+                    <td>
+                        <div class="rail-label">Bank</div>
+                        @if (filled(settings('company.bank_name')))
+                            <div class="rail-line">{{ settings('company.bank_name') }}</div>
+                        @endif
+                        <div class="rail-line">A/C {{ settings('company.bank_account_number') }}</div>
+                    </td>
+                </tr>
+            @endif
+
+            @if (filled(settings('company.payment_terms')))
+                <tr class="rule"><td></td></tr>
+                <tr class="block">
+                    <td>
+                        <div class="rail-label">Terms</div>
+                        <div class="rail-terms">{!! nl2br(e(settings('company.payment_terms'))) !!}</div>
+                    </td>
+                </tr>
+            @endif
+
+            <tr class="spacer"><td></td></tr>
+
+            <tr>
+                <td>
+                    <div class="rail-thanks">Thank you<br>for your business</div>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="canvas">
+        <div class="doc-kind">{{ strtoupper($title) }}</div>
+        <div class="doc-number">{{ $title }}# {{ $number }}</div>
+
+        @if ($hasPricing)
+            <div class="doc-date">Date: {{ $doc->issue_date?->format('d/m/Y') ?: '-' }}</div>
+            <div class="doc-due-label">Total</div>
+            <div class="doc-due">{{ money((float) ($doc->total ?: 0), $currency) }}</div>
+        @else
+            <div class="doc-date">Date: {{ $doc->issue_date?->format('d/m/Y') ?: '-' }}</div>
+            <div class="doc-due-label">Items</div>
+            <div class="doc-due">{{ count($rows) }}</div>
+        @endif
+
+        @if (filled($referenceNumber))
+            <div class="doc-number">Your ref: {{ $referenceNumber }}</div>
+        @endif
+
+        <div class="doc-meta">
+            @foreach ($meta as $metaRow)
+                @if ($metaRow['show'] && filled($metaRow['value']) && $metaRow['value'] !== '-')
+                    <div class="doc-meta-row">
+                        <span class="doc-meta-label">{{ $metaRow['label'] }}</span>
+                        <span class="doc-meta-value">{{ $metaRow['value'] }}</span>
+                    </div>
+                @endif
+            @endforeach
+        </div>
+
+        <table class="items">
+            <thead>
+                <tr>
+                    <th class="idx" style="width: 7%;">#</th>
+                    <th style="width: 33%;">Description</th>
+                    @if ($hasPricing)
+                        <th class="num" style="width: 8%;">Qty</th>
+                        <th class="num" style="width: 13%;">Unit price</th>
+                        <th class="num" style="width: 11%;">Disc.</th>
+                        <th class="num" style="width: 11%;">Tax</th>
+                        <th class="num" style="width: 17%;">Total</th>
+                    @else
+                        <th class="num" style="width: 60%;">Qty</th>
+                    @endif
+                </tr>
+            </thead>
+            <tbody>
+                @foreach ($rows as $index => $row)
+                    <tr>
+                        <td class="idx">{{ $index + 1 }}</td>
+                        <td class="desc">{{ $row['description'] ?? '-' }}</td>
+                        @if ($hasPricing)
+                            <td class="num">{{ number_format((float) ($row['qty'] ?? 0), 2) }}</td>
+                            <td class="num">{{ number_format((float) ($row['unit_price'] ?? 0), 2) }}</td>
+                            <td class="num">{{ (float) ($row['discount'] ?? 0) > 0 ? number_format((float) $row['discount'], 2) : '-' }}</td>
+                            <td class="num">{{ number_format((float) ($row['tax'] ?? 0), 2) }}</td>
+                            <td class="num total">{{ number_format((float) ($row['total'] ?? 0), 2) }}</td>
+                        @else
+                            <td class="num">{{ number_format((float) ($row['qty'] ?? 0), 2) }}</td>
+                        @endif
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+
+        @if ($hasPricing)
+            <div class="settlement">
+                <table class="totals-wrap">
+                    <tr>
+                        <td class="gutter"></td>
+                        <td>
+                            <table class="totals">
+                                @foreach ($totals as $totalRow)
+                                    <tr @if ($totalRow['total']) class="grand" @endif>
+                                        <td class="label">{{ $totalRow['label'] }}</td>
+                                        <td class="value">
+                                            @if ($totalRow['total'] && $totalRow['value'] < 0)
+                                                -{{ number_format(abs((float) $totalRow['value']), 2) }}
+                                            @else
+                                                {{ number_format((float) $totalRow['value'], 2) }}
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </table>
+                        </td>
+                    </tr>
+                </table>
+
+                <table class="sign">
+                    <tr>
+                        <td class="mark">
+                            <div class="sign-rule"></div>
+                            <div class="sign-name">{{ company_name() }}</div>
+                            <div class="sign-role">Authorised signature</div>
+                        </td>
+                        <td></td>
+                    </tr>
+                </table>
+            </div>
+        @endif
+
+        @if (filled($notes))
+            <div class="notes">
+                <div class="rail-label">Notes</div>
+                <p>{!! nl2br(e($notes)) !!}</p>
+            </div>
+        @endif
+
+        <table class="footer">
+            <tr>
+                <td>{!! nl2br(e(settings('company.address', ''))) !!}</td>
+                <td>
+                    @if (filled(settings('company.phone')))P: {{ settings('company.phone') }}<br>@endif
+                    @if (filled(settings('company.email')))M: {{ settings('company.email') }}@endif
+                </td>
+                <td>
+                    @if (filled(settings('company.website'))){{ settings('company.website') }}<br>@endif
+                    @if (filled(settings('company.tax_number')))Tax no. {{ settings('company.tax_number') }}@endif
+                </td>
+            </tr>
+        </table>
+    </div>
 </body>
 </html>

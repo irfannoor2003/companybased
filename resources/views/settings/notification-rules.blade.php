@@ -18,7 +18,7 @@
                             class="relative inline-flex h-6 w-11 cursor-pointer items-center rounded-full transition-colors duration-200 {{ $rule->enabled ? 'bg-primary' : 'bg-ink-faint/40' }}"
                             title="{{ $rule->enabled ? 'Enabled — click to disable' : 'Disabled — click to enable' }}"
                         >
-                            <span class="inline-block size-4 transform rounded-full bg-white shadow transition-transform duration-200 {{ $rule->enabled ? 'translate-x-6' : 'translate-x-1' }}"></span>
+                            <span class="inline-block size-4 transform rounded-full on-brand-knob shadow transition-transform duration-200 {{ $rule->enabled ? 'translate-x-6' : 'translate-x-1' }}"></span>
                         </button>
                     </form>
                     <form method="POST" action="{{ route('settings.notification-rules.destroy', $rule) }}" onsubmit="return confirm('Delete this notification rule?')">

@@ -751,4 +751,55 @@ function permissionMatrix() {
 
 window.permissionMatrix = permissionMatrix;
 
+/**
+ * Stop a form being submitted twice.
+ *
+ * A double click on Save — or a user hitting Enter twice on a slow connection —
+ * posts the same document twice. For an invoice that means two documents with two
+ * numbers; for a payment, two receipts against one invoice. The damage is not
+ * visible until someone reconciles at month end, by which point it is expensive.
+ *
+ * This is installed once, globally, rather than as an `x-on:submit` on every form:
+ * there are hundreds of forms in this application and a per-form handler is exactly
+ * the kind of thing that gets forgotten on the four hundredth screen. One listener
+ * covers all of them, including forms added later.
+ *
+ * The button is disabled and marked `aria-busy` so the state is visible to a
+ * screen reader too, and the guard is keyed on the form rather than the button so
+ * a form with several submit buttons is still protected once any of them is used.
+ *
+ * `form.requestSubmit()` is not called again -- the browser has already queued the
+ * navigation, and this only closes the door behind it.
+ */
+document.addEventListener('submit', (event) => {
+    const form = event.target;
+
+    if (!(form instanceof HTMLFormElement)) return;
+    if (form.dataset.submittingGuard === 'off') return;
+
+    // Already submitted once: block the repeat.
+    if (form.dataset.submitting === '1') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        return;
+    }
+
+    form.dataset.submitting = '1';
+
+    form.querySelectorAll('button[type="submit"], input[type="submit"]').forEach((button) => {
+        button.disabled = true;
+        button.setAttribute('aria-busy', 'true');
+    });
+
+    // A form that never navigates (a fetch submit, or a validation failure that
+    // re-renders in place) must not stay locked forever.
+    window.setTimeout(() => {
+        delete form.dataset.submitting;
+        form.querySelectorAll('button[type="submit"], input[type="submit"]').forEach((button) => {
+            button.disabled = false;
+            button.removeAttribute('aria-busy');
+        });
+    }, 8000);
+}, true);
+
 Alpine.start();

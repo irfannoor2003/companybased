@@ -25,8 +25,8 @@
         <section class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary via-primary-strong to-accent p-6 text-white shadow-lg shadow-primary/10 sm:p-8">
             <div class="relative z-10 max-w-3xl">
                 <div class="flex flex-wrap items-center gap-2">
-                    <span class="rounded-full bg-white/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em]">{{ $roleLabel }}</span>
-                    <span class="rounded-full bg-white/10 px-3 py-1 text-xs text-white/80">{{ count($widgets) }} active widgets</span>
+                    <span class="rounded-full on-brand-overlay-15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em]">{{ $roleLabel }}</span>
+                    <span class="rounded-full on-brand-overlay-10 px-3 py-1 text-xs text-white/80">{{ count($widgets) }} active widgets</span>
                 </div>
                 <h2 class="mt-4 text-2xl font-bold tracking-tight sm:text-3xl">Your operating cockpit</h2>
                 <p class="mt-2 max-w-2xl text-sm leading-6 text-white/80">{{ $roleDescription ?: 'A focused view of the work and information that matters most to your role.' }}</p>
