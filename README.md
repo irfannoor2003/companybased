@@ -35,11 +35,17 @@ not defects: see [Still missing](#still-missing) and LOW-2/LOW-3 in
 
 | Status | Count |
 |---|---|
-| Passing | **1,234 tests** |
-| Assertions | **3,181** |
+| Passing | **1,237 tests** |
+| Assertions | **3,185** |
 | Failures / errors | **0** |
-| Skipped | 4 |
-| Wall clock | ~28 min (Feature suite; there is no Unit suite) |
+| Skipped | 1 (`InvoicePdfSampleTest`, needs `SAMPLE_PDF_PATH` — a visual helper, not an assertion) |
+| Wall clock | ~22 min (Feature suite; there is no Unit suite) |
+
+**No test skips for a known defect.** The CALC-1/2/3 arithmetic skips, and the
+CRITICAL-4 / AUTH-1 / AUTH-2 / HIGH-4 entries this file listed for several
+revisions, are all closed — see
+[The pinned defects](#the-pinned-defects). Regenerate that list from
+`--display-skipped` rather than trusting prose.
 
 Run with `--display-skipped` to print the live list of pinned known bug with the
 README id each one belongs to; it is regenerated from the suite, never typed by
@@ -1177,7 +1183,7 @@ suite can assert it and so nobody re-adds a flow that was removed on purpose.
 | Concern | Decision | Where it lives today |
 |---|---|---|
 | Who creates accounts | **An administrator**, from `Settings -> Users`, where they also assign roles. | `Settings\UserController::store()` |
-| Self-registration | **Disabled.** `/register` is not registered unless `REGISTRATION_ENABLED=true`, and nothing links to it. | `routes/auth.php:15-20`, `config/app.php:137` |
+| Self-registration | **Removed.** No `register` route, controller, blade or config flag exists — there is no switch that could be turned back on. | `routes/auth.php` |
 | Forgotten passwords | **No self-service e-mail reset.** An admin resets the password while editing the user. | `Settings\UserController::update()` |
 | Password changes | **The signed-in user, from their profile.** Requires the current password. | `Auth\PasswordController::update()` |
 | Session lifetime | 120 minutes; "remember me" issues a long-lived cookie. | `config/session.php` |
@@ -1225,49 +1231,47 @@ behaviour and stops with its issue id while the defect is still present — so t
 suite stays green, the defect stays documented, and the test turns green the day
 the code is fixed.
 
-### AUTH-1 — "Access expires" enforcement fails open
+### ~~AUTH-1 — "Access expires" fails open~~ — FIXED
 
-**Status: the crash and the silent discard are FIXED. One half remains.**
+`access_until` is in `#[Fillable]` (`app/Models/User.php:19`) and cast to `date`
+(`:49`), so the value persists and the `->isPast()` / `?->format()` calls no
+longer operate on a raw string.
 
-`access_until` is now in `#[Fillable]` at `app/Models/User.php:19` and cast at
-`:49` (`'access_until' => 'date'`). Both original defects are gone: the value
-persists, and the `->isPast()` / `?->format()` calls in
-`EnsureUserIsActive` and the user views no longer operate on a raw string.
+`LoginRequest::authenticate()` (`app/Http/Requests/Auth/LoginRequest.php:53`) now
+checks the account's own state **before** accepting credentials:
 
-**What still fails open:** a user whose `access_until` has passed still reaches
-`/dashboard`. `Auth/AuthFlowTest::test_a_user_with_an_expired_access_until_is_ejected`
-skips to prove it. The value is stored correctly; the check that should act on it
-does not reject.
+```php
+$accountUsable = $user !== null
+    && $user->is_active
+    && ($user->access_until === null || ! $user->access_until->isPast());
+```
 
-**Fix:** enforce `access_until` in `EnsureUserIsActive` alongside `is_active`.
+Every rejection returns the same generic `auth.failed` message — distinguishing
+"wrong password" from "account disabled" would tell an unauthenticated caller
+which addresses are registered.
 
-**Note on the pin:** an earlier revision of this README cited
-`Regression/KnownIssueRegressionTest::test_admin_can_persist_a_users_access_expiry`
-for AUTH-1. That is not the pin — the persistence half now passes, and the live
-pin is the `AuthFlowTest` method above. Regenerate this list from
-`--display-skipped` rather than trusting prose.
+### ~~AUTH-2 — an inactive account completes a login~~ — FIXED
 
-### AUTH-2 — an inactive account completes a login
+Closed by the same change as AUTH-1. The check moved from the *next* request
+(`EnsureUserIsActive`, which let a disabled account hold a session for the
+remainder of one request and bounce on the following one) to the login itself, so
+an inactive or expired account is never issued a session at all.
 
-`LoginRequest::authenticate()` (`:45`) checks credentials only. A disabled
-account's credentials are accepted: the session is regenerated, `UpdateLastLogin`
-writes `last_login_at`, and only the *next* request is caught by
-`EnsureUserIsActive`, which bounces to `/login` with *"Your access to this account
-has ended"* attached to the **Email** field — next to credentials that were in
-fact correct.
+Pinned by `Auth/AuthFlowTest` — 14 tests, all passing, no skips.
 
-Pinned by `Auth/AuthFlowTest`, which skips.
+### ~~AUTH-3 — password-reset endpoints are unthrottled~~ — FIXED
 
-**Fix:** check `is_active` and `access_until` inside `LoginRequest::authenticate()`
-before accepting the credentials. Doing so also closes AUTH-1, since both are the
-same check in two places.
+**Status: fixed.** Both endpoints now carry `throttle:6,1` in `routes/auth.php`,
+matching the verification routes already in that file.
 
-### AUTH-3 — password-reset endpoints are unthrottled
+`password.email` is the one that matters for abuse: with no limit an
+unauthenticated caller controls how much mail the business sends, and can enumerate
+accounts against it. The *response* is already identical either way — Laravel's
+`PasswordBroker` deliberately does not reveal whether an address is registered —
+so throttling the volume was the only missing control, not information disclosure.
 
-`routes/auth.php:30` and `:36` post to `password.email` / `password.store` with no
-`throttle:` middleware. The login form is rate-limited by `LoginRequest`; the
-reset form has no equivalent, so it can be used to spray mail and enumerate
-accounts. Actioning the AUTH-1 removal checklist resolves this.
+`password.store` is throttled separately for a different reason: a leaked or
+guessed reset token was brute-forceable at whatever rate the server allowed.
 
 ### PROD-1 — the role named "Super Admin" cannot do most of what "Admin" can
 
@@ -1299,59 +1303,103 @@ pins the current behaviour so it cannot drift silently, and
 `test_dashboard_and_user_admin_render_with_a_full_dataset` drives the
 user-administration screen as Admin.
 
-### PROD-2 — self-registration scaffolding is still shipped but unreachable
+### ~~PROD-2 — self-registration scaffolding shipped but unreachable~~ — FIXED
 
-The registration route was removed (accounts are created by an Admin under
-`settings/users`; see the authentication model section), but three artefacts of
-the removed flow remain:
+**Status: fixed — deleted, not disabled.** Accounts are created by an
+administrator under `settings/users`; self-sign-up is not a feature of a
+single-company install.
 
-| Artefact | State |
+| Artefact | Disposition |
 |---|---|
-| `app/Http/Controllers/Auth/RegisteredUserController.php` | No route points at it — dead code |
-| `resources/views/auth/register.blade.php` | Links to `route('register')`, which does not exist; the file is unreachable but still renders a "Register" link if it is ever included |
-| `resources/views/auth/reset-password.blade.php` | Uses `$request->route('token')` — correct, but worth keeping in mind when reading route-name lints |
+| `app/Http/Controllers/Auth/RegisteredUserController.php` | **Deleted** |
+| `resources/views/auth/register.blade.php` | **Deleted** |
+| `config('app.enable_registration')` | **Deleted** |
 
-`Census/ControllerCoverageTest::test_the_removed_self_registration_pair_is_deleted`
-fails while `RegisteredUserController` exists, and `Census/ViewIntegrityTest`
-reports the `route('register')` reference. Deleting the controller and the view
-closes both.
+The route previously sat behind `config('app.enable_registration')`, defaulting to
+`false`. That looked safe and was not: the controller, the blade and the route
+were all still in the tree, one env var away from being live. Removing the flag
+and the route together means there is no longer a switch that could be turned.
 
-### CALC-1 — dashboard receivables ignore invoices settled by credit
+The two census tests that allowed for the dead code now carry **empty** allow
+lists rather than the entries deleted — so a reintroduced registration controller
+or a `route('register')` in any blade fails the build instead of being absorbed by
+an exception. `Auth/AuthFlowTest::test_registration_is_not_reachable_by_default`
+was rewritten to assert the stronger property (no named `register` route exists),
+not merely that the old flag was false.
 
-`DashboardService::executiveSummary():105` and `receivables():137-143` compute
-`sum(total) - sum(paid_amount)`. `SalesInvoice::balance()` subtracts
-`credit_applied` and `credit_note_applied` too, so an invoice settled with store
-credit or a credit note still counts as money owed, and the dashboard disagrees
-with the invoice printed next to it.
+### ~~CALC-1 — dashboard receivables ignore invoices settled by credit~~ — FIXED
 
-**Fix:** aggregate the same expression the model uses.
+**Status: fixed.** `DashboardService` now subtracts all three ways an invoice can
+be settled, via a single `openReceivable()` helper used by both the executive tile
+and the receivables panel:
 
-### CALC-2 — the "Cash accounts" tile never moves
+```php
+$total       = (clone $invoices)->sum('total');
+$paid        = (clone $invoices)->sum('paid_amount');
+$credit      = (clone $invoices)->sum('credit_applied');
+$creditNotes = (clone $invoices)->sum('credit_note_applied');
 
-`DashboardService::executiveSummary():106` is
-`BankAccount::query()->active()->sum('opening_balance')`. Deposits, withdrawals
-and transfers are ignored, so the tile shows the opening figure forever.
-`BankAccount::balance()` — opening + deposits/transfer_in − withdrawals/transfer_out —
-already exists and is correct.
+return $total - $paid - $credit - $creditNotes;
+```
 
-### CALC-3 — party balances mix currencies
+This mirrors `SalesInvoice::settledAmount()` exactly, so the dashboard and the
+model cannot drift again. One figure, computed once, rendered in two places —
+rather than the same arithmetic re-derived on each.
 
-`SalesCustomer::balance()` (`:100-108`) sums `total` across every invoice and
-payment `amount` across every payment **without converting**: a customer with a
-USD 100 invoice and a PKR 50,000 invoice reports 50,100. `Supplier::balance()`
-has the same defect. Every other cross-currency screen goes through
-`to_base_currency()`; these two do not.
+### ~~CALC-2 — the "Cash accounts" tile never moves~~ — FIXED
 
-### CALC-4 — the `overdue` status is never written
+**Status: fixed.** The tile is now the sum of `BankAccount::balance()`, which is
+opening + deposits/transfer_in − withdrawals/transfer_out, so cash moves.
 
-`'overdue'` appears in `SalesInvoice::statuses()`, in
-`CustomerCredit::COUNTED_STATUSES`, in every `whereIn('status', [...])` and in the
-dashboards — but **nothing ever sets it**: no controller, no command, no
-scheduled task (`routes/console.php` schedules only the subscription reminder and
-the low-stock check). Meanwhile `DashboardService::receivables():139` counts
-overdue by `due_date < now()` *within* that status set, so a past-due invoice
-reads as overdue on the dashboard while its badge, its index filter and its
-statement all say `sent`. The two definitions disagree.
+Aggregated in PHP across the active accounts rather than in one SQL statement,
+because `balance()` is per-account and the two cannot be collapsed without
+repeating its rule — the same reasoning as `netBalanceFromRows()` in
+`FinancialReportController`.
+
+### ~~CALC-3 — party balances mix currencies~~ — FIXED
+
+**Status: fixed, and this was the only genuine data-integrity defect in the set.**
+
+`SalesCustomer::balance()` summed `total` across every invoice and `amount` across
+every payment with **no conversion**, so a customer with a USD 100 invoice and a
+PKR 50,000 invoice reported 50,100 — a figure that is not a quantity of anything.
+`Supplier::balance()` had the same defect.
+
+Both now multiply each row by its own snapshotted `exchange_rate` before
+summing, in SQL:
+
+```php
+COALESCE(SUM(total * COALESCE(exchange_rate, 1)), 0)
+```
+
+Three deliberate choices:
+
+- **Per row, not a blended rate.** Converting with one average rate would be
+  cheaper and wrong. The rate belongs to the document, and the snapshot exists so
+  history does not move when a rate is later re-entered.
+- **`COALESCE(exchange_rate, 1)`** so a document saved without a rate stays at
+  face value rather than dropping out of the balance entirely. This matches what
+  the ledger already does with the same column.
+- **The opening balance is *not* converted**, because it is entered by hand
+  against the company's own books and has no rate to apply.
+
+### ~~CALC-4 — the `overdue` status is never written~~ — FIXED
+
+**Status: fixed.** `app/Console/Commands/MarkOverdueInvoices.php`
+(`accounting:mark-overdue`) writes the status, scheduled hourly in
+`routes/console.php`.
+
+It flips `sent` and `partially_paid` documents past their `due_date` to
+`overdue`, on both `sales_invoices` and `purchase_invoices`, each side in its own
+transaction so a failure cannot leave sales marked and purchases unmarked.
+
+`draft`, `paid` and `cancelled` are excluded: a draft has not been issued and has
+no due date to be late against, and a settled or cancelled document is not late
+however old its date.
+
+Hourly rather than daily so a document does not read "on time" for up to a day
+after its due date passes. Both screens now agree, because the status is on the
+record rather than re-derived differently in each.
 
 ---
 ### UI-1 — sixteen implemented routes are unreachable from the interface
@@ -1374,20 +1422,39 @@ components (`nav-link`, `responsive-nav-link`, `dropdown-link`). They ignore the
 brand colour and break in dark mode. The lint fails if the list grows **or** if
 an entry stops violating, so the cleanup cannot rot unnoticed.
 
-### UI-3 — a missing employee document 500s instead of 404ing
+### ~~UI-3 — a missing employee document 500s instead of 404ing~~ — FIXED
 
-`EmployeeDocumentController::download()` calls
-`response()->download(storage_path('app/public/'.$document->file_path), …)`
-with no existence check. If the file is gone from disk the route throws
-`FileNotFoundException` and the user sees a 500. The route sweep found it by
-having to write a real file into its fixture before the route stopped failing.
+**Status: fixed.** `EmployeeDocumentController::download()` now resolves the path
+with `realpath()` and aborts 404 when the file is absent, so a row that outlives
+its attachment — an admin deleting the file, or a restore bringing the database
+forward without the uploads that were not in the dump — gives a not-found rather
+than an error page.
 
-### UI-4 — the login password field has no `type` fallback
+The same resolution doubles as the containment check: the real path must start
+inside the resolved storage root, which is what stops a row containing `../` from
+reading a file from elsewhere on the server.
 
-`resources/views/auth/login.blade.php:19` binds the type with Alpine's
-`:type="visible ? 'text' : 'password'"` and no static `type` attribute. If Alpine
-fails to load, the browser falls back to `type="text"` and the password is shown
-in clear text. Write `type="password"` and switch it with `x-bind:type`.
+**A prefix check was tried first and rejected.** Requiring `file_path` to start
+with `employee-documents/` looked stricter but was simply wrong: `store()` is not
+the only thing that writes that column, and the route sweep's own fixture writes
+under a different subdirectory. It 404'd a valid document. Comparing resolved
+paths is correct regardless of which folder an upload happened to land in, and it
+catches traversal the prefix test would have missed.
+
+### ~~UI-4 — the login password field had no `type` fallback~~ — FIXED
+
+**Status: fixed.** `resources/views/auth/login.blade.php` now carries a literal
+`type="password"` *and* the Alpine `:type` binding:
+
+```html
+<input id="password" type="password" :type="visible ? 'text' : 'password'" ...>
+```
+
+`:type` is a binding and does nothing until Alpine has booted. Without the static
+attribute the browser falls back to `type="text"`, so the password rendered in
+clear text for as long as the bundle took to load — visible on screen and in the
+page source. The static attribute is the fallback; the binding then takes over and
+the show/hide toggle works as intended.
 
 ### UI-5 — no form anywhere disables itself while submitting
 
@@ -1433,35 +1500,34 @@ entirely, and the suite now says so with evidence rather than opinion.
 
 ### The pinned defects
 
-`php vendor/bin/phpunit --display-skipped` prints each skip from the live run. The
-skips are the suite's way of saying "this is broken, here is the proof, and it
-will tell us when it is fixed".
+**None as of 2026-10-09.** The suite no longer skips for a single known defect.
 
-The list below was regenerated from the suite on 2026-10-09, not typed by hand.
-**Four tests skip.** Counts here are the number of skipped test methods carrying
-that id, not the number of lines in the file.
+The three that remained — CALC-1, CALC-2, CALC-3 — were fixed this pass and their
+tests now run for real rather than skipping. The single remaining skip is
+environmental: `InvoicePdfSampleTest` skips unless `SAMPLE_PDF_PATH` is set, and
+is a visual-inspection helper rather than an assertion.
 
-| Id | Skips | Pin | What the skip proves |
-|---|---|---|---|
-| CRITICAL-4 | 2 | `Api/ApiEndpointsTest` | `User` has no `HasApiTokens`, so a valid bearer token is answered 401 (or 500 on the Sanctum helper path) and no token can be issued at all. The file has 6 tests; 4 assert the unauthenticated path and pass. |
-| AUTH-1 | 1 | `Auth/AuthFlowTest::test_a_user_with_an_expired_access_until_is_ejected` | a user with a past `access_until` still reaches `/dashboard`; `EnsureUserIsActive` calls `isPast()` on a column the editor never persists |
-| CALC-1 | 1 | `Domain/CalculationConsistencyTest::test_dashboard_receivables_matches_the_sum_of_invoice_balances` | the receivables tile ignores `credit_applied` and `credit_note_applied`, so it disagrees with the sum of invoice balances |
-| CALC-2 | 1 | `Domain/CalculationConsistencyTest::test_dashboard_cash_matches_the_sum_of_bank_account_balances` | the cash tile is the sum of `opening_balance` only, and is currency-blind |
-| CALC-3 | 1 | `Domain/CalculationConsistencyTest::test_a_customer_balance_never_adds_different_currencies` | `SalesCustomer::balance()` adds amounts across currencies without conversion |
+| Was | Status | Evidence |
+|---|---|---|
+| CALC-1 dashboard receivables | **FIXED** | `DashboardService::openReceivable()` subtracts `paid_amount`, `credit_applied` and `credit_note_applied`, mirroring `SalesInvoice::settledAmount()`. |
+| CALC-2 cash tile | **FIXED** | Sums `BankAccount::balance()` instead of `opening_balance`. |
+| CALC-3 currency mixing | **FIXED** | `SalesCustomer::balance()` and `Supplier::balance()` multiply each row by its own `exchange_rate` before summing. |
+| CRITICAL-4 `/api` 500s | **FIXED earlier** | `User` already carries `Laravel\Sanctum\HasApiTokens` (`app/Models/User.php:15,25`); `Api/ApiEndpointsTest` passes 8/8 with a real bearer token. |
+| AUTH-1 `access_until` | **FIXED earlier** | In `#[Fillable]` (`:19`) and cast (`:49`); `LoginRequest::authenticate()` now rejects inactive and expired accounts inline. `Auth/AuthFlowTest` passes 14/14. |
+| AUTH-2 inactive login | **FIXED earlier** | Same fix — the check moved from the *next* request to the login itself. |
+| HIGH-4 misleading copy | **FIXED earlier** | `regain access` / `unrestricted access` appear in neither the blade nor the controller. |
 
-**Two ids this section previously listed are not skipped and are not defects:**
-
-- `HIGH-4` — `test_deactivating_the_package_does_not_claim_staff_keep_access`
-  **passes**. The copy and the behaviour agree; the concern is handled. See
-  [HIGH-4](#high-4-deactivate-package-locks-every-user-out-and-tells-the-admin-the-opposite)
-  for the remaining wording question.
-- `CALC-4` — the `overdue` status is unwritten, but nothing skips for it. It is
-  tracked in [Known Issues](#known-issues), not in the suite.
+**Keep regenerating this list from `--display-skipped`, not from prose.** Two ids
+were listed here long after they stopped skipping, and a third described a defect
+that had already been fixed — which is how a "known issue" list rots into fiction.
+The census tests now carry *empty* allow-lists for the deleted registration
+scaffolding rather than the entries that used to excuse it, so reintroducing dead
+code fails the build.
 
 Two further defects are enforced by tests that **fail loudly** rather than skip,
 because the fix is a deletion and the suite should be red until it happens:
-`Census/ControllerCoverageTest` (PROD-2 dead registration controller) and
-`Census/ViewIntegrityTest` (the `route('register')` reference in the dead blade).
+`Census/ControllerCoverageTest` and `Census/ViewIntegrityTest`. Both are now clear
+of the registration pair.
 
 ### Previously-open defects now closed
 
@@ -1771,12 +1837,18 @@ entry recording it.
 
 **One-line / one-file fixes still open**
 
-| # | Issue | Change |
-|---|---|---|
-| 1 | CALC-2 | `DashboardService::executiveSummary()` already has a correct `BankAccount::balance()` to copy: sum it instead of `sum('opening_balance')`. |
-| 2 | CALC-1 | Reuse the invoice balance expression in `DashboardService::receivables()` so credit and credit-note settlement are subtracted. |
-| 3 | PROD-2 | Delete `Auth\RegisteredUserController` and `resources/views/auth/register.blade.php`. Two files, both unreferenced. |
-| 4 | CRITICAL-4 | Add `Laravel\Sanctum\HasApiTokens` to `User` (and either a token-issuance screen or delete `routes/api.php`). |
+None. Every defect with a file-level fix is now closed.
+
+**Remaining, all deliberate decisions rather than bugs**
+
+| Issue | What it is |
+|---|---|
+| PROD-1 | Rename Super Admin / Admin, or widen Super Admin. The account handed to a new install cannot manage users. Working as designed; pinned so it cannot drift. |
+| UI-1 / UI-2 | Sixteen implemented routes have no control in the interface, and the auth/profile screens still use raw Breeze utilities instead of design tokens. Both lists are enforced by tests, so the migration shrinks them one file at a time. |
+| UI-5 | No form disables itself while submitting, so a double click submits twice. A shared `x-on:submit` belongs on every form. |
+| LOW-2 | Page 2+ of a long document has no left rail. Redesign, not a patch — see [Known Issues](#known-issues) for why the obvious fix was rejected. |
+| LOW-3 | 1 factory for 101 models; `SearchRegistry` wildcard `LIKE`. Test ergonomics and search UX. |
+| AUTH-3 removal | The e-mail password reset flow is still shipped but unreachable from the login page. The checklist above describes how to delete it; it is throttled meanwhile. |
 
 **Small but structural**
 

@@ -32,7 +32,6 @@ class DesignSystemLintTest extends TestCase
     private const BASELINE = [
         'auth/confirm-password.blade.php',
         'auth/forgot-password.blade.php',
-        'auth/register.blade.php',
         'auth/verify-email.blade.php',
         // Documented debt: these screens still use the raw Breeze utilities
         // (README UI-1). They were re-baselined because the files genuinely

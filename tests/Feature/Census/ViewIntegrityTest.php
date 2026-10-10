@@ -149,11 +149,11 @@ class ViewIntegrityTest extends TestCase
 
     public function test_every_route_name_used_in_a_blade_is_registered(): void
     {
-        // README PROD-2: self-registration is not a supported flow, so the
-        // route was deleted while resources/views/auth/register.blade.php was
-        // left behind. The file is unreachable from any link, so this is dead
-        // weight rather than a live 500 — reported, not silently ignored.
-        $knownDeadLinks = ['register'];
+        // README PROD-2, closed: both the route and the blade that referenced it
+        // have been deleted, so there is nothing left to allow. The empty list is
+        // kept deliberately -- any future route('register') now fails the build
+        // rather than being absorbed by an allow-list.
+        $knownDeadLinks = [];
 
         $registered = collect(RouteFacade::getRoutes()->getRoutes())
             ->map(fn ($route) => $route->getName())

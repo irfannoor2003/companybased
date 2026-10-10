@@ -5,6 +5,7 @@ namespace Tests\Feature\Auth;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Route;
 use Tests\SeedsDatabase;
 use Tests\TestCase;
 
@@ -173,14 +174,29 @@ class AuthFlowTest extends TestCase
         $this->assertGuest();
     }
 
-    public function test_registration_is_not_reachable_by_default(): void
-    {
-        // Self-registration is disabled unless REGISTRATION_ENABLED=true;
-        // the default deployment must 404 on /register.
-        $this->assertFalse(config('app.enable_registration'));
+/**
+ * Self-registration is gone, not merely switched off.
+ *
+ * README PROD-2. This previously asserted that `enable_registration` was false
+ * and that `/register` 404'd -- which is true but weaker than it looks: the route
+ * still existed and one env var away from being live. The flag, the route, the
+ * controller and the blade have all been deleted, so the meaningful assertion now
+ * is that the route does not exist at all.
+ */
+public function test_registration_is_not_reachable_by_default(): void
+{
+    $this->assertNull(
+        config('app.enable_registration'),
+        'the enable_registration flag is gone; nothing should reintroduce it',
+    );
 
-        $this->get('/register')->assertNotFound();
-    }
+    $this->get('/register')->assertNotFound();
+
+    $this->assertNull(
+        Route::getRoutes()->getByName('register'),
+        'a named register route exists; self-registration was meant to be removed',
+    );
+}
 
     public function test_forgot_password_page_is_reachable_but_sends_no_reset_link(): void
     {

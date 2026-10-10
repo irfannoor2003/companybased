@@ -100,9 +100,12 @@ class ControllerCoverageTest extends TestCase
         // instead, which calls them with a real bearer token.
         $webControllersOnly = true;
 
-        // README PROD-2: self-registration was removed as a product decision,
-        // but RegisteredUserController was left behind.
-        $knownDead = [\App\Http\Controllers\Auth\RegisteredUserController::class];
+        // README PROD-2, closed: self-registration was removed as a product
+        // decision. The allow-list entry is gone along with the controller, so
+        // this test now fails if anything unreachable is reintroduced. The empty
+        // array is kept deliberately -- it documents that there is no permitted
+        // orphan, rather than quietly dropping the concept.
+        $knownDead = [];
 
         $used = collect(RouteFacade::getRoutes()->getRoutes())
             ->map(fn ($route) => $route->getActionName())

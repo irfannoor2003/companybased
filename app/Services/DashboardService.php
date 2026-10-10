@@ -102,8 +102,8 @@ class DashboardService
     {
         $month = now()->startOfMonth();
         $revenue = (float) SalesInvoice::query()->where('issue_date', '>=', $month)->sum('total');
-        $receivable = (float) SalesInvoice::query()->whereIn('status', ['sent', 'partially_paid', 'overdue'])->sum('total') - (float) SalesInvoice::query()->whereIn('status', ['sent', 'partially_paid', 'overdue'])->sum('paid_amount');
-        $cash = (float) BankAccount::query()->active()->sum('opening_balance');
+        $receivable = $this->openReceivable();
+        $cash = (float) BankAccount::query()->active()->get()->sum(fn (BankAccount $a) => $a->balance());
 
         return [
             'items' => [
@@ -112,6 +112,32 @@ class DashboardService
                 ['label' => 'Cash accounts', 'value' => $this->money($cash), 'tone' => 'success'],
             ],
         ];
+    }
+
+    /**
+     * What customers currently owe, in one figure.
+     *
+     * An invoice is settled by three things, not one: cash, forward credit drawn
+     * down from an overpayment, and a credit note applied against it. Subtracting
+     * only `paid_amount` left an invoice that had been settled entirely by a
+     * credit note still showing its full total as receivable -- so the dashboard
+     * disagreed with `SalesInvoice::balance()` and overstated what the business
+     * is owed. This mirrors `SalesInvoice::settledAmount()` exactly.
+     *
+     * The status filter deliberately excludes `paid`: a paid invoice can still
+     * carry a small negative balance from a rounding or overpayment adjustment,
+     * and counting that as a receivable is what the old code got wrong.
+     */
+    private function openReceivable(): float
+    {
+        $invoices = SalesInvoice::query()->whereIn('status', ['sent', 'partially_paid', 'overdue']);
+
+        $total = (float) (clone $invoices)->sum('total');
+        $paid = (float) (clone $invoices)->sum('paid_amount');
+        $credit = (float) (clone $invoices)->sum('credit_applied');
+        $creditNotes = (float) (clone $invoices)->sum('credit_note_applied');
+
+        return $total - $paid - $credit - $creditNotes;
     }
 
     private function salesPerformance(): array
@@ -134,15 +160,18 @@ class DashboardService
     private function receivables(): array
     {
         $invoices = SalesInvoice::query()->whereIn('status', ['sent', 'partially_paid', 'overdue']);
-        $total = (float) (clone $invoices)->sum('total');
-        $paid = (float) (clone $invoices)->sum('paid_amount');
+        $count = (clone $invoices)->count();
         $overdue = (clone $invoices)->whereDate('due_date', '<', now())->count();
+
+        // Same figure as the executive tile, and the same figure
+        // SalesInvoice::balance() would sum to.
+        $outstanding = max(0, $this->openReceivable());
 
         return [
             'items' => [
-                ['label' => 'Outstanding', 'value' => $this->money(max(0, $total - $paid)), 'tone' => 'warning'],
+                ['label' => 'Outstanding', 'value' => $this->money($outstanding), 'tone' => 'warning'],
                 ['label' => 'Overdue invoices', 'value' => number_format($overdue), 'tone' => $overdue ? 'danger' : 'success'],
-                ['label' => 'Open invoices', 'value' => number_format((clone $invoices)->count()), 'tone' => 'info'],
+                ['label' => 'Open invoices', 'value' => number_format($count), 'tone' => 'info'],
             ],
         ];
     }

@@ -128,12 +128,15 @@ return [
     | Public Registration
     |--------------------------------------------------------------------------
     |
-    | When disabled (the default), the public registration routes are not
-    | exposed, so visitors cannot create accounts. Enable via the
-    | REGISTRATION_ENABLED environment variable when you want self-sign-up.
+    | Removed. Self-sign-up is not supported: this is a single-company
+    | installation and an open registration form is not a feature, it is a way
+    | for anyone who reaches the login page to create an account. Accounts are
+    | created by an administrator under Settings > Users.
+    |
+    | The route used to sit behind this flag and default to false, which meant
+    | the dangerous path still existed in the tree and one env var away from
+    | being live. The flag, the route, the controller and the blade are all gone.
     |
     */
-
-    'enable_registration' => env('REGISTRATION_ENABLED', false),
 
 ];

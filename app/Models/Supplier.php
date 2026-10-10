@@ -83,15 +83,28 @@ class Supplier extends Model
      * settled them were still subtracted, so a supplier who had been paid in
      * full showed a negative balance equal to every invoice ever paid. The
      * company believed it owed money to each supplier it had already paid.
+     *
+     * Money is converted to base currency per row, for the same reason as
+     * SalesCustomer::balance(): summing `total` across bills in different
+     * currencies produced a figure that is not a quantity of anything. Each
+     * amount is multiplied by its own snapshotted `exchange_rate` first.
      */
     public function balance(): float
     {
-        $billed = (float) $this->purchaseInvoices()
-            ->whereIn('status', ['sent', 'partially_paid', 'overdue', 'paid'])
-            ->sum('total');
+        $invoices = $this->purchaseInvoices()
+            ->whereIn('status', ['sent', 'partially_paid', 'overdue', 'paid']);
 
-        $paid = (float) $this->payments()->sum('amount');
-        $credited = (float) $this->debitNotes()->sum('applied_amount');
+        $billed = (float) $invoices
+            ->selectRaw('COALESCE(SUM(total * COALESCE(exchange_rate, 1)), 0) AS total')
+            ->value('total');
+
+        $paid = (float) $this->payments()
+            ->selectRaw('COALESCE(SUM(amount * COALESCE(exchange_rate, 1)), 0) AS total')
+            ->value('total');
+
+        $credited = (float) $this->debitNotes()
+            ->selectRaw('COALESCE(SUM(applied_amount * COALESCE(exchange_rate, 1)), 0) AS total')
+            ->value('total');
 
         return round($billed - $paid - $credited, 2);
     }

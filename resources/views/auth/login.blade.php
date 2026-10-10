@@ -16,7 +16,15 @@
         <div>
             <x-input-label for="password" :value="__('Password')" />
             <div x-data="{ visible: false }" class="relative">
-                <input id="password" :type="visible ? 'text' : 'password'" class="input mt-1 block w-full pr-11" name="password" required autocomplete="current-password">
+                {{-- The static type="password" is load-bearing, not decoration.
+
+                     `:type` is an Alpine binding and does nothing until Alpine has
+                     booted. Without a literal `type` attribute the browser falls back
+                     to type="text", so the password renders in plain text for as long
+                     as it takes to load and execute the bundle -- visible on screen
+                     and sitting in the page source. `:type` then takes over and the
+                     show/hide toggle works as intended. --}}
+                <input id="password" type="password" :type="visible ? 'text' : 'password'" class="input mt-1 block w-full pr-11" name="password" required autocomplete="current-password">
                 <button type="button" @click="visible = !visible" class="absolute right-1.5 top-1/2 mt-0.5 flex size-8 -translate-y-1/2 items-center justify-center rounded-lg text-ink-faint transition hover:bg-surface-muted hover:text-ink" :aria-label="visible ? 'Hide password' : 'Show password'">
                     <x-icon name="eye" class="size-4" x-show="!visible" />
                     <x-icon name="eye-off" class="size-4" x-show="visible" x-cloak />

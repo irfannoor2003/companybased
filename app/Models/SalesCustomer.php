@@ -120,6 +120,13 @@ class SalesCustomer extends Model
  *    were still subtracted, so a customer who had paid everything in full
  *    appeared to hold credit equal to every invoice they had ever paid.
  *
+ *  - Money is converted to base currency before anything is added together. Every
+ *    document carries its own `exchange_rate`, so summing `total` across invoices
+ *    added USD to PKR: a customer with a USD 100 invoice and a PKR 50,000 invoice
+ *    reported 50,100, which is not a quantity of anything. Each figure is now
+ *    multiplied by its own rate first, so the balance is always in base currency
+ *    and two documents can be summed without nonsense.
+ *
  * Note what is deliberately absent: an invoice's `credit_applied`. That column
  * says *how this document was settled*, for the invoice's own arithmetic and for
  * showing it on the document. The money behind it is already a payment row, so
@@ -127,17 +134,33 @@ class SalesCustomer extends Model
  * overpaid 2,000 and had 900 of it applied to their next bill would look 1,100 in
  * credit while actually holding 1,100... and 900 more than they should.
  */
-public function balance(): float
-{
-    $billed = (float) $this->invoices()
-        ->whereIn('status', ['sent', 'partially_paid', 'overdue', 'paid'])
-        ->sum('total');
+    public function balance(): float
+    {
+        $invoices = $this->invoices()
+            ->whereIn('status', ['sent', 'partially_paid', 'overdue', 'paid']);
 
-    $paid = (float) $this->payments()->sum('amount');
-    $credited = (float) $this->creditNotes()->sum('applied_amount');
+        // Converted per row, in SQL, so two currencies can never be added raw.
+        // `exchange_rate` is the rate that took the document's face value to base
+        // currency when it was issued, and it is snapshotted onto the document
+        // precisely so history does not move when the rate is later re-entered.
+        //
+        // COALESCE guards a document saved without a rate: treating NULL as 1
+        // keeps it at face value, which is what the ledger does with the same
+        // column, rather than silently dropping the invoice from the balance.
+        $billed = (float) $invoices->selectRaw('COALESCE(SUM(total * COALESCE(exchange_rate, 1)), 0) AS total')->value('total');
 
-    return round($this->openingBalance() + $billed - $paid - $credited, 2);
-}
+        $paid = (float) $this->payments()
+            ->selectRaw('COALESCE(SUM(amount * COALESCE(exchange_rate, 1)), 0) AS total')
+            ->value('total');
+
+        $credited = (float) $this->creditNotes()
+            ->selectRaw('COALESCE(SUM(applied_amount * COALESCE(exchange_rate, 1)), 0) AS total')
+            ->value('total');
+
+        // The opening balance is already in base currency: it is entered by hand
+        // against the company's own books, with no rate to apply.
+        return round($this->openingBalance() + $billed - $paid - $credited, 2);
+    }
 
     /**
      * Money this customer holds with us — an overpayment, a deposit, or an

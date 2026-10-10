@@ -1,6 +1,7 @@
 <?php
 
 use App\Console\Commands\CheckLowStock;
+use App\Console\Commands\MarkOverdueInvoices;
 use App\Console\Commands\QueueHealthCheck;
 use App\Console\Commands\SubscriptionReminder;
 use Illuminate\Foundation\Inspiring;
@@ -18,7 +19,11 @@ Schedule::command(SubscriptionReminder::class)->daily();
 // Backstop sweep for low stock. The ledger already alerts on the movement that
 // takes an item below its reorder level; this catches anything that changed
 // without going through it (direct SQL, imports, a missed job).
-Schedule::command(CheckLowStock::class)->dailyAt('07:15');
+    Schedule::command(CheckLowStock::class)->dailyAt('07:15');
+
+    // Writes the `overdue` status that nothing else ever set. Hourly so a
+    // document does not read "on time" for up to a day after its due date.
+    Schedule::command(MarkOverdueInvoices::class)->hourly();
 
 /*
 |--------------------------------------------------------------------------
