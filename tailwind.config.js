@@ -28,6 +28,12 @@ export default {
                 ink: 'rgb(var(--color-ink) / <alpha-value>)',
                 'ink-soft': 'rgb(var(--color-ink-soft) / <alpha-value>)',
                 'ink-faint': 'rgb(var(--color-ink-faint) / <alpha-value>)',
+                'series-primary': 'rgb(var(--color-series-primary) / <alpha-value>)',
+                'series-accent': 'rgb(var(--color-series-accent) / <alpha-value>)',
+                'series-success': 'rgb(var(--color-series-success) / <alpha-value>)',
+                'series-warning': 'rgb(var(--color-series-warning) / <alpha-value>)',
+                'series-danger': 'rgb(var(--color-series-danger) / <alpha-value>)',
+                'series-neutral': 'rgb(var(--color-series-neutral) / <alpha-value>)',
                 line: 'rgb(var(--color-line) / <alpha-value>)',
             },
 

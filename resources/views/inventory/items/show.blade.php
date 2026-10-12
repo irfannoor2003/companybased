@@ -84,9 +84,9 @@
                                         <td class="text-ink-soft">{{ $movement->warehouse?->name }}</td>
                                         <td class="text-right">
                                             @if ((float) $movement->quantity_change > 0)
-                                                <span class="font-medium text-emerald-600">+{{ number_format((float) $movement->quantity_change, 3) }}</span>
+                                                <span class="font-medium text-emerald-600 dark:text-emerald-400">+{{ number_format((float) $movement->quantity_change, 3) }}</span>
                                             @else
-                                                <span class="font-medium text-rose-500">{{ number_format((float) $movement->quantity_change, 3) }}</span>
+                                                <span class="font-medium text-rose-500 dark:text-rose-400">{{ number_format((float) $movement->quantity_change, 3) }}</span>
                                             @endif
                                         </td>
                                         <td class="text-ink-soft">{{ \Illuminate\Support\Str::of($movement->movement_type)->replace('_', ' ')->headline() }}</td>

@@ -11,32 +11,34 @@
         <link rel="icon" href="{{ asset('favicon.ico') }}">
     @endif
 
-    <style>
-        :root {
-            --color-primary: {{ $appBrand['primaryRgb'] ?? '79,70,229' }};
-            --color-primary-strong: {{ $appBrand['primaryStrongRgb'] ?? '67,56,202' }};
-            --color-accent: {{ $appBrand['accentRgb'] ?? '14,165,233' }};
+        {{-- Brand tokens, from the shared partial so this page cannot drift from
+             resources/css/app.css the way its private copy did. --}}
+        @include('partials.theme-tokens')
 
-            --color-canvas: 248 250 252;
-            --color-surface: 255 255 255;
-            --color-surface-muted: 241 245 249;
-            --color-ink: 15 23 42;
-            --color-ink-soft: 71 85 105;
-            --color-ink-faint: 148 163 184;
-            --color-line: 226 232 240;
-        }
+        <style>
+            :root {
+                --color-canvas: 248 250 252;
+                --color-surface: 255 255 255;
+                --color-surface-muted: 241 245 249;
+                --color-ink: 15 23 42;
+                --color-ink-soft: 71 85 105;
+                --color-ink-faint: 91 107 130;
+                --color-line: 226 232 240;
+                color-scheme: light;
+            }
 
-        .dark {
-            --color-canvas: 10 12 20;
-            --color-surface: 17 20 31;
-            --color-surface-muted: 24 28 42;
-            --color-ink: 226 232 240;
-            --color-ink-soft: 148 163 184;
-            --color-ink-faint: 100 116 139;
-            --color-line: 38 43 60;
-        }
+            .dark {
+                --color-canvas: 10 12 20;
+                --color-surface: 17 20 31;
+                --color-surface-muted: 24 28 42;
+                --color-ink: 226 232 240;
+                --color-ink-soft: 148 163 184;
+                --color-ink-faint: 100 116 139;
+                --color-line: 38 43 60;
+                color-scheme: dark;
+            }
 
-        * { box-sizing: border-box; }
+            * { box-sizing: border-box; }
 
         body {
             margin: 0;
@@ -116,6 +118,7 @@
                 ? stored
                 : (serverDefault === 'dark' || serverDefault === 'light' ? serverDefault : pref);
             if (theme === 'dark') document.documentElement.classList.add('dark');
+            window.__cbTheme = theme;
         })();
     </script>
 </head>

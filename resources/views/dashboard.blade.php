@@ -71,10 +71,10 @@
                                     @php
                                         $toneClasses = [
                                             'primary' => 'bg-primary/10 text-primary-ink',
-                                            'success' => 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400',
-                                            'warning' => 'bg-amber-100 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400',
-                                            'danger' => 'bg-rose-100 text-rose-600 dark:bg-rose-500/15 dark:text-rose-400',
-                                            'info' => 'bg-sky-100 text-sky-600 dark:bg-sky-500/15 dark:text-sky-400',
+                                            'success' => 'bg-emerald-100 text-emerald-600 dark:text-emerald-400 dark:bg-emerald-500/15 dark:text-emerald-400',
+                                            'warning' => 'bg-amber-100 text-amber-600 dark:text-amber-400 dark:bg-amber-500/15 dark:text-amber-400',
+                                            'danger' => 'bg-rose-100 text-rose-600 dark:text-rose-400 dark:bg-rose-500/15 dark:text-rose-400',
+                                            'info' => 'bg-sky-100 text-sky-600 dark:text-sky-400 dark:bg-sky-500/15 dark:text-sky-400',
                                         ];
                                     @endphp
                                     <div class="rounded-xl border border-line bg-surface-muted/40 p-4">
@@ -121,7 +121,7 @@
                                             <p class="truncate text-sm font-semibold text-ink">{{ $item['title'] }}</p>
                                             <p class="mt-0.5 truncate text-xs text-ink-faint">{{ $item['meta'] }}</p>
                                         </div>
-                                        <span class="shrink-0 text-xs font-bold {{ ($item['tone'] ?? '') === 'danger' ? 'text-rose-500' : (($item['tone'] ?? '') === 'warning' ? 'text-amber-500' : 'text-ink') }}">{{ $item['value'] }}</span>
+                                        <span class="shrink-0 text-xs font-bold {{ ($item['tone'] ?? '') === 'danger' ? 'text-rose-500 dark:text-rose-400' : (($item['tone'] ?? '') === 'warning' ? 'text-amber-500 dark:text-amber-400' : 'text-ink') }}">{{ $item['value'] }}</span>
                                     </div>
                                 @empty
                                     <div class="px-5 py-8"><x-empty-state icon="{{ $widget['icon'] }}" title="Nothing to show yet" description="New activity will appear here." /></div>

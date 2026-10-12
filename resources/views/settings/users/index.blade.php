@@ -98,7 +98,7 @@
                                                         onsubmit="return confirm('Deactivate {{ $user->name }}? Their record is kept and can be restored.');">
                                                         @csrf
                                                         @method('DELETE')
-                                                        <button type="submit" class="btn-ghost btn-icon btn-sm text-rose-500" title="Deactivate">
+                                                        <button type="submit" class="btn-ghost btn-icon btn-sm text-rose-500 dark:text-rose-400" title="Deactivate">
                                                             <x-icon name="trash" class="size-4" />
                                                         </button>
                                                     </form>

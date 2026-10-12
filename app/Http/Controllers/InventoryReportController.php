@@ -76,8 +76,7 @@ class InventoryReportController extends Controller
             'datasets' => [[
                 'label' => 'Stock Value',
                 'data' => $stockChartData['values'],
-                'borderColor' => '#38bdf8',
-                'backgroundColor' => 'rgba(56, 191, 248, 0.1)',
+                'cbRole' => 'accent',
                 'fill' => true,
                 'tension' => 0.4,
             ]],

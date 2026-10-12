@@ -131,7 +131,7 @@
                                  <p class="text-sm font-semibold text-ink">Receive inventory</p>
                                  <p class="text-xs text-ink-faint">Enter cumulative received quantities. Repeating the same submission will not add stock twice.</p>
                                  @if (! $order->warehouse_id)
-                                     <p class="mt-1 text-xs text-amber-700">No warehouse is selected; tracked products will not create stock movements.</p>
+                                     <p class="mt-1 text-xs text-amber-700 dark:text-amber-400">No warehouse is selected; tracked products will not create stock movements.</p>
                                  @endif
                              </div>
                              <div class="space-y-2">

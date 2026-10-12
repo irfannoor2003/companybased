@@ -64,7 +64,7 @@
 
                 @if (! $locked)
                     <div class="col-span-12 sm:col-span-1 flex justify-end">
-                        <button type="button" x-on:click="removeRow(i)" class="btn-ghost btn-icon btn-sm text-rose-500" title="Remove">
+                        <button type="button" x-on:click="removeRow(i)" class="btn-ghost btn-icon btn-sm text-rose-500 dark:text-rose-400" title="Remove">
                             <x-icon name="trash" class="size-4" />
                         </button>
                     </div>
@@ -74,6 +74,6 @@
     </div>
 
     @error('items')
-        <p class="mt-1.5 text-xs text-rose-600">{{ $message }}</p>
+        <p class="mt-1.5 text-xs text-rose-600 dark:text-rose-400">{{ $message }}</p>
     @enderror
 </div>

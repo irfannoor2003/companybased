@@ -96,7 +96,7 @@
                                                 onsubmit="return confirm('Delete purchase invoice {{ $invoice->number }}?');">
                                                 @csrf
                                                 @method('DELETE')
-                                                <button type="submit" class="btn-ghost btn-icon btn-sm text-rose-500" title="Delete">
+                                                <button type="submit" class="btn-ghost btn-icon btn-sm text-rose-500 dark:text-rose-400" title="Delete">
                                                     <x-icon name="trash" class="size-4" />
                                                 </button>
                                             </form>

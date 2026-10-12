@@ -187,7 +187,7 @@
                                         <td class="py-2.5 px-2 text-right tabular-nums text-ink" x-text="money(item.unit_price)"></td>
                                     </template>
                                     <template x-if="pricing">
-                                        <td class="py-2.5 px-2 text-right tabular-nums" :class="item.discount > 0 ? 'text-emerald-600' : 'text-ink-faint'" x-text="item.discount > 0 ? '-' + money(item.discount) : '—'"></td>
+                                        <td class="py-2.5 px-2 text-right tabular-nums" :class="item.discount > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-ink-faint'" x-text="item.discount > 0 ? '-' + money(item.discount) : '—'"></td>
                                     </template>
                                     <template x-if="pricing">
                                         <td class="py-2.5 px-2 text-right tabular-nums text-ink" x-text="item.tax_percent ? item.tax_percent + '%' : '—'"></td>
@@ -206,7 +206,7 @@
                             </div>
                             <div class="flex justify-between" x-show="hasDiscounts()">
                                 <dt class="text-ink-faint">Discount</dt>
-                                <dd class="tabular-nums text-emerald-600" x-text="'-' + money(discountTotal())"></dd>
+                                <dd class="tabular-nums text-emerald-600 dark:text-emerald-400" x-text="'-' + money(discountTotal())"></dd>
                             </div>
                             <div class="flex justify-between">
                                 <dt class="text-ink-faint">Tax</dt>

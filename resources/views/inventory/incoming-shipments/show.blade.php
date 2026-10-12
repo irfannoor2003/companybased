@@ -70,7 +70,7 @@
                                         <td class="font-medium text-ink">{{ $line->product?->name }}{{ $line->product?->sku ? ' ('.$line->product->sku.')' : '' }}</td>
                                         <td class="text-right font-mono text-ink-soft">{{ number_format((float) $line->expected_quantity, 3) }}</td>
                                         <td class="text-right font-mono text-ink-soft">{{ number_format((float) $line->received_quantity, 3) }}</td>
-                                        <td class="text-right font-mono {{ $variance == 0 ? 'text-ink' : ($variance < 0 ? 'text-rose-600' : 'text-emerald-600') }}">
+                                        <td class="text-right font-mono {{ $variance == 0 ? 'text-ink' : ($variance < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400') }}">
                                             {{ $variance > 0 ? '+' : '' }}{{ number_format($variance, 3) }}
                                         </td>
                                         <td class="text-right text-ink-soft">{{ $line->unit_cost ? money((float) $line->unit_cost, settings('company.currency')) : '—' }}</td>

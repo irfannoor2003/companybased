@@ -160,7 +160,7 @@
                                         placeholder="Value"
                                         class="input-base flex-1"
                                     />
-                                    <button type="button" @click="removeFilter(index)" class="btn-ghost btn-icon btn-sm text-rose-500 shrink-0" title="Remove filter">
+                                    <button type="button" @click="removeFilter(index)" class="btn-ghost btn-icon btn-sm text-rose-500 dark:text-rose-400 shrink-0" title="Remove filter">
                                         <x-icon name="trash" class="size-4" />
                                     </button>
                                 </div>

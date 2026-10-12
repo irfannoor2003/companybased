@@ -66,7 +66,7 @@
                                             class="input w-full text-right" placeholder="0.00" required />
                                     </td>
                                     <td>
-                                        <button type="button" class="btn-ghost btn-icon btn-sm text-rose-500" @click="lines.splice(index, 1)" x-show="lines.length > 1" title="Remove line">
+                                        <button type="button" class="btn-ghost btn-icon btn-sm text-rose-500 dark:text-rose-400" @click="lines.splice(index, 1)" x-show="lines.length > 1" title="Remove line">
                                             <x-icon name="trash" class="size-4" />
                                         </button>
                                     </td>

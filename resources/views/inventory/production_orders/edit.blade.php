@@ -11,7 +11,7 @@
         <div class="lg:col-span-2">
             <x-card title="Production order details">
                 @if (in_array($order->status, ['completed', 'cancelled']))
-                    <div class="mb-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400">
+                    <div class="mb-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:text-amber-400 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400">
                         This order is {{ $order->status }} and cannot be edited. Stock movements have already been applied.
                     </div>
                 @endif

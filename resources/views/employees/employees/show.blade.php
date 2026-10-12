@@ -130,7 +130,7 @@
                                     <form method="POST" action="{{ route('employees.documents.destroy', $document) }}" onsubmit="return confirm('Remove this document?')">
                                         @csrf
                                         @method('DELETE')
-                                        <button type="submit" class="btn-ghost btn-icon btn-sm text-rose-500" title="Remove">
+                                        <button type="submit" class="btn-ghost btn-icon btn-sm text-rose-500 dark:text-rose-400" title="Remove">
                                             <x-icon name="trash" class="size-4" />
                                         </button>
                                     </form>
@@ -149,7 +149,7 @@
                     <x-input name="title" label="Title" required placeholder="e.g. Employment contract" :error="$errors->first('title')" />
                     <x-input name="type" label="Type" placeholder="e.g. Contract, ID, Certificate" :error="$errors->first('type')" />
                     <div>
-                        <label class="label" for="file">File <span class="text-rose-500">*</span></label>
+                        <label class="label" for="file">File <span class="text-rose-500 dark:text-rose-400">*</span></label>
                         <input type="file" name="file" id="file" class="input" />
                         @if ($errors->first('file'))
                             <p class="mt-1.5 text-xs text-rose-600 dark:text-rose-400">{{ $errors->first('file') }}</p>

@@ -43,8 +43,10 @@ class FinancialReportController extends Controller
         $plChartJson = json_encode([
             'labels' => $plChartData['labels'],
             'datasets' => [
-                ['label' => 'Revenue', 'data' => $plChartData['revenue'], 'borderColor' => '#3182ce', 'backgroundColor' => 'rgba(49, 130, 206, 0.1)'],
-                ['label' => 'Expenses', 'data' => $plChartData['expenses'], 'borderColor' => '#e53e3e', 'backgroundColor' => 'rgba(229, 62, 62, 0.1)'],
+                // Roles, not hex: the browser resolves these from the
+                // --color-series-* tokens so the chart follows the theme.
+                ['label' => 'Revenue', 'data' => $plChartData['revenue'], 'cbRole' => 'primary', 'fill' => true],
+                ['label' => 'Expenses', 'data' => $plChartData['expenses'], 'cbRole' => 'danger', 'fill' => true],
             ],
         ]);
 

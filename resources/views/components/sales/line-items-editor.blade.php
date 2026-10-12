@@ -86,7 +86,7 @@
                     <p class="flex h-9 items-center text-sm font-medium text-ink" x-text="money(lineNet(i))"></p>
                 </div>
                 <div class="col-span-2 flex items-end justify-end sm:col-span-7">
-                    <button type="button" x-on:click="removeRow(i)" class="btn-ghost btn-icon btn-sm text-rose-500" title="Remove">
+                    <button type="button" x-on:click="removeRow(i)" class="btn-ghost btn-icon btn-sm text-rose-500 dark:text-rose-400" title="Remove">
                         <x-icon name="trash" class="size-4" />
                     </button>
                 </div>
@@ -100,7 +100,7 @@
                 <span>Subtotal</span>
                 <span x-text="money(subtotal())"></span>
             </div>
-            <div class="flex justify-between text-emerald-600" x-show="discountTotal() > 0">
+            <div class="flex justify-between text-emerald-600 dark:text-emerald-400" x-show="discountTotal() > 0">
                 <span>Discount</span>
                 <span x-text="'-' + money(discountTotal())"></span>
             </div>
@@ -116,10 +116,10 @@
     </div>
 
     @error('items')
-        <p class="mt-1.5 text-xs text-rose-600">{{ $message }}</p>
+        <p class="mt-1.5 text-xs text-rose-600 dark:text-rose-400">{{ $message }}</p>
     @enderror
 
     <template x-if="discountError">
-        <p class="mt-1.5 text-xs text-rose-600" x-text="discountError"></p>
+        <p class="mt-1.5 text-xs text-rose-600 dark:text-rose-400" x-text="discountError"></p>
     </template>
 </div>

@@ -12,7 +12,7 @@
                     <div class="flex-1">
                         <div class="flex items-center gap-2">
                             <h3 class="font-semibold text-ink">{{ $rule->name }}</h3>
-                            <span class="rounded {{ $rule->is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-ink-soft/10 text-ink-soft' }} px-2 py-0.5 text-xs font-medium">
+                            <span class="rounded {{ $rule->is_active ? 'bg-emerald-50 text-emerald-700 dark:text-emerald-400' : 'bg-ink-soft/10 text-ink-soft' }} px-2 py-0.5 text-xs font-medium">
                                 {{ $rule->is_active ? 'Active' : 'Inactive' }}
                             </span>
                         </div>
@@ -36,7 +36,7 @@
                         <form method="POST" action="{{ route('settings.discount-rules.destroy', $rule) }}" onsubmit="return confirm('Delete this rule?')">
                             @csrf
                             @method('DELETE')
-                            <x-button type="submit" size="sm" variant="ghost" icon="trash" class="text-rose-500">Delete</x-button>
+                            <x-button type="submit" size="sm" variant="ghost" icon="trash" class="text-rose-500 dark:text-rose-400">Delete</x-button>
                         </form>
                     </div>
                 </div>

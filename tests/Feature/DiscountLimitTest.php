@@ -95,7 +95,15 @@ class DiscountLimitTest extends TestCase
      */
     private function errorTextOnScreen(string $html): string
     {
-        preg_match_all('/<p class="mt-1\.5 text-xs text-rose-600">(.*?)<\/p>/s', $html, $matches);
+        /**
+         * The trailing `[^"]*` matters: this scraper pinned the exact class string,
+         * so adding the `dark:text-rose-400` variant to the error paragraph made it
+         * match nothing at all and the three "message reaches the screen" tests
+         * failed on an empty string while the page rendered perfectly. Scraping on
+         * the classes that identify the element, and tolerating the rest, is what
+         * was meant.
+         */
+        preg_match_all('/<p class="mt-1\.5 text-xs text-rose-600[^"]*">(.*?)<\/p>/s', $html, $matches);
 
         return implode(' | ', $matches[1]);
     }

@@ -20,9 +20,9 @@
             }"
         >
             <span class="mt-0.5 shrink-0" :class="{
-                'text-emerald-500': toast.type === 'success',
-                'text-rose-500': toast.type === 'error' || toast.type === 'danger',
-                'text-sky-500': toast.type === 'info',
+                'text-emerald-500 dark:text-emerald-400': toast.type === 'success',
+                'text-rose-500 dark:text-rose-400': toast.type === 'error' || toast.type === 'danger',
+                'text-sky-500 dark:text-sky-400': toast.type === 'info',
             }">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="size-5">
                     <template x-if="toast.type === 'success'">

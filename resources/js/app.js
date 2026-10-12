@@ -766,6 +766,49 @@ window.__cbThemeChart = function (chart) {
     const surface = token('--color-surface', '#ffffff');
     const isDark = document.documentElement.classList.contains('dark');
 
+    /**
+     * Series colours come from the --color-series-* tokens.
+     *
+     * A canvas cannot use `var(--x)` — fillStyle rejects it — so the token is read
+     * here and resolved to a literal. Each role is a different hue in light mode
+     * than in dark, because the light values are chosen against white and would
+     * fall to roughly 3:1 on a #11141f surface. Reading them rather than hardcoding
+     * is also what makes a chart follow the tenant's brand: `series-primary` is the
+     * brand token, so a custom brand colour re-themes the charts too.
+     */
+    const SERIES = ['primary', 'accent', 'success', 'warning', 'danger', 'neutral'];
+    const palette = SERIES.map((role) => token(`--color-series-${role}`, '#64748b'));
+
+    chart.data.datasets.forEach((dataset, index) => {
+        // A dataset may pin a role explicitly; otherwise it takes them in order.
+        const role = dataset.cbRole || SERIES[index % SERIES.length];
+
+        /**
+         * `palette` means one colour per bar, cycling the whole set. The activity
+         * chart needs that: each bar is a different measure, so a single colour
+         * would hide that. Previously this was a hardcoded array of hex in Blade,
+         * which could not follow either the theme or the tenant's brand.
+         */
+        if (role === 'palette') {
+            const values = dataset.data || [];
+            dataset.backgroundColor = values.map((_, i) => palette[i % palette.length]);
+            dataset.borderColor = dataset.backgroundColor;
+            return;
+        }
+
+        const colour = token(`--color-series-${role}`, palette[index % palette.length]);
+
+        dataset.borderColor = colour;
+        dataset.pointBackgroundColor = colour;
+        dataset.pointBorderColor = colour;
+
+        // Area fills need alpha, which the token triplet gives us for free.
+        if (dataset.fill && dataset.backgroundColor !== 'transparent') {
+            const [r, g, b] = (colour.match(/[\d.]+/g) || []).map(Number);
+            dataset.backgroundColor = `rgba(${r}, ${g}, ${b}, ${isDark ? 0.18 : 0.12})`;
+        }
+    });
+
     Object.keys(chart.options.scales || {}).forEach((axis) => {
         const scale = chart.options.scales[axis];
         scale.ticks = Object.assign({}, scale.ticks, { color: inkSoft });

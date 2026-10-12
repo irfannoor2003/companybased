@@ -36,7 +36,7 @@
                 </select>
                 <input type="number" step="0.001" min="0.001" :name="'items[' + i + '][quantity]'" x-model="item.quantity" class="input" placeholder="Qty per unit">
                 <input type="number" step="0.01" min="0" max="100" :name="'items[' + i + '][wastage_percent]'" x-model="item.wastage_percent" class="input" placeholder="Wastage %">
-                <button type="button" x-on:click="removeRow(i)" class="btn-ghost btn-icon btn-sm self-center text-rose-500" title="Remove">
+                <button type="button" x-on:click="removeRow(i)" class="btn-ghost btn-icon btn-sm self-center text-rose-500 dark:text-rose-400" title="Remove">
                     <x-icon name="trash" class="size-4" />
                 </button>
             </div>
@@ -44,6 +44,6 @@
     </div>
 
     @error('items')
-        <p class="mt-1.5 text-xs text-rose-600">{{ $message }}</p>
+        <p class="mt-1.5 text-xs text-rose-600 dark:text-rose-400">{{ $message }}</p>
     @enderror
 </div>

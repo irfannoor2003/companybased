@@ -56,8 +56,12 @@
                     @endif
 
                     {{-- Status Messages --}}
+                    {{-- Alpha backgrounds rather than bg-green-50/border-green-200: the
+                         solid -50 tints are near-white, so they forced a bright panel
+                         onto a dark-mode phone. Alpha over the surface token reads
+                         correctly in both modes without a second set of classes. --}}
                     <template x-if="message">
-                        <div :class="success ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'"
+                        <div :class="success ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30' : 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30'"
                             class="rounded-lg border px-3 py-2 text-sm" x-text="message"></div>
                     </template>
 

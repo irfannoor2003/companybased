@@ -43,7 +43,7 @@
                                         onsubmit="return confirm('Delete role {{ $role->name }}?');">
                                         @csrf
                                         @method('DELETE')
-                                        <button type="submit" class="btn-ghost btn-icon btn-sm text-rose-500" title="Delete role">
+                                        <button type="submit" class="btn-ghost btn-icon btn-sm text-rose-500 dark:text-rose-400" title="Delete role">
                                             <x-icon name="trash" class="size-4" />
                                         </button>
                                     </form>

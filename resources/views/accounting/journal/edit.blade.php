@@ -71,7 +71,7 @@
                                         <input type="text" :name="`lines[${index}][memo]`" x-model="line.memo" class="input w-full" placeholder="Optional" />
                                     </td>
                                     <td>
-                                        <button type="button" class="btn-ghost btn-icon btn-sm text-rose-500" @click="lines.splice(index, 1)" x-show="lines.length > 1" title="Remove line">
+                                        <button type="button" class="btn-ghost btn-icon btn-sm text-rose-500 dark:text-rose-400" @click="lines.splice(index, 1)" x-show="lines.length > 1" title="Remove line">
                                             <x-icon name="trash" class="size-4" />
                                         </button>
                                     </td>

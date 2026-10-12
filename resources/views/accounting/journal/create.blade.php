@@ -1,4 +1,4 @@
-﻿<x-app-layout :pageTitle="'New journal entry'">
+<x-app-layout :pageTitle="'New journal entry'">
     <x-slot name="header">
         <x-page-header title="New journal entry" description="Record a dated double-entry journal. Debits must equal credits to post." icon="document" />
     </x-slot>
@@ -6,7 +6,7 @@
     @include('accounting._tabs')
 
     @php
-        $accountsJs = $accounts->map(fn ($a) => ['id' => $a->id, 'label' => $a->code.' â€” '.$a->name])->values();
+        $accountsJs = $accounts->map(fn ($a) => ['id' => $a->id, 'label' => $a->code.' — '.$a->name])->values();
     @endphp
 
     <div class="mt-6 max-w-4xl">
@@ -60,7 +60,7 @@
                                         <input type="text" :name="`lines[${index}][memo]`" x-model="line.memo" class="input w-full" placeholder="Optional" />
                                     </td>
                                     <td>
-                                        <button type="button" class="btn-ghost btn-icon btn-sm text-rose-500" @click="lines.splice(index, 1)" x-show="lines.length > 1" title="Remove line">
+                                        <button type="button" class="btn-ghost btn-icon btn-sm text-rose-500 dark:text-rose-400" @click="lines.splice(index, 1)" x-show="lines.length > 1" title="Remove line">
                                             <x-icon name="trash" class="size-4" />
                                         </button>
                                     </td>

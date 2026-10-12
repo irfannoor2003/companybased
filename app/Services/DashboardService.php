@@ -193,8 +193,12 @@ class DashboardService
 
         return ['chart' => [
             'data' => ['labels' => $labels, 'datasets' => [
-                ['label' => 'Invoiced', 'data' => $invoiced, 'borderColor' => '#4f46e5', 'backgroundColor' => 'rgba(79, 70, 229, 0.12)', 'fill' => true, 'tension' => 0.4],
-                ['label' => 'Collected', 'data' => $collected, 'borderColor' => '#0ea5e9', 'backgroundColor' => 'rgba(14, 165, 233, 0.10)', 'fill' => true, 'tension' => 0.4],
+                // Colours are resolved in the browser from the --color-series-*
+                // tokens, so the chart follows the tenant's brand and flips with the
+                // theme. Hardcoded hex here is what left a #4f46e5 series at 2.92:1
+                // on the dark surface, and the dashboard ignoring branding entirely.
+                ['label' => 'Invoiced', 'data' => $invoiced, 'cbRole' => 'primary', 'fill' => true, 'tension' => 0.4],
+                ['label' => 'Collected', 'data' => $collected, 'cbRole' => 'accent', 'fill' => true, 'tension' => 0.4],
             ]],
             'options' => ['responsive' => true, 'maintainAspectRatio' => false, 'plugins' => ['legend' => ['position' => 'bottom']], 'scales' => ['y' => ['beginAtZero' => true]]],
         ]];
@@ -216,8 +220,8 @@ class DashboardService
 
         return ['chart' => [
             'data' => ['labels' => $labels, 'datasets' => [
-                ['label' => 'Inflows', 'data' => $inflows, 'borderColor' => '#10b981', 'backgroundColor' => 'rgba(16, 185, 129, 0.12)', 'fill' => true, 'tension' => 0.4],
-                ['label' => 'Outflows', 'data' => $outflows, 'borderColor' => '#f59e0b', 'backgroundColor' => 'rgba(245, 158, 11, 0.12)', 'fill' => true, 'tension' => 0.4],
+                ['label' => 'Inflows', 'data' => $inflows, 'cbRole' => 'success', 'fill' => true, 'tension' => 0.4],
+                ['label' => 'Outflows', 'data' => $outflows, 'cbRole' => 'warning', 'fill' => true, 'tension' => 0.4],
             ]],
             'options' => ['responsive' => true, 'maintainAspectRatio' => false, 'plugins' => ['legend' => ['position' => 'bottom']], 'scales' => ['y' => ['beginAtZero' => true]]],
         ]];

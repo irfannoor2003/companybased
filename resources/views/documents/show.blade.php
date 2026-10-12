@@ -109,7 +109,7 @@
                 <td class="text-right text-sm text-ink">{{ number_format((float) $row['qty'], 2) }}</td>
                 @if ($hasPricing)
                     <td class="text-right text-sm text-ink">{{ money($row['unit_price'], $currency) }}</td>
-                    <td class="text-right text-sm {{ ($row['discount'] ?? 0) > 0 ? 'text-emerald-600' : 'text-ink-faint' }}">{{ ($row['discount'] ?? 0) > 0 ? '-'.money($row['discount'], $currency) : '—' }}</td>
+                    <td class="text-right text-sm {{ ($row['discount'] ?? 0) > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-ink-faint' }}">{{ ($row['discount'] ?? 0) > 0 ? '-'.money($row['discount'], $currency) : '—' }}</td>
                     <td class="text-right text-sm text-ink">{{ money($row['tax'], $currency) }}</td>
                     <td class="text-right text-sm font-medium text-ink">{{ money($row['total'], $currency) }}</td>
                 @endif

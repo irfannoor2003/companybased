@@ -37,7 +37,7 @@
                 </div>
 
                 <div>
-                    <span class="label">Roles <span class="text-rose-500">*</span></span>
+                    <span class="label">Roles <span class="text-rose-500 dark:text-rose-400">*</span></span>
                     <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
                         @foreach ($roles as $role)
                             <label class="flex cursor-pointer items-center gap-3 rounded-lg border border-line px-3 py-2.5 transition-colors has-[:checked]:border-primary has-[:checked]:bg-primary/5">
@@ -51,7 +51,7 @@
                             </label>
                         @endforeach
                     </div>
-                    @error('roles')<p class="mt-1.5 text-xs text-rose-600">{{ $message }}</p>@enderror
+                    @error('roles')<p class="mt-1.5 text-xs text-rose-600 dark:text-rose-400">{{ $message }}</p>@enderror
                 </div>
 
                 <div class="flex justify-end gap-3 border-t border-line pt-4">

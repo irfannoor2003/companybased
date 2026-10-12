@@ -11,7 +11,7 @@
         <div class="lg:col-span-2">
             <x-card title="Write-off details">
                 @if (in_array($writeOff->status, ['completed', 'cancelled']))
-                    <div class="mb-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400">
+                    <div class="mb-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:text-amber-400 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400">
                         This write-off is {{ $writeOff->status }} and cannot be edited. Stock has already been reduced.
                     </div>
                 @endif

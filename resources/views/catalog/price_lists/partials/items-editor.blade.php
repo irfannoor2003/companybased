@@ -50,7 +50,7 @@
                 <button
                     type="button"
                     x-on:click="removeRow(i)"
-                    class="btn-ghost btn-icon btn-sm self-center text-rose-500"
+                    class="btn-ghost btn-icon btn-sm self-center text-rose-500 dark:text-rose-400"
                     title="Remove"
                 >
                     <x-icon name="trash" class="size-4" />
@@ -60,6 +60,6 @@
     </div>
 
     @error('items')
-        <p class="mt-1.5 text-xs text-rose-600">{{ $message }}</p>
+        <p class="mt-1.5 text-xs text-rose-600 dark:text-rose-400">{{ $message }}</p>
     @enderror
 </div>

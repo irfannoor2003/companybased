@@ -16,18 +16,7 @@
 
         @vite(['resources/css/app.css', 'resources/js/app.js'])
 
-        <style>
-            :root {
-                --color-primary: {{ $appBrand['primaryRgb'] }};
-                --color-primary-strong: {{ $appBrand['primaryStrongRgb'] }};
-                --color-primary-ink: {{ $appBrand['primaryRgb'] }};
-                --color-accent: {{ $appBrand['accentRgb'] }};
-            }
-
-            .dark {
-                --color-primary-ink: {{ $appBrand['primaryInkRgb'] }};
-            }
-        </style>
+        @include('partials.theme-tokens')
 
         {{--
             Three-tier, matching layouts/app.blade.php exactly: an explicit choice,

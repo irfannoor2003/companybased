@@ -19,25 +19,9 @@
         @vite(['resources/css/app.css', 'resources/js/app.js'])
 
         {{-- Dynamic brand tokens — re-themes the whole UI without a rebuild. --}}
+        @include('partials.theme-tokens')
+
         <style>
-            :root {
-                --color-primary: {{ $appBrand['primaryRgb'] }};
-                --color-primary-strong: {{ $appBrand['primaryStrongRgb'] }};
-                --color-primary-ink: {{ $appBrand['primaryRgb'] }};
-                --color-accent: {{ $appBrand['accentRgb'] }};
-            }
-
-            {{--
-                Dark mode needs its own brand ink. Without this the app.css default
-                would apply, which is correct only for the default indigo -- a tenant
-                with a custom brand would get indigo-tinted link text in dark mode.
-                `--color-primary` itself is deliberately NOT changed here: it is a
-                fill, and white text on it has to stay readable.
-            --}}
-            .dark {
-                --color-primary-ink: {{ $appBrand['primaryInkRgb'] }};
-            }
-
             {{-- Print cleanly: only the document content, no sidebar/topbar/app chrome. --}}
             @media print {
                 aside, header, .toasts, x-toasts, .print\:hidden { display: none !important; }

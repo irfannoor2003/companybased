@@ -50,9 +50,9 @@
                             @endphp
                             @if ($days !== null)
                                 @if ($days > 0)
-                                    <span class="text-emerald-600">{{ $days }} day{{ $days === 1 ? '' : 's' }}</span>
+                                    <span class="text-emerald-600 dark:text-emerald-400">{{ $days }} day{{ $days === 1 ? '' : 's' }}</span>
                                 @else
-                                    <span class="text-rose-600">Expired</span>
+                                    <span class="text-rose-600 dark:text-rose-400">Expired</span>
                                 @endif
                             @else
                                 —

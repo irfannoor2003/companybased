@@ -84,7 +84,7 @@
                         @endif
                     </div>
                     <template x-if="error">
-                        <p class="mt-2 text-sm text-red-600" x-text="error"></p>
+                        <p class="mt-2 text-sm text-red-600 dark:text-red-400" x-text="error"></p>
                     </template>
                 </x-card>
             @endif
@@ -103,7 +103,7 @@
                         </x-button>
                     </form>
                     <template x-if="error">
-                        <p class="mt-2 text-sm text-red-600" x-text="error"></p>
+                        <p class="mt-2 text-sm text-red-600 dark:text-red-400" x-text="error"></p>
                     </template>
                 </x-card>
             @endif
@@ -148,7 +148,7 @@
                                             <form method="POST" action="{{ route('visits.pitstops.destroy', [$visit, $stop]) }}" onsubmit="return confirm('Remove this pit-stop?')">
                                                 @csrf
                                                 @method('DELETE')
-                                                <button type="submit" class="btn-ghost btn-icon btn-sm text-rose-500" title="Remove">
+                                                <button type="submit" class="btn-ghost btn-icon btn-sm text-rose-500 dark:text-rose-400" title="Remove">
                                                     <x-icon name="trash" class="size-4" />
                                                 </button>
                                             </form>

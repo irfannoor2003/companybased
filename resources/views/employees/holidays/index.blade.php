@@ -35,7 +35,7 @@
                                 <form method="POST" action="{{ route('employees.holidays.destroy', $holiday) }}" onsubmit="return confirm('Remove this holiday?')">
                                     @csrf
                                     @method('DELETE')
-                                    <button type="submit" class="btn-ghost btn-icon btn-sm text-rose-500"><x-icon name="trash" class="size-4" /></button>
+                                    <button type="submit" class="btn-ghost btn-icon btn-sm text-rose-500 dark:text-rose-400"><x-icon name="trash" class="size-4" /></button>
                                 </form>
                             @endif
                         </div>

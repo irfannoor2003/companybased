@@ -70,7 +70,7 @@
                             </label>
                             <span class="text-sm text-ink-soft">{{ settings('branding.primary_color', '#4f46e5') }}</span>
                         </div>
-                        @error('primary_color')<p class="mt-1.5 text-xs text-rose-600">{{ $message }}</p>@enderror
+                        @error('primary_color')<p class="mt-1.5 text-xs text-rose-600 dark:text-rose-400">{{ $message }}</p>@enderror
                     </div>
 
                     <div>
@@ -82,7 +82,7 @@
                             </label>
                             <span class="text-sm text-ink-soft">{{ settings('branding.accent_color', '#0ea5e9') }}</span>
                         </div>
-                        @error('accent_color')<p class="mt-1.5 text-xs text-rose-600">{{ $message }}</p>@enderror
+                        @error('accent_color')<p class="mt-1.5 text-xs text-rose-600 dark:text-rose-400">{{ $message }}</p>@enderror
                     </div>
 
                     <div>
@@ -111,7 +111,7 @@
                                 <input type="file" name="logo" accept="image/*" class="hidden">
                             </label>
                             @if (settings('branding.logo'))
-                                <button type="button" class="btn-ghost btn-sm text-rose-500"
+                                <button type="button" class="btn-ghost btn-sm text-rose-500 dark:text-rose-400"
                                     x-on:click="
                                         removing = true;
                                         fetch('{{ route('settings.branding.remove') }}', {
@@ -123,7 +123,7 @@
                                 >Remove</button>
                             @endif
                         </div>
-                        @error('logo')<p class="mt-1.5 text-xs text-rose-600">{{ $message }}</p>@enderror
+                        @error('logo')<p class="mt-1.5 text-xs text-rose-600 dark:text-rose-400">{{ $message }}</p>@enderror
                     </div>
 
                     <div class="sm:col-span-2">
@@ -142,7 +142,7 @@
                                 <input type="file" name="favicon" accept=".png,.ico,.svg" class="hidden">
                             </label>
                             @if (settings('branding.favicon'))
-                                <button type="button" class="btn-ghost btn-sm text-rose-500"
+                                <button type="button" class="btn-ghost btn-sm text-rose-500 dark:text-rose-400"
                                     x-on:click="
                                         removing = true;
                                         fetch('{{ route('settings.branding.remove') }}', {
@@ -154,7 +154,7 @@
                                 >Remove</button>
                             @endif
                         </div>
-                        @error('favicon')<p class="mt-1.5 text-xs text-rose-600">{{ $message }}</p>@enderror
+                        @error('favicon')<p class="mt-1.5 text-xs text-rose-600 dark:text-rose-400">{{ $message }}</p>@enderror
                     </div>
                 </div>
 

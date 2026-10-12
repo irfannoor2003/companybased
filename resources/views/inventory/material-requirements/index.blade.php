@@ -17,7 +17,7 @@
 
         <x-card :padding="false" class="p-4">
             <div class="text-xs font-medium uppercase tracking-wide text-ink-soft">Shortages</div>
-            <div class="mt-1 text-2xl font-semibold {{ $summary['shortages'] > 0 ? 'text-rose-600' : 'text-emerald-600' }}">
+            <div class="mt-1 text-2xl font-semibold {{ $summary['shortages'] > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400' }}">
                 {{ $summary['shortages'] }}
             </div>
         </x-card>
@@ -88,11 +88,11 @@
                                         <td class="text-right text-ink-soft">{{ rtrim(rtrim(number_format($line['committed'], 3), '0'), '.') }}</td>
                                         <td class="text-right">
                                             @if ($line['is_short'])
-                                                <span class="font-semibold text-rose-600">{{ rtrim(rtrim(number_format($line['net'], 3), '0'), '.') }}</span>
+                                                <span class="font-semibold text-rose-600 dark:text-rose-400">{{ rtrim(rtrim(number_format($line['net'], 3), '0'), '.') }}</span>
                                             @elseif ($line['below_reorder'])
-                                                <span class="text-xs text-amber-600">Covered, below reorder level</span>
+                                                <span class="text-xs text-amber-600 dark:text-amber-400">Covered, below reorder level</span>
                                             @else
-                                                <span class="text-emerald-600">Covered</span>
+                                                <span class="text-emerald-600 dark:text-emerald-400">Covered</span>
                                             @endif
                                         </td>
                                     </tr>

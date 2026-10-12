@@ -8,22 +8,22 @@
     $styles = [
         'info' => [
             'wrap' => 'border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-200',
-            'icon' => 'text-sky-500',
+            'icon' => 'text-sky-500 dark:text-sky-400',
             'name' => 'info',
         ],
         'success' => [
             'wrap' => 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200',
-            'icon' => 'text-emerald-500',
+            'icon' => 'text-emerald-500 dark:text-emerald-400',
             'name' => 'check-circle',
         ],
         'warning' => [
             'wrap' => 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200',
-            'icon' => 'text-amber-500',
+            'icon' => 'text-amber-500 dark:text-amber-400',
             'name' => 'warning',
         ],
         'danger' => [
             'wrap' => 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200',
-            'icon' => 'text-rose-500',
+            'icon' => 'text-rose-500 dark:text-rose-400',
             'name' => 'warning',
         ],
     ];

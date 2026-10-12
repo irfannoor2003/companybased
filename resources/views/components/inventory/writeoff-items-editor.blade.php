@@ -40,7 +40,7 @@
                 <input type="number" step="0.001" min="0.001" :name="'items[' + i + '][quantity]'" x-model="item.quantity" :disabled="{{ $locked ? 'true' : 'false' }}" class="input" placeholder="Qty">
                 <input type="text" :name="'items[' + i + '][reason]'" x-model="item.reason" :disabled="{{ $locked ? 'true' : 'false' }}" class="input" placeholder="Reason…">
                 @if (! $locked)
-                    <button type="button" x-on:click="removeRow(i)" class="btn-ghost btn-icon btn-sm self-center text-rose-500" title="Remove">
+                    <button type="button" x-on:click="removeRow(i)" class="btn-ghost btn-icon btn-sm self-center text-rose-500 dark:text-rose-400" title="Remove">
                         <x-icon name="trash" class="size-4" />
                     </button>
                 @endif
@@ -49,6 +49,6 @@
     </div>
 
     @error('items')
-        <p class="mt-1.5 text-xs text-rose-600">{{ $message }}</p>
+        <p class="mt-1.5 text-xs text-rose-600 dark:text-rose-400">{{ $message }}</p>
     @enderror
 </div>

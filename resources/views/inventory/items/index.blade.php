@@ -91,9 +91,9 @@
                                 <td class="text-ink-soft">{{ $item->product?->unit ?? '—' }}</td>
                                 <td class="text-right">
                                     @if ($onHand <= 0)
-                                        <span class="font-medium text-rose-500">0.000</span>
+                                        <span class="font-medium text-rose-500 dark:text-rose-400">0.000</span>
                                     @elseif ($low)
-                                        <span class="font-medium text-amber-500">{{ number_format($onHand, 3) }}</span>
+                                        <span class="font-medium text-amber-500 dark:text-amber-400">{{ number_format($onHand, 3) }}</span>
                                     @else
                                         <span class="font-medium text-ink">{{ number_format($onHand, 3) }}</span>
                                     @endif
@@ -129,7 +129,7 @@
                                                 onsubmit="return confirm('Remove {{ $item->product?->name ?? 'this item' }} from inventory?');">
                                                 @csrf
                                                 @method('DELETE')
-                                                <button type="submit" class="btn-ghost btn-icon btn-sm text-rose-500" title="Delete">
+                                                <button type="submit" class="btn-ghost btn-icon btn-sm text-rose-500 dark:text-rose-400" title="Delete">
                                                     <x-icon name="trash" class="size-4" />
                                                 </button>
                                             </form>

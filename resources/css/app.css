@@ -35,6 +35,26 @@
          */
         --color-ink-faint: 91 107 130;
         --color-line: 226 232 240;
+
+        /**
+         * Chart series colours.
+         *
+         * Held separately from the UI tokens because the bars and lines a chart
+         * draws are graphical objects, not text: WCAG 1.4.11 asks 3:1 of them, not
+         * 4.5:1, and they were previously hardcoded hex in PHP -- which is how a
+         * #4f46e5 series ended up at 2.92:1 on the dark surface, and how the
+         * dashboard came to ignore the tenant's brand colour entirely.
+         *
+         * Every value clears 3:1 against white, the canvas AND the muted surface in
+         * its own mode. `warning` is amber-700 rather than the usual amber-600:
+         * amber-600 measured 2.91:1 on the muted surface, just under the bar.
+         */
+        --color-series-primary: 79 70 229;
+        --color-series-accent: 2 132 199;
+        --color-series-success: 5 150 105;
+        --color-series-warning: 180 83 9;
+        --color-series-danger: 225 29 72;
+        --color-series-neutral: 100 116 139;
         color-scheme: light;
     }
 
@@ -47,6 +67,15 @@
         --color-ink-faint: 100 116 139;
         --color-primary-ink: 165 180 252;
         --color-line: 38 43 60;
+
+        /* Lightened for the same reason as --color-primary-ink: the light-mode
+           series values are tuned for white and fall to ~3:1 here. */
+        --color-series-primary: 165 180 252;
+        --color-series-accent: 56 189 248;
+        --color-series-success: 52 211 153;
+        --color-series-warning: 251 191 36;
+        --color-series-danger: 251 113 133;
+        --color-series-neutral: 148 163 184;
         color-scheme: dark;
     }
 

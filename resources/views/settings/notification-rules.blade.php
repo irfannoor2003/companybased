@@ -24,7 +24,7 @@
                     <form method="POST" action="{{ route('settings.notification-rules.destroy', $rule) }}" onsubmit="return confirm('Delete this notification rule?')">
                         @csrf
                         @method('DELETE')
-                        <button type="submit" class="btn-ghost btn-sm text-rose-500"><x-icon name="trash" class="size-4" /></button>
+                        <button type="submit" class="btn-ghost btn-sm text-rose-500 dark:text-rose-400"><x-icon name="trash" class="size-4" /></button>
                     </form>
                 </x-slot>
                 <form method="POST" action="{{ route('settings.notification-rules.update', $rule) }}" class="space-y-5">
@@ -50,7 +50,7 @@
                                     {{ ucfirst($channel) }}
                                 </label>
                             @endforeach
-                            @error('channels')<p class="text-xs text-rose-600">{{ $message }}</p>@enderror
+                            @error('channels')<p class="text-xs text-rose-600 dark:text-rose-400">{{ $message }}</p>@enderror
                         </div>
 
                         <div class="space-y-4">
@@ -104,7 +104,7 @@
                                 {{ ucfirst($channel) }}
                             </label>
                         @endforeach
-                        @error('channels')<p class="text-xs text-rose-600">{{ $message }}</p>@enderror
+                        @error('channels')<p class="text-xs text-rose-600 dark:text-rose-400">{{ $message }}</p>@enderror
                     </div>
                 </div>
 

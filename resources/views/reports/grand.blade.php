@@ -41,16 +41,16 @@
 
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <x-card title="Revenue trend" description="Invoiced revenue across the selected reporting window.">
-                <x-base-chart type="line" :data="json_encode(['labels' => $chart['labels'], 'datasets' => [['label' => 'Revenue', 'data' => $chart['revenue'], 'borderColor' => '#4f46e5', 'backgroundColor' => 'rgba(79, 70, 229, 0.12)', 'fill' => true, 'tension' => 0.4]]])" :options="json_encode(['responsive' => true, 'maintainAspectRatio' => false, 'plugins' => ['legend' => ['position' => 'bottom']], 'scales' => ['y' => ['beginAtZero' => true]]])" height="280" />
+                <x-base-chart type="line" :data="json_encode(['labels' => $chart['labels'], 'datasets' => [['label' => 'Revenue', 'data' => $chart['revenue'], 'cbRole' => 'primary', 'fill' => true, 'tension' => 0.4]]])" :options="json_encode(['responsive' => true, 'maintainAspectRatio' => false, 'plugins' => ['legend' => ['position' => 'bottom']], 'scales' => ['y' => ['beginAtZero' => true]]])" height="280" />
             </x-card>
             <x-card title="Cash movement" description="Deposits and withdrawals across the reporting window.">
-                <x-base-chart type="line" :data="json_encode(['labels' => $chart['labels'], 'datasets' => [['label' => 'Cash in', 'data' => $chart['cashIn'], 'borderColor' => '#10b981', 'backgroundColor' => 'rgba(16, 185, 129, 0.12)', 'fill' => true, 'tension' => 0.4], ['label' => 'Cash out', 'data' => $chart['cashOut'], 'borderColor' => '#f59e0b', 'backgroundColor' => 'rgba(245, 158, 11, 0.12)', 'fill' => true, 'tension' => 0.4]]])" :options="json_encode(['responsive' => true, 'maintainAspectRatio' => false, 'plugins' => ['legend' => ['position' => 'bottom']], 'scales' => ['y' => ['beginAtZero' => true]]])" height="280" />
+                <x-base-chart type="line" :data="json_encode(['labels' => $chart['labels'], 'datasets' => [['label' => 'Cash in', 'data' => $chart['cashIn'], 'cbRole' => 'success', 'fill' => true, 'tension' => 0.4], ['label' => 'Cash out', 'data' => $chart['cashOut'], 'cbRole' => 'warning', 'fill' => true, 'tension' => 0.4]]])" :options="json_encode(['responsive' => true, 'maintainAspectRatio' => false, 'plugins' => ['legend' => ['position' => 'bottom']], 'scales' => ['y' => ['beginAtZero' => true]]])" height="280" />
             </x-card>
         </div>
 
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <x-card title="Commercial activity" description="The main value movements in this period.">
-                <x-base-chart type="bar" :data="json_encode(['labels' => array_column($activity, 'label'), 'datasets' => [['label' => 'Value', 'data' => array_column($activity, 'value'), 'backgroundColor' => ['#4f46e5', '#0ea5e9', '#10b981', '#10b981', '#f59e0b'], 'borderRadius' => 6]]])" :options="json_encode(['responsive' => true, 'maintainAspectRatio' => false, 'plugins' => ['legend' => ['display' => false]], 'scales' => ['y' => ['beginAtZero' => true]]])" height="280" />
+                <x-base-chart type="bar" :data="json_encode(['labels' => array_column($activity, 'label'), 'datasets' => [['label' => 'Value', 'data' => array_column($activity, 'value'), 'cbRole' => 'palette', 'borderRadius' => 6]]])" :options="json_encode(['responsive' => true, 'maintainAspectRatio' => false, 'plugins' => ['legend' => ['display' => false]], 'scales' => ['y' => ['beginAtZero' => true]]])" height="280" />
             </x-card>
             <x-card title="Operational health" description="Important counts that need management attention.">
                 <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -70,7 +70,7 @@
                     <div class="flex items-center justify-between py-3"><dt class="text-sm text-ink-soft">Active customers</dt><dd class="font-semibold text-ink">{{ number_format($summary['customers']) }}</dd></div>
                     <div class="flex items-center justify-between py-3"><dt class="text-sm text-ink-soft">Invoices</dt><dd class="font-semibold text-ink">{{ number_format($summary['sales_orders']) }}</dd></div>
                     <div class="flex items-center justify-between py-3"><dt class="text-sm text-ink-soft">Revenue</dt><dd class="font-semibold text-primary-ink">{{ money($summary['sales_revenue']) }}</dd></div>
-                    <div class="flex items-center justify-between py-3"><dt class="text-sm text-ink-soft">Collected</dt><dd class="font-semibold text-emerald-600">{{ money($summary['sales_collected']) }}</dd></div>
+                    <div class="flex items-center justify-between py-3"><dt class="text-sm text-ink-soft">Collected</dt><dd class="font-semibold text-emerald-600 dark:text-emerald-400">{{ money($summary['sales_collected']) }}</dd></div>
                 </dl>
             </x-card>
             <x-card title="People & operations" description="Workforce activity snapshot.">
@@ -86,7 +86,7 @@
                     <div class="flex items-center justify-between py-3"><dt class="text-sm text-ink-soft">Assets added</dt><dd class="font-semibold text-ink">{{ number_format($summary['assets_added']) }}</dd></div>
                     <div class="flex items-center justify-between py-3"><dt class="text-sm text-ink-soft">Investments added</dt><dd class="font-semibold text-ink">{{ number_format($summary['investments_added']) }}</dd></div>
                     <div class="flex items-center justify-between py-3"><dt class="text-sm text-ink-soft">Capital contributed</dt><dd class="font-semibold text-primary-ink">{{ money($summary['capital_added']) }}</dd></div>
-                    <div class="flex items-center justify-between py-3"><dt class="text-sm text-ink-soft">Low stock alerts</dt><dd class="font-semibold {{ $summary['low_stock'] ? 'text-amber-600' : 'text-emerald-600' }}">{{ number_format($summary['low_stock']) }}</dd></div>
+                    <div class="flex items-center justify-between py-3"><dt class="text-sm text-ink-soft">Low stock alerts</dt><dd class="font-semibold {{ $summary['low_stock'] ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400' }}">{{ number_format($summary['low_stock']) }}</dd></div>
                 </dl>
             </x-card>
         </div>

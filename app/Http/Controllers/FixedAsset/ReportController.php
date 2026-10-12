@@ -60,8 +60,8 @@ class ReportController extends Controller
             'datasets' => [[
                 'label' => 'Depreciation',
                 'data' => $depreciationChartData['data'],
-                'backgroundColor' => 'rgba(168, 85, 247, 0.6)',
-                'borderColor' => '#a855f7',
+                'cbRole' => 'accent',
+                'fill' => true,
             ]],
         ]);
 

@@ -33,9 +33,9 @@
                 <x-base-chart
                     :type="'line'"
                     :data="json_encode(['labels' => $cashFlowChartData['labels'], 'datasets' => [
-                        ['label' => 'Inflows', 'data' => $cashFlowChartData['in'], 'borderColor' => '#38bdf8', 'backgroundColor' => 'rgba(56, 191, 248, 0.1)', 'fill' => true, 'tension' => 0.4],
-                        ['label' => 'Outflows', 'data' => $cashFlowChartData['out'], 'borderColor' => '#f56565', 'backgroundColor' => 'rgba(245, 101, 101, 0.1)', 'fill' => true, 'tension' => 0.4],
-                        ['label' => 'Net', 'data' => $cashFlowChartData['net'], 'borderColor' => '#38bdf8', 'backgroundColor' => 'rgba(56, 191, 248, 0.2)', 'fill' => false, 'borderDash' => [6, 4], 'tension' => 0.4]
+                        ['label' => 'Inflows', 'data' => $cashFlowChartData['in'], 'cbRole' => 'success', 'fill' => true, 'tension' => 0.4],
+                        ['label' => 'Outflows', 'data' => $cashFlowChartData['out'], 'cbRole' => 'danger', 'fill' => true, 'tension' => 0.4],
+                        ['label' => 'Net', 'data' => $cashFlowChartData['net'], 'cbRole' => 'accent', 'fill' => false, 'borderDash' => [6, 4], 'tension' => 0.4]
                     ]])"
                     :options="json_encode(['responsive' => true, 'plugins' => ['legend' => ['position' => 'bottom'], 'title' => ['display' => true, 'text' => 'Cash Flow (Last 30 Days)']], 'scales' => ['y' => ['title' => ['display' => true, 'text' => 'Amount'], 'beginAtZero' => true]]])"
                     :height="400"

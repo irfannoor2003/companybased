@@ -19,7 +19,7 @@
         <label class="label" for="{{ $attributes->get('id') ?? $attributes->get('name') }}">
             {{ $label }}
             @if ($required)
-                <span class="text-rose-500">*</span>
+                <span class="text-rose-500 dark:text-rose-400">*</span>
             @endif
         </label>
     @endif

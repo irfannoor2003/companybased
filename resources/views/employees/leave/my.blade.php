@@ -50,7 +50,7 @@
                                         @if ($leave->status === 'pending')
                                             <form method="POST" action="{{ route('employees.leave.my.cancel', $leave) }}" onsubmit="return confirm('Cancel this leave request?')">
                                                 @csrf
-                                                <button type="submit" class="btn-ghost btn-icon btn-sm text-rose-500" title="Cancel request">
+                                                <button type="submit" class="btn-ghost btn-icon btn-sm text-rose-500 dark:text-rose-400" title="Cancel request">
                                                     <x-icon name="x" class="size-4" />
                                                 </button>
                                             </form>

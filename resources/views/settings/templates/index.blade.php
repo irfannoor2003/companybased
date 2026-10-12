@@ -43,7 +43,7 @@
                                         <form method="POST" action="{{ route('settings.templates.destroy', $template) }}" onsubmit="return confirm('Delete this template?')">
                                             @csrf
                                             @method('DELETE')
-                                            <x-button type="submit" size="sm" variant="ghost" icon="trash" class="text-rose-500">Delete</x-button>
+                                            <x-button type="submit" size="sm" variant="ghost" icon="trash" class="text-rose-500 dark:text-rose-400">Delete</x-button>
                                         </form>
                                     @endunless
                                 </div>

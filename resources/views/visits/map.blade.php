@@ -36,21 +36,52 @@
                     const markers = @js($markers);
 
                     const map = L.map('visit-map').setView([{{ settings('company.latitude', '0') }}, {{ settings('company.longitude', '0') }}], 8);
-                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+
+                    /**
+                     * Two tile layers, swapped on theme change.
+                     *
+                     * OpenStreetMap's standard raster is light-only, so a dark-mode
+                     * user got a glaring white map in the middle of a dark page --
+                     * a canvas surface the `dark` class cannot reach. CARTO's dark
+                     * tiles are keyless and need their own attribution.
+                     */
+                    const TILES = {
+                        light: {
+                            url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                        },
+                        dark: {
+                            url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+                            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+                        },
+                    };
+
+                    const isDarkTheme = () => document.documentElement.classList.contains('dark');
+                    let tiles = L.tileLayer(TILES[isDarkTheme() ? 'dark' : 'light'].url, {
                         maxZoom: 19,
-                        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                        attribution: TILES[isDarkTheme() ? 'dark' : 'light'].attribution,
                     }).addTo(map);
+
+                    document.addEventListener('cb:themechange', () => {
+                        const next = TILES[isDarkTheme() ? 'dark' : 'light'];
+                        map.removeLayer(tiles);
+                        tiles = L.tileLayer(next.url, { maxZoom: 19, attribution: next.attribution }).addTo(map);
+                        tiles.bringToBack();
+                    });
 
                     const icons = {
                         start: L.divIcon({
                             className: '',
-                            html: '<div class="flex size-7 items-center justify-center rounded-full bg-indigo-600 text-white text-xs font-bold border-2 border-white shadow">S</div>',
+                            // Brand token and surface border rather than a fixed
+                            // indigo-600/border-white, so the pins match the tenant's
+                            // colour and do not sit as white rings on dark tiles.
+                            html: '<div class="flex size-7 items-center justify-center rounded-full bg-[rgb(var(--color-primary))] text-white text-xs font-bold border-2 border-[rgb(var(--color-surface))] shadow">S</div>',
                             iconSize: [28, 28],
                             iconAnchor: [14, 14],
                         }),
                         pitstop: L.divIcon({
                             className: '',
-                            html: '<div class="flex size-7 items-center justify-center rounded-full bg-amber-500 text-white text-xs font-bold border-2 border-white shadow">P</div>',
+                            html: '<div class="flex size-7 items-center justify-center rounded-full bg-[rgb(var(--color-series-warning))] text-white text-xs font-bold border-2 border-[rgb(var(--color-surface))] shadow">P</div>',
                             iconSize: [28, 28],
                             iconAnchor: [14, 14],
                         }),
