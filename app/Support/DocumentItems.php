@@ -115,15 +115,24 @@ class DocumentItems
             return ['account_id' => ! empty($item['account_id']) ? (int) $item['account_id'] : null];
         }
 
-        // A sales line snapshots the product's cost price, so cost of goods sold
-        // can be recognised at posting time and later repricing cannot rewrite a
-        // past invoice's margin. An explicitly supplied value wins, which is what
-        // makes a historical invoice reproducible when re-saved.
+        // A sales line snapshots the product's CURRENT weighted-average cost, so
+        // cost of goods sold is recognised at posting time and later repricing
+        // cannot rewrite a past invoice's margin.
+        //
+        // The average, not `products.cost_price`. That column is a figure someone
+        // typed onto the product, and it is only right if every purchase of the
+        // product happened at the same price. Buying the same item at 100 and then
+        // at 140 leaves stock worth neither, and the margin reported on a sale in
+        // between is a fiction.
+        //
+        // An explicitly supplied value still wins, so re-saving a historical
+        // invoice reproduces the figure it originally carried.
         if ($document instanceof \App\Models\SalesInvoice) {
             $unitCost = $item['unit_cost'] ?? null;
 
             if ($unitCost === null && ! empty($item['product_id'])) {
-                $unitCost = \App\Models\Product::where('id', $item['product_id'])->value('cost_price');
+                $unitCost = app(\App\Services\Inventory\ValuationService::class)
+                    ->costForProduct((int) $item['product_id']);
             }
 
             return ['unit_cost' => $unitCost === null ? null : (float) $unitCost];

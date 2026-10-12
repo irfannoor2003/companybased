@@ -52,6 +52,57 @@ final class Money
             : number_format((float) ($amount ?? 0) * (float) ($factor ?? 0), self::SCALE, '.', '');
     }
 
+    /**
+     * Round to an explicit scale, for values that are not money.
+     *
+     * `multiply()` and friends round to the money scale, which is right for a
+     * ledger amount and wrong for a unit cost: a moving average is stored at four
+     * decimals, and rounding it to two would flatten unit costs of 0.0025 that are
+     * real in packaging and chemicals.
+     *
+     * Used through bcmath where it is available so the rounding is decimal rather
+     * than a binary float approximation.
+     */
+    public static function round(int|string|float|null $amount, int $scale = self::SCALE): string
+    {
+        if (! self::isDecimal()) {
+            return number_format(round((float) ($amount ?? 0), $scale), $scale, '.', '');
+        }
+
+        $value = trim((string) ($amount ?? 0));
+
+        if ($value === '') {
+            return number_format(0, $scale, '.', '');
+        }
+
+        $negative = str_starts_with($value, '-');
+        $absolute = ltrim($value, '+-');
+
+        $unit = bcpow('10', (string) $scale, 0);
+
+        /**
+         * Half away from zero, without losing the fraction.
+         *
+         * The product is taken at a working scale rather than at scale 0, because
+         * bcmul at scale 0 truncates and would throw away the very digits being
+         * rounded: 99.99999 scaled by 100 truncated to 9999 before the half was
+         * ever added, so it came back as 99.99 instead of 100.00.
+         *
+         * Two earlier versions were wrong here in ways worth recording -- one
+         * truncated at the target scale and returned 12 for 12.3456789, the other
+         * truncated the product first and so never rounded a value up at all.
+         */
+        $scaled = bcadd(bcmul($absolute, $unit, $scale + 4), '0.5', 0);
+        $rounded = bcdiv($scaled, $unit, $scale);
+
+        // Normalise "-0" so a small negative never prints as a negative zero.
+        if ($negative && bccomp($rounded, '0', $scale) !== 0) {
+            $rounded = '-'.ltrim($rounded, '-');
+        }
+
+        return $rounded;
+    }
+
     public static function add(int|string|float|null ...$amounts): string
     {
         $total = '0';

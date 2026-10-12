@@ -65,6 +65,17 @@ final class InventoryLedger
     /**
      * Apply a signed quantity change to an item in a warehouse and record the
      * ledger entry. Throws DomainException if the change would go negative.
+     *
+     * `$unitCost` is what the incoming units cost, and is only meaningful for a
+     * movement that ADDS stock. It is folded into the item's moving average here
+     * rather than at each call site, because this is the one place every quantity
+     * change passes through: a receipt path that forgot to update the average
+     * would leave stock valued at the previous purchase price with nothing to say
+     * so, and the error would only surface as a wrong margin months later.
+     *
+     * Negative changes deliberately leave the average alone. Weighted average does
+     * not consume cost layers, so an issue out is relieved at the current average
+     * and does not move it.
      */
     public static function adjust(
         int $itemId,
@@ -73,13 +84,24 @@ final class InventoryLedger
         string $type,
         ?Model $reference = null,
         ?string $note = null,
+        string|int|float|null $unitCost = null,
     ): void {
-        DB::transaction(function () use ($itemId, $warehouseId, $quantityChange, $type, $reference, $note) {
+        DB::transaction(function () use ($itemId, $warehouseId, $quantityChange, $type, $reference, $note, $unitCost) {
             $change = (float) $quantityChange;
 
             if (abs($change) < 0.0005) {
                 return;
             }
+
+            /**
+             * Quantity on hand BEFORE this movement, across every warehouse.
+             *
+             * Captured before anything is written, because the average blends the
+             * incoming units against what was ALREADY on the shelf. Reading it after
+             * the stock row has been updated counts the incoming units twice, which
+             * halved every first receipt's average cost.
+             */
+            $onHandBefore = self::onHand($itemId);
 
             $stock = InventoryStock::query()
                 ->where('item_id', $itemId)
@@ -124,6 +146,16 @@ final class InventoryLedger
             // Evaluate the reorder level only once the movement is committed, so
             // an alert can never be sent for stock that later rolls back.
             app(LowStockService::class)->checkItemAfterCommit($itemId);
+
+            /**
+             * Fold the receipt into the moving average, inside the same transaction
+             * so a rolled-back movement cannot leave a cost average reflecting
+             * goods that were never received.
+             */
+            if ($change > 0 && $unitCost !== null) {
+                app(\App\Services\Inventory\ValuationService::class)
+                    ->recordReceipt($itemId, (string) $change, (string) $unitCost, $onHandBefore);
+            }
         });
     }
 
@@ -258,6 +290,14 @@ final class InventoryLedger
                 continue;
             }
 
+            /**
+             * The order line's own cost is what actually blends into the moving
+             * average. A purchase order that carries no cost cannot update it --
+             * folding in a zero would write off the value of everything on the
+             * shelf -- so the average is left as it was.
+             */
+            $unitCost = isset($line->unit_cost) ? (string) $line->unit_cost : null;
+
             self::adjust(
                 $items[$line->product_id]->id,
                 $order->warehouse_id,
@@ -265,6 +305,7 @@ final class InventoryLedger
                 'purchase_in',
                 $order,
                 $order->number,
+                $unitCost,
             );
         }
     }
@@ -305,6 +346,10 @@ final class InventoryLedger
                     'incoming_shipment',
                     $shipment,
                     'Received via shipment '.$shipment->number,
+
+                    // The shipment records the price the goods were actually
+                    // invoiced at, which is the cost that belongs in the average.
+                    isset($line->unit_cost) ? (string) $line->unit_cost : null,
                 );
             }
         });

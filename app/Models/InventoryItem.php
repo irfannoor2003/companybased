@@ -16,6 +16,7 @@ class InventoryItem extends Model
 
     protected $fillable = [
         'product_id', 'reorder_level', 'reorder_quantity', 'notes', 'is_active',
+        'moving_average_cost',
     ];
 
     protected $auditModule = 'inventory';
@@ -25,6 +26,9 @@ class InventoryItem extends Model
         return [
             'reorder_level' => 'decimal:3',
             'reorder_quantity' => 'decimal:3',
+            // Four decimals, not two: a unit cost of 0.0025 is real, and rounding a
+            // moving average to cents would flatten it.
+            'moving_average_cost' => 'decimal:4',
             'is_active' => 'boolean',
         ];
     }
