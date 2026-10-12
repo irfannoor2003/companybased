@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Account;
 use App\Models\JournalEntryItem;
+use App\Services\Accounting\LedgerPosting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -239,6 +240,19 @@ class FinancialReportController extends Controller
     }
 
     /**
+     * Assets, liabilities and equity, with retained earnings as a REAL figure.
+     *
+     * The retained earnings line used to be `assets - liabilities - equity`, which
+     * forces the statement to balance by arithmetic whatever the ledger says: a
+     * transposition, a misposting or a missing entry simply moved the retained line
+     * to hide it, so the balance sheet always agreed and never told you anything.
+     *
+     * It now reads account 3100, which a year-end close fills with the profit the
+     * business actually made. A ledger that does not add up therefore shows up as
+     * an unbalanced balance sheet rather than being quietly absorbed -- and when
+     * the books ARE right, the two figures agree and that agreement means
+     * something.
+     *
      * @return array{assets: float, liabilities: float, equity: float, retained: float}
      */
     private function balanceSheet(Collection $balances): array
@@ -246,7 +260,13 @@ class FinancialReportController extends Controller
         $assets = round($this->netBalanceFromRows($balances, ['asset']), 2);
         $liabilities = round(-1 * $this->netBalanceFromRows($balances, ['liability']), 2);
         $equity = round(-1 * $this->netBalanceFromRows($balances, ['equity']), 2);
-        $retained = round($assets - $liabilities - $equity, 2);
+
+        // Rebuilt from the grouped balances rather than trusting the passed-in
+        // total, so the line reflects exactly the posted entries as at the date.
+        $retained = round(
+            (float) ($balances->firstWhere('code', LedgerPosting::RETAINED_EARNINGS)->balance ?? 0),
+            2,
+        );
 
         return [
             'assets' => $assets,

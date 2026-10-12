@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Account;
 use App\Models\JournalEntry;
 use App\Models\JournalEntryItem;
+use App\Services\Accounting\LedgerPosting;
 use Illuminate\Support\Facades\DB;
 use Tests\SeedsDatabase;
 use Tests\TestCase;
@@ -306,5 +307,62 @@ class FinancialReportAggregationTest extends TestCase
         $this->assertStringNotContainsString('99,999', $after, 'a draft entry must not reach the statements');
         $this->assertStringContainsString('2,100', $after, 'the posted figures must be unchanged');
         $this->assertNotSame('', $before);
+    }
+
+    /**
+     * Retained earnings must not be a balancing plug.
+     *
+     * `balanceSheet()` computed `retained = assets - liabilities - equity`, which
+     * forces the statement to agree by arithmetic whatever the ledger contains: a
+     * transposition, a misposting or a missing entry simply moved the retained line
+     * to hide it. The balance sheet always balanced, so it never reported anything.
+     *
+     * Account 3100 is now read straight from the ledger. Corrupt the ledger -- here
+     * by inserting a line directly, bypassing the posting guard that would otherwise
+     * refuse it -- and the statement has to DISAGREE. A balance sheet that cannot
+     * fail this test is not telling you anything.
+     */
+    public function test_retained_earnings_is_not_a_plug(): void
+    {
+        $this->seedLedger();
+
+        $before = $this->reportHtml([
+            'from' => now()->startOfMonth()->toDateString(),
+            'to' => now()->endOfMonth()->toDateString(),
+        ]);
+
+        $this->assertStringContainsString('2,100', $before, 'the seeded ledger did not render');
+
+        // Debit an asset account with nothing on the other side: 500,000 that the
+        // books cannot account for. Raw insert, because `GeneralLedger::post()`
+        // correctly refuses an unbalanced entry and we need the broken state.
+        $orphan = JournalEntry::create([
+            'number' => 'JE-'.uniqid(),
+            'entry_date' => now()->toDateString(),
+            'status' => 'posted',
+            'memo' => 'Corrupted posting',
+        ]);
+
+        JournalEntryItem::create([
+            'journal_entry_id' => $orphan->id,
+            'account_id' => Account::where('code', '1000')->value('id'),
+            'debit' => 500000.00,
+            'credit' => 0,
+        ]);
+
+        $after = $this->reportHtml([
+            'from' => now()->startOfMonth()->toDateString(),
+            'to' => now()->endOfMonth()->toDateString(),
+        ]);
+
+        // Assets are now 500,000 too high. Retained earnings stays where the ledger
+        // says it is, so the statement no longer agrees.
+        $this->assertStringContainsString('500,000', $after, 'the corrupted posting is missing from assets');
+
+        $retained = Account::where('code', LedgerPosting::RETAINED_EARNINGS)
+            ->firstOrFail()
+            ->balance();
+
+        $this->assertSame(0.0, round((float) $retained, 2), 'retained earnings absorbed the 500,000 imbalance');
     }
 }

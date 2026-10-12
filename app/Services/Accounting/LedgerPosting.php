@@ -105,6 +105,15 @@ class LedgerPosting
      */
     public const PAYROLL_TAX_PAYABLE = '2250';
 
+    /**
+     * Accumulated profit not distributed.
+     *
+     * Zeroed by a year-end close, which moves the year's revenue and expense
+     * balances into here. Until that entry exists it never carries a balance, which
+     * is why the balance sheet used to compute retained earnings as a plug.
+     */
+    public const RETAINED_EARNINGS = '3100';
+
     private static ?bool $readyMemo = null;
 
     /**
