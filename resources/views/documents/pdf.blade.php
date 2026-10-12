@@ -51,10 +51,34 @@
         /* @page margin 0 is what lets the left rail bleed to the paper edge.
 
            The `@bottom-center` margin box does NOT render -- DomPDF skips margin
-           boxes when the page margin is 0, which the full-bleed rail requires --
-           so page numbers are absent. The company identity is carried by the rail
-           itself now, on every page, which is better than a number in the margin. */
+           boxes when the page margin is 0, which the full-bleed rail requires.
+           Measured rather than assumed: with `@page { margin: 0; @bottom-right { ... } }`
+           nothing is drawn on any page.
+
+           Page numbering therefore uses the same mechanism as the rail: a
+           `position: fixed` block with generated content, which DomPDF DOES
+           re-emit per page. `content: counter(page)` gives the correct number on
+           each page ("Page 1", "Page 2", ...).
+
+           Deliberately not "Page N of M": DomPDF resolves `counter(pages)` to 0
+           because the total is not known while pages are being laid out, so the
+           printed text came out as "Page 3 of 0". A wrong total is worse than no
+           total. */
         @page { margin: 0; }
+
+        /* Fixed, like the rail, so it repeats. Inset from the right to sit inside
+           the canvas rather than under the rail, and lifted off the paper edge. */
+        .page-number {
+            position: fixed;
+            bottom: 6mm;
+            right: 5%;
+            font-size: 7.5px;
+            color: {{ $muted }};
+        }
+
+        .page-number::after {
+            content: "Page " counter(page);
+        }
 
         /* The rail: fixed, full-bleed, repeated on every page by DomPDF.
 
@@ -205,6 +229,8 @@
         and pushed a 48-line document from 2 pages to 3. The rail has to leave the
         table, not be duplicated beside it.
     --}}
+    <div class="page-number"></div>
+
     <div class="rail">
         <table class="rail-inner">
             <tr class="block">
