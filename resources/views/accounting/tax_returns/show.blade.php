@@ -2,6 +2,14 @@
     <x-slot name="header">
         <x-page-header :title="$tax->number" :description="ucfirst($tax->tax_type).' · '.$tax->period_label" icon="tax">
             <x-slot name="actions">
+                @if (auth()->user()->can('accounting.tax_returns.edit') && $tax->status === 'draft')
+                    {{-- Recompute from the posted ledger. Draft only: once a return is
+                         filed its figures are a historical statement. --}}
+                    <form method="POST" action="{{ route('accounting.tax_returns.recompute', $tax) }}">
+                        @csrf
+                        <x-button type="submit" variant="secondary" icon="refresh">Recompute from ledger</x-button>
+                    </form>
+                @endif
                 @if (auth()->user()->can('accounting.tax_returns.edit') && $tax->status !== 'paid')
                     <x-button href="{{ route('accounting.tax_returns.edit', $tax) }}" variant="secondary" icon="edit">Edit</x-button>
                 @endif

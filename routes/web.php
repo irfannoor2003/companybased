@@ -945,8 +945,10 @@ Route::post('/expense-claims/{claim}/submit', [ExpenseClaimController::class, 's
             ->middleware('permission:accounting.tax_returns.create')->name('tax_returns.store');
         Route::put('/tax-returns/{tax}', [TaxReturnController::class, 'update'])
             ->middleware('permission:accounting.tax_returns.edit')->name('tax_returns.update');
-        Route::patch('/tax-returns/{tax}/status', [TaxReturnController::class, 'updateStatus'])
-            ->middleware('permission:accounting.tax_returns.edit')->name('tax_returns.status');
+    Route::patch('/tax-returns/{tax}/status', [TaxReturnController::class, 'updateStatus'])
+        ->middleware('permission:accounting.tax_returns.edit')->name('tax_returns.status');
+    Route::post('/tax-returns/{tax}/recompute', [TaxReturnController::class, 'recompute'])
+        ->middleware('permission:accounting.tax_returns.edit')->name('tax_returns.recompute');
         Route::delete('/tax-returns/{tax}', [TaxReturnController::class, 'destroy'])
             ->middleware('permission:accounting.tax_returns.delete')->name('tax_returns.destroy');
 
