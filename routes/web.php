@@ -1326,6 +1326,8 @@ Route::post('/expense-claims/{claim}/submit', [ExpenseClaimController::class, 's
             ->middleware('permission:pos.receipts.view')->name('receipts.export');
         Route::get('/receipts/{sale}', [ReceiptController::class, 'show'])
             ->middleware('permission:pos.receipts.view')->name('receipts.show');
+        Route::get('/receipts/{sale}/print', [ReceiptController::class, 'print'])
+            ->middleware('permission:pos.receipts.view')->name('receipts.print');
 
         Route::get('/reconciliations', [PosReconciliationController::class, 'index'])
             ->middleware('permission:pos.till_reconciliation.view')->name('reconciliations.index');

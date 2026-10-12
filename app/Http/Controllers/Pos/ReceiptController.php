@@ -6,8 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\PosSale;
 use App\Support\ExportsCsv;
 use App\Support\ExportsJson;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReceiptController extends Controller
@@ -38,6 +40,56 @@ class ReceiptController extends Controller
         $sale->load(['shift.opener', 'paymentMethod', 'items']);
 
         return view('pos.receipts.show', compact('sale'));
+    }
+
+    /**
+     * A printable receipt: an 80mm thermal roll by default, or A4 on request.
+     *
+     * POS receipts had no printable form at all -- the only view was an HTML
+     * screen page, so a customer could not be handed a receipt and a sale could
+     * not be reprinted once the till rolled off. Every other money document in the
+     * system has a PDF.
+     *
+     * The 80mm default is the one a shop actually uses: the till printer is a
+     * thermal roll, and `?size=a4` gives the wider copy for a customer who wants
+     * one filed.
+     */
+    public function print(Request $request, PosSale $sale): Response
+    {
+        $sale->load(['shift.opener', 'paymentMethod', 'items']);
+
+        $a4 = $request->query('size') === 'a4';
+
+        $html = view('pos.receipts.print', ['sale' => $sale, 'narrow' => ! $a4])->render();
+
+        $pdf = Pdf::loadHTML($html)->setOptions([
+            'isRemoteEnabled' => false,
+            'isPhpEnabled' => false,
+            'defaultFont' => 'DejaVu Sans',
+        ]);
+
+        /**
+         * 80mm x 297mm.
+         *
+         * Width is the roll. Height is a full A4 of roll rather than a guess: a
+         * thermal printer cuts to the printed length, and giving a short fixed
+         * sheet would truncate a sale with enough lines on it. DomPDF cannot
+         * reflow height to fit the content, so the sheet is generous and the
+         * printer discards the tail.
+         *
+         * Points, because that is what setPaper() takes for a custom size:
+         * 80mm x 2.8346 = 226.77pt.
+         */
+        $pdf->setPaper($a4 ? 'a4' : [0, 0, 226.77, 841.89], $a4 ? 'portrait' : 'portrait');
+
+        return $pdf->download($this->filename($sale, $a4));
+    }
+
+    private function filename(PosSale $sale, bool $a4): string
+    {
+        $base = 'receipt-'.$sale->receipt_number;
+
+        return $a4 ? $base.'.pdf' : $base.'-80mm.pdf';
     }
 
     public function export(Request $request): StreamedResponse

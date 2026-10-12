@@ -3,6 +3,12 @@
         <x-page-header :title="'Receipt '.$sale->receipt_number" description="{{ $sale->sold_at?->format('Y-m-d H:i') }}" icon="document">
             <x-slot name="actions">
                 <x-button href="{{ route('pos.receipts.index') }}" variant="secondary" icon="arrow-left">Back</x-button>
+                {{-- The 80mm roll is the default because that is the till printer;
+                     A4 is the copy a customer wants filed. --}}
+                <x-button href="{{ route('pos.receipts.print', $sale) }}" variant="secondary" icon="printer"
+                          target="_blank">Print 80mm</x-button>
+                <x-button href="{{ route('pos.receipts.print', ['sale' => $sale, 'size' => 'a4']) }}"
+                          variant="secondary" icon="document" target="_blank">Print A4</x-button>
             </x-slot>
         </x-page-header>
     </x-slot>
