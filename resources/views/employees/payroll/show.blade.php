@@ -79,7 +79,13 @@
                                 <th>Department</th>
                                 <th class="text-right">Gross</th>
                                 <th class="text-right">Attendance deductions</th>
+                                {{-- Statutory withholding is its own line. It was
+                                     omitted here while net_pay already included it,
+                                     so the columns did not add up to the net figure
+                                     on the same row. --}}
+                                <th class="text-right">Statutory</th>
                                 <th class="text-right">Net</th>
+                                <th></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -89,7 +95,12 @@
                                     <td class="text-ink-soft">{{ $payslip->employee?->department?->name ?: '—' }}</td>
                                     <td class="text-right text-ink">{{ money($payslip->gross_pay, $run->currency) }}</td>
                                     <td class="text-right text-rose-600 dark:text-rose-400">{{ money($payslip->attendance_deductions, $run->currency) }}</td>
+                                    <td class="text-right text-rose-600 dark:text-rose-400">{{ money($payslip->statutory_deductions, $run->currency) }}</td>
                                     <td class="text-right font-medium text-ink">{{ money($payslip->net_pay, $run->currency) }}</td>
+                                    <td class="text-right">
+                                        <x-button :href="route('payroll.payslip', [$run, $payslip])" variant="ghost"
+                                                  size="sm" icon="printer" target="_blank">Payslip</x-button>
+                                    </td>
                                 </tr>
                             @endforeach
                         </tbody>

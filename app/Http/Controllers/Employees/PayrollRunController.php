@@ -12,11 +12,13 @@ use App\Services\PayrollService;
 use App\Support\ExportsCsv;
 use App\Support\ExportsJson;
 use App\Support\Money;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PayrollRunController extends Controller
@@ -143,6 +145,45 @@ class PayrollRunController extends Controller
         $run->load(['preparer', 'payslips.employee.department']);
 
         return view('employees.payroll.show', compact('run'));
+    }
+
+    /**
+     * A payslip, as a PDF, for one employee in one run.
+     *
+     * Payslips existed only as rows in the payroll run table, which is a management
+     * view: four figures, and no way to hand a document to anyone. The employee is
+     * entitled to an itemised statement, and the deductions are broken out for a
+     * reason -- attendance and statutory withholding are different things, and one
+     * of them never belonged to the employee at all.
+     *
+     * The payslip is bound through its run, so a payslip id from another run cannot
+     * be reached by guessing the URL.
+     */
+    public function payslipPdf(PayrollRun $run, Payslip $payslip): Response
+    {
+        abort_unless((int) $payslip->payroll_run_id === (int) $run->id, 404);
+
+        $payslip->load(['employee.department']);
+        $run->loadMissing('preparer');
+
+        $html = view('employees.payroll.payslip-pdf', [
+            'run' => $run,
+            'payslip' => $payslip,
+            'brandColor' => settings('branding.primary_color', '#4f46e5'),
+
+            // An unapproved or draft run is not a final statement of pay, and the
+            // document says so on its face rather than implying otherwise.
+            'stampColor' => in_array($run->status, ['paid', 'approved'], true) ? '#15803d' : '#b45309',
+        ])->render();
+
+        return Pdf::loadHTML($html)
+            ->setPaper('a4', 'portrait')
+            ->setOptions([
+                'isRemoteEnabled' => false,
+                'isPhpEnabled' => false,
+                'defaultFont' => 'DejaVu Sans',
+            ])
+            ->download('payslip-'.$run->number.'-'.($payslip->employee?->employee_code ?: $payslip->id).'.pdf');
     }
 
     /**

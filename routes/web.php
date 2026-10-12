@@ -1088,6 +1088,8 @@ Route::post('/expense-claims/{claim}/submit', [ExpenseClaimController::class, 's
             ->middleware('permission:employees.payroll_runs.create')->name('payroll.store');
         Route::get('/payroll/{run}', [PayrollRunController::class, 'show'])
             ->middleware('permission:employees.payroll_runs.view')->name('payroll.show');
+        Route::get('/payroll/{run}/payslips/{payslip}', [PayrollRunController::class, 'payslipPdf'])
+            ->middleware('permission:employees.payroll_runs.view')->name('payroll.payslip');
         Route::post('/payroll/{run}/generate', [PayrollRunController::class, 'generate'])
             ->middleware('permission:employees.payroll_runs.approve')->name('payroll.generate');
         Route::post('/payroll/{run}/approve', [PayrollRunController::class, 'approve'])
