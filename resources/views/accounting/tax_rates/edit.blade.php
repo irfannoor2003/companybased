@@ -71,13 +71,20 @@
                     </div>
 
                     <x-select name="account_id" label="Ledger account" class="mt-1 block w-full">
-                        <option value="">— Not posted —</option>
+                        <option value="">— Not verified —</option>
                         @foreach ($accounts as $account)
                             <option value="{{ $account->id }}" @selected((int) old('account_id', $taxRate->account_id) === $account->id)>
                                 {{ $account->code }} &mdash; {{ $account->name }}
                             </option>
                         @endforeach
                     </x-select>
+                    <p class="-mt-3 text-xs text-ink-faint">
+                        Records where tax collected under this rate is posted: Output Tax
+                        Payable (2200) for sales, Input Tax Receivable (1310) for purchase.
+                        The ledger posts to those accounts, so set this to match &mdash;
+                        <code class="font-mono">php artisan accounting:verify-tax-rates</code>
+                        checks it.
+                    </p>
 
                     <div class="grid gap-4 sm:grid-cols-2">
                         <div>

@@ -54,8 +54,12 @@
                     @endforeach
                 </x-select>
                 <p class="-mt-3 text-xs text-ink-faint">
-                    Where tax collected under this rate is posted. Output Tax Payable for sales,
-                    Input Tax Receivable for purchase.
+                    Records where tax collected under this rate is posted: Output Tax Payable
+                    (2200) for sales, Input Tax Receivable (1310) for purchase. The ledger
+                    posts to those accounts, so set this to match &mdash;
+                    <code class="font-mono">php artisan accounting:verify-tax-rates</code>
+                    checks it. Leaving it blank does not stop tax posting; it only leaves the
+                    rate unverified.
                 </p>
 
                 <div class="grid gap-4 sm:grid-cols-3">

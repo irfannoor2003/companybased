@@ -69,6 +69,30 @@ class LedgerPosting
     public const OUTPUT_TAX_PAYABLE = '2200';
     public const INPUT_TAX_RECEIVABLE = '1310';
 
+    /**
+     * The account a rate's tax actually posts to, by scope.
+     *
+     * A rate's `account_id` looks like it chooses this, and it does not: posting
+     * has always used the constants above. Two things make honouring the column
+     * impossible as things stand. No document item table carries `tax_rate_id`, so
+     * a posted tax figure cannot be traced back to the rate that produced it -- the
+     * document records only a percentage. And the same account serves every rate
+     * of a given scope, which is the correct shape for a standard-rate business
+     * and the wrong one for a taxpayer keeping a separate payable per rate.
+     *
+     * So rather than let the column mislead, it is held to the truth: an active
+     * rate's account is expected to be the one its scope posts to, and
+     * `accounting:verify-tax-rates` reports any that disagree. Wiring the column
+     * through would mean adding `tax_rate_id` to nine item tables -- worth doing
+     * deliberately, not as a side effect.
+     */
+    public static function taxAccountFor(string $appliesTo): string
+    {
+        return ($appliesTo === 'purchase')
+            ? self::INPUT_TAX_RECEIVABLE
+            : self::OUTPUT_TAX_PAYABLE;
+    }
+
     public const SALES_REVENUE = '4000';
 
     /**
