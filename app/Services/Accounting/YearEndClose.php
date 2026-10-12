@@ -8,7 +8,6 @@ use App\Support\GeneralLedger;
 use App\Support\Money;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 
 /**
  * Close a fiscal year by moving the profit and loss into retained earnings.
@@ -47,27 +46,44 @@ class YearEndClose
      */
     private const CLOSED_TYPES = ['revenue', 'expense'];
 
-    private function ledger(): LedgerPosting
+    /**
+     * The one account a close cannot do without.
+     *
+     * Deliberately NOT `LedgerPosting::isReady()`. That gate covers receivables,
+     * payables, bank and the sales-returns account, none of which a close touches,
+     * and it fails the whole close if any one is absent. On the live database —
+     * where 4300 had not been seeded — the close therefore refused to post a year
+     * carrying 12,700 of profit, and returned null, which read as "nothing to do".
+     *
+     * A close needs exactly one account. That is what is checked here.
+     */
+    private function assertRetainedEarningsExists(): void
     {
-        return new LedgerPosting();
+        if (! Account::where('code', LedgerPosting::RETAINED_EARNINGS)->exists()) {
+            throw new \RuntimeException(
+                'Cannot close the year: account '.LedgerPosting::RETAINED_EARNINGS
+                .' (Retained Earnings) does not exist. Run '
+                .'`php artisan db:seed --class=ChartOfAccountsSeeder --force`.',
+            );
+        }
     }
 
     /**
      * Close a period and return the resulting journal.
      *
+     * Returns null only when there is genuinely nothing to do — no P&L activity, no
+     * result, or the period is already closed. Anything that makes closing *impossible*
+     * raises instead, because returning null there would report a problem as success.
+     *
      * @param  string  $periodEnd  inclusive; anything dated after this is left open
+     *
+     * @throws \RuntimeException
      */
     public function close(string $periodEnd, ?string $reference = null): ?Model
     {
+        $this->assertRetainedEarningsExists();
+
         if ($this->alreadyClosed($periodEnd, $reference)) {
-            return null;
-        }
-
-        $ledger = $this->ledger();
-
-        if (! $ledger->isReady()) {
-            Log::warning('Year-end close skipped: chart of accounts is incomplete.');
-
             return null;
         }
 
@@ -189,8 +205,20 @@ class YearEndClose
             foreach ($lines as $line) {
                 $account = Account::where('code', $line['code'])->first();
 
+                /**
+                 * Raised, not skipped.
+                 *
+                 * Skipping here would drop a line and leave the journal unbalanced,
+                 * so the failure would surface as the generic "Journal must balance
+                 * before posting" — with nothing pointing at the account that was
+                 * actually missing. The transaction rolls back either way, but the
+                 * error has to name the cause.
+                 */
                 if ($account === null) {
-                    continue;
+                    throw new \RuntimeException(
+                        'Cannot close the year: account '.$line['code'].' does not exist. Run '
+                        .'`php artisan db:seed --class=ChartOfAccountsSeeder --force`.',
+                    );
                 }
 
                 $resolved[] = [

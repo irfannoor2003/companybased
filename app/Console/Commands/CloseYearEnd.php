@@ -24,15 +24,24 @@ class CloseYearEnd extends Command
     {
         $until = $this->option('until') ?: today()->toDateString();
 
-        $entry = $close->close($until);
+        try {
+            $entry = $close->close($until);
+        } catch (\RuntimeException $e) {
+            // A close that cannot run is an error, not a quiet no-op. Returning
+            // success here would tell the operator the books are closed when
+            // nothing was posted.
+            $this->error($e->getMessage());
+
+            return self::FAILURE;
+        }
 
         if ($entry === null) {
-            $this->warn("Nothing to close to {$until} — no P&L activity, or the period is already closed.");
+            $this->warn("Nothing to close to {$until}: no profit and loss activity on or before that date, or the period is already closed.");
 
             return self::SUCCESS;
         }
 
-        $this->info("Posted {$entry->number} — year-end close to {$until}.");
+        $this->info("Posted {$entry->number} - year-end close to {$until}.");
 
         $this->line('Retained earnings now reads what the business actually earned, rather than a balancing figure.');
 

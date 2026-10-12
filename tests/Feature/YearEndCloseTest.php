@@ -105,6 +105,59 @@ class YearEndCloseTest extends TestCase
     }
 
     /**
+     * A close must not depend on accounts it does not use.
+     *
+     * `close()` originally gated on `LedgerPosting::isReady()`, which requires
+     * receivables, payables, bank and the sales-returns account. A close touches
+     * none of them, so on the live database — where 4300 had not been seeded — the
+     * close refused a year carrying 12,700 of profit and returned null, which read
+     * as "nothing to do" while the year was in fact left open.
+     *
+     * Removing the unrelated account must not stop the books being closed.
+     */
+    public function test_the_close_does_not_depend_on_unrelated_accounts(): void
+    {
+        $this->postRevenueAndExpense();
+
+        // Everything LedgerPosting::isReady() insists on, except the one account a
+        // close genuinely needs.
+        Account::where('code', LedgerPosting::SALES_RETURNS)->delete();
+
+        LedgerPosting::flushReadiness();
+        $this->assertFalse(
+            (new LedgerPosting())->isReady(),
+            'fixture is invalid: the ledger gate is still reporting ready',
+        );
+
+        $entry = $this->close()->close('2026-12-31');
+
+        $this->assertNotNull($entry, 'an unrelated missing account stopped the year being closed');
+
+        // Debit-positive: the profit sits on the credit side of 3100, hence -600.
+        $this->assertSame(600.0, round(-$this->balanceFor('3100'), 2), 'the profit did not reach retained earnings');
+    }
+
+    /**
+     * A close that cannot run must say so, not report success.
+     *
+     * Returning null for "the account you need is missing" is indistinguishable
+     * from "there was nothing to close", so the operator is told the books are
+     * fine while no entry was posted. The one account a close truly needs is
+     * checked by name, and the failure names it.
+     */
+    public function test_a_missing_retained_earnings_account_raises_rather_than_silently_returning_null(): void
+    {
+        $this->postRevenueAndExpense();
+
+        Account::where('code', LedgerPosting::RETAINED_EARNINGS)->delete();
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage(LedgerPosting::RETAINED_EARNINGS);
+
+        $this->close()->close('2026-12-31');
+    }
+
+    /**
      * A loss debits retained earnings. Crediting it would report the company as
      * owing itself money.
      */
