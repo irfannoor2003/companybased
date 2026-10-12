@@ -64,7 +64,7 @@
 
         <div class="space-y-6">
             <x-card title="Amount">
-                <p class="text-2xl font-bold text-primary">{{ money($payment->amount, $payment->currency) }}</p>
+                <p class="text-2xl font-bold text-primary-ink">{{ money($payment->amount, $payment->currency) }}</p>
             </x-card>
 
             @if ($payment->notes)

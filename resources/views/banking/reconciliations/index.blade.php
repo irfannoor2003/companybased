@@ -62,7 +62,7 @@
                     <tbody>
                         @foreach ($reconciliations as $reconciliation)
                             <tr>
-                                <td><span class="font-mono text-xs font-medium text-primary">{{ $reconciliation->number }}</span></td>
+                                <td><span class="font-mono text-xs font-medium text-primary-ink">{{ $reconciliation->number }}</span></td>
                                 <td class="text-ink">{{ $reconciliation->account?->name }}</td>
                                 <td class="text-ink-soft">{{ $reconciliation->statement_date?->format('Y-m-d') }}</td>
                                 <td class="text-right text-ink">{{ money($reconciliation->bookBalance(), $reconciliation->account?->currency) }}</td>

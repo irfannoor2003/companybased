@@ -66,7 +66,7 @@
                         @foreach ($payments as $payment)
                             <tr>
                                 <td>
-                                    <a href="{{ route('sales.sales_payments.edit', $payment) }}" class="font-medium text-ink hover:text-primary">{{ $payment->number }}</a>
+                                    <a href="{{ route('sales.sales_payments.edit', $payment) }}" class="font-medium text-ink hover:text-primary-ink">{{ $payment->number }}</a>
                                 </td>
                                 <td class="text-ink-soft">{{ $payment->customer?->company_name }}</td>
                                 <td class="text-ink-soft">{{ $payment->invoice?->number ?: '—' }}</td>

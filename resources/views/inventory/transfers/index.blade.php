@@ -60,7 +60,7 @@
                     <tbody>
                         @foreach ($transfers as $transfer)
                             <tr>
-                                <td class="font-mono text-xs font-medium text-primary">{{ $transfer->number }}</td>
+                                <td class="font-mono text-xs font-medium text-primary-ink">{{ $transfer->number }}</td>
                                 <td class="text-ink-soft">
                                     {{ $transfer->fromWarehouse?->name }}
                                     <x-icon name="arrow-right" class="mx-1 inline size-3.5 text-ink-faint" />

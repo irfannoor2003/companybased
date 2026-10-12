@@ -14,7 +14,7 @@
         <h1 class="text-lg font-bold text-ink">Track your order</h1>
         <p class="mt-1 text-sm text-ink-faint">Order {{ $order->number }}</p>
 
-        <span class="mt-4 inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary">
+        <span class="mt-4 inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary-ink">
             <span class="size-2 rounded-full bg-primary"></span>
             {{ ucfirst($order->status) }}
         </span>
@@ -97,5 +97,5 @@
         @endif
     </div>
 
-    <a href="{{ url('/') }}" class="mt-6 block text-center text-sm text-primary hover:underline">Back to {{ $appBrand['companyName'] }}</a>
+    <a href="{{ url('/') }}" class="mt-6 block text-center text-sm text-primary-ink hover:underline">Back to {{ $appBrand['companyName'] }}</a>
 </x-guest-layout>

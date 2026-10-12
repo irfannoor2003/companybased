@@ -66,7 +66,7 @@
                         @foreach ($quotes as $quote)
                             <tr>
                                 <td>
-                                    <a href="{{ route('sales.quotes.edit', $quote) }}" class="font-medium text-ink hover:text-primary">{{ $quote->number }}</a>
+                                    <a href="{{ route('sales.quotes.edit', $quote) }}" class="font-medium text-ink hover:text-primary-ink">{{ $quote->number }}</a>
                                 </td>
                                 <td class="text-ink-soft">{{ $quote->customer?->company_name }}</td>
                                 <td class="text-ink-soft">{{ $quote->issue_date?->format('Y-m-d') }}</td>

@@ -58,7 +58,7 @@
                         @foreach ($debitNotes as $note)
                             <tr>
                                 <td>
-                                    <a href="{{ route('suppliers.debit_notes.edit', $note) }}" class="font-medium text-ink hover:text-primary">{{ $note->number }}</a>
+                                    <a href="{{ route('suppliers.debit_notes.edit', $note) }}" class="font-medium text-ink hover:text-primary-ink">{{ $note->number }}</a>
                                 </td>
                                 <td class="text-ink-soft">{{ $note->supplier?->company_name }}</td>
                                 <td class="text-ink-soft">{{ $note->invoice?->number ?: '—' }}</td>

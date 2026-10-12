@@ -65,7 +65,7 @@
                         @foreach ($recurringInvoices as $recurring)
                             <tr>
                                 <td>
-                                    <a href="{{ route('sales.recurring_invoices.edit', $recurring) }}" class="font-medium text-ink hover:text-primary">{{ $recurring->name }}</a>
+                                    <a href="{{ route('sales.recurring_invoices.edit', $recurring) }}" class="font-medium text-ink hover:text-primary-ink">{{ $recurring->name }}</a>
                                 </td>
                                 <td class="text-ink-soft">{{ $recurring->customer?->company_name }}</td>
                                 <td class="text-ink-soft">{{ ucfirst($recurring->frequency) }}</td>

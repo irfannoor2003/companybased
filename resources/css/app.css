@@ -6,13 +6,34 @@
     :root {
         --color-primary: 79 70 229;
         --color-primary-strong: 59 52 203;
+        /**
+         * Brand colour for TEXT on a surface, deliberately separate from
+         * `--color-primary`.
+         *
+         * `--color-primary` is a fill: it backs buttons and badges carrying white
+         * text, which needs it to stay DARK (white on #4f46e5 is 6.29:1). The same
+         * colour used as link and label text on a surface is a different job, and
+         * one value cannot serve both -- on the dark surface (#11141f) the fill
+         * colour scored 2.92:1, illegible.
+         *
+         * So in dark mode the fill is left alone and only the text token is
+         * lightened, to 9.21:1. Nothing about the button changes; every one of the
+         * ~150 `text-primary` usages becomes readable.
+         */
+        --color-primary-ink: 79 70 229;
         --color-accent: 14 165 233;
         --color-canvas: 248 250 252;
         --color-surface: 255 255 255;
         --color-surface-muted: 241 245 249;
         --color-ink: 15 23 42;
         --color-ink-soft: 71 85 105;
-        --color-ink-faint: 148 163 184;
+        /**
+         * Tertiary text. Was #94a3b8, which measured 2.56:1 on white and 2.34:1 on
+         * the muted surface -- below WCAG AA for body text, and it was used in
+         * roughly 500 places. Darkened to 5.43:1 / 4.95:1. The hierarchy still
+         * holds: ink 17.85, ink-soft 7.58, ink-faint 5.43.
+         */
+        --color-ink-faint: 91 107 130;
         --color-line: 226 232 240;
         color-scheme: light;
     }
@@ -24,6 +45,7 @@
         --color-ink: 226 232 240;
         --color-ink-soft: 148 163 184;
         --color-ink-faint: 100 116 139;
+        --color-primary-ink: 165 180 252;
         --color-line: 38 43 60;
         color-scheme: dark;
     }

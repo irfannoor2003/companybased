@@ -13,7 +13,7 @@
                         <p class="text-sm font-medium">Reporting currency</p>
                         <p class="text-xs text-ink-soft">Rates below convert 1 unit of each currency into {{ $baseCurrency }}.</p>
                     </div>
-                    <span class="rounded-lg bg-primary/10 px-3 py-1 text-sm font-semibold text-primary">{{ $baseCurrency }}</span>
+                    <span class="rounded-lg bg-primary/10 px-3 py-1 text-sm font-semibold text-primary-ink">{{ $baseCurrency }}</span>
                 </div>
 
                 <div class="overflow-x-auto">

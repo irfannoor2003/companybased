@@ -66,7 +66,7 @@
                         @foreach ($orders as $order)
                             <tr>
                                 <td>
-                                    <a href="{{ route('sales.orders.edit', $order) }}" class="font-medium text-ink hover:text-primary">{{ $order->number }}</a>
+                                    <a href="{{ route('sales.orders.edit', $order) }}" class="font-medium text-ink hover:text-primary-ink">{{ $order->number }}</a>
                                 </td>
                                 <td class="text-ink-soft">{{ $order->customer?->company_name }}</td>
                                 <td class="text-ink-soft">{{ $order->issue_date?->format('Y-m-d') }}</td>

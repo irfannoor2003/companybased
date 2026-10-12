@@ -43,7 +43,7 @@
                                 data-id="{{ $product->id }}"
                                 class="group rounded-xl border border-line bg-surface-muted/40 p-4 text-left transition hover:border-primary/50 hover:bg-primary/5">
                                 <span class="block truncate text-sm font-semibold text-ink">{{ $product->name }}</span>
-                                <span class="mt-1 block text-sm font-bold text-primary">{{ money($product->retail_price) }}</span>
+                                <span class="mt-1 block text-sm font-bold text-primary-ink">{{ money($product->retail_price) }}</span>
                                 @if ($product->sku)
                                     <span class="mt-1 block text-xs text-ink-faint">{{ $product->sku }}</span>
                                 @endif

@@ -214,8 +214,8 @@
                             </div>
                             {{-- Boxed total row, as on the PDF --}}
                             <div class="mt-1 flex justify-between border border-primary px-2 py-1.5 text-sm">
-                                <dt class="font-bold text-primary">Total</dt>
-                                <dd class="font-bold tabular-nums text-primary" x-text="money(grandTotal())"></dd>
+                                <dt class="font-bold text-primary-ink">Total</dt>
+                                <dd class="font-bold tabular-nums text-primary-ink" x-text="money(grandTotal())"></dd>
                             </div>
                         </dl>
                     </div>

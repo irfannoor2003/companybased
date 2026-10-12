@@ -27,7 +27,7 @@
                 @endforelse
                 <div class="mt-3 flex items-center justify-between border-t border-line pt-3">
                     <span class="text-sm font-medium text-ink">Total on hand</span>
-                    <span class="text-base font-semibold text-primary">{{ number_format((float) $item->stock->sum('quantity'), 3) }}</span>
+                    <span class="text-base font-semibold text-primary-ink">{{ number_format((float) $item->stock->sum('quantity'), 3) }}</span>
                 </div>
             </x-card>
 
@@ -35,7 +35,7 @@
                 <x-card title="Incoming">
                     <div class="flex items-center justify-between">
                         <span class="text-sm text-ink-faint">Expected on {{ isset($incomingEta) ? $incomingEta->format('Y-m-d') : '—' }}</span>
-                        <span class="text-base font-semibold text-primary">{{ number_format((float) $incomingQty, 3) }} units</span>
+                        <span class="text-base font-semibold text-primary-ink">{{ number_format((float) $incomingQty, 3) }} units</span>
                     </div>
                     <p class="mt-2 text-xs text-ink-faint">On order, not yet received into stock.</p>
                 </x-card>

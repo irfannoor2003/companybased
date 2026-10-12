@@ -27,7 +27,7 @@
             @foreach ($visibleTabs as $tab)
                 <a
                     href="{{ route($tab['route']) }}"
-                    class="{{ request()->routeIs($tab['route']) || request()->routeIs($tab['route'].'*') ? 'bg-primary/10 text-primary' : 'text-ink-soft hover:bg-surface-muted hover:text-ink' }} flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors"
+                    class="{{ request()->routeIs($tab['route']) || request()->routeIs($tab['route'].'*') ? 'bg-primary/10 text-primary-ink' : 'text-ink-soft hover:bg-surface-muted hover:text-ink' }} flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors"
                 >
                     <x-icon :name="$tab['icon']" class="size-4" />
                     {{ $tab['label'] }}

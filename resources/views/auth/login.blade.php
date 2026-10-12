@@ -40,7 +40,7 @@
              The password.request route and screen still exist and are reachable
              directly; they are simply not advertised on the login page. --}}
         <label for="remember_me" class="flex cursor-pointer items-center gap-2">
-            <input id="remember_me" type="checkbox" class="size-4 rounded border-line text-primary shadow-sm focus:ring-primary" name="remember">
+            <input id="remember_me" type="checkbox" class="size-4 rounded border-line text-primary-ink shadow-sm focus:ring-primary" name="remember">
             <span class="text-sm text-ink-soft">{{ __('Remember me') }}</span>
         </label>
 

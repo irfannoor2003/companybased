@@ -100,7 +100,7 @@
                                 <td><x-badge color="neutral">{{ $label }}</x-badge></td>
                                 <td>
                                     @if ($url)
-                                        <a href="{{ $url }}" class="font-medium text-ink hover:text-primary">{{ $trackable?->number }}</a>
+                                        <a href="{{ $url }}" class="font-medium text-ink hover:text-primary-ink">{{ $trackable?->number }}</a>
                                     @else
                                         <span class="text-ink-faint">#{{ $event->trackable_id }}</span>
                                     @endif

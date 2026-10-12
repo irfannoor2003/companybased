@@ -21,7 +21,7 @@
                                         <div>
                                             <p class="font-semibold text-ink">{{ $template->name }}</p>
                                             @if ($template->is_default)
-                                                <span class="inline-block rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">Default</span>
+                                                <span class="inline-block rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary-ink">Default</span>
                                             @endif
                                             @if ($template->is_system)
                                                 <span class="inline-block rounded bg-ink-soft/10 px-1.5 py-0.5 text-[10px] font-medium text-ink-soft">System</span>

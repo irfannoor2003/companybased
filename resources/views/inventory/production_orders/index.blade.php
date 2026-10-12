@@ -61,7 +61,7 @@
                     <tbody>
                         @foreach ($orders as $order)
                             <tr>
-                                <td class="font-mono text-xs font-medium text-primary">{{ $order->number }}</td>
+                                <td class="font-mono text-xs font-medium text-primary-ink">{{ $order->number }}</td>
                                 <td class="font-medium text-ink">{{ $order->item?->product?->name }}</td>
                                 <td class="text-right text-ink-soft">{{ $order->quantity }}</td>
                                 <td class="text-ink-soft">{{ $order->warehouse?->name }}</td>

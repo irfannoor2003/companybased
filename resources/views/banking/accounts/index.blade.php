@@ -69,7 +69,7 @@
                             @foreach ($accounts as $account)
                                 <tr>
                                     <td>
-                                        <a href="{{ route('banking.accounts.show', $account) }}" class="font-medium text-ink hover:text-primary">
+                                        <a href="{{ route('banking.accounts.show', $account) }}" class="font-medium text-ink hover:text-primary-ink">
                                             {{ $account->name }}
                                         </a>
                                         @if ($account->account_number)

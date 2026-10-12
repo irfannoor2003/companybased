@@ -77,7 +77,7 @@
                 <div class="mt-4">
                     <x-badge color="success" dot>Issued</x-badge>
                     @if ($creditNote->invoice)
-                        <p class="mt-2 text-xs text-ink-faint">Against invoice <a href="{{ route('sales.invoices.edit', $creditNote->invoice) }}" class="text-primary hover:underline">{{ $creditNote->invoice->number }}</a></p>
+                        <p class="mt-2 text-xs text-ink-faint">Against invoice <a href="{{ route('sales.invoices.edit', $creditNote->invoice) }}" class="text-primary-ink hover:underline">{{ $creditNote->invoice->number }}</a></p>
                     @endif
                 </div>
             </x-card>

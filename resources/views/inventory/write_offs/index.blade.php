@@ -61,7 +61,7 @@
                     <tbody>
                         @foreach ($writeOffs as $writeOff)
                             <tr>
-                                <td class="font-mono text-xs font-medium text-primary">{{ $writeOff->number }}</td>
+                                <td class="font-mono text-xs font-medium text-primary-ink">{{ $writeOff->number }}</td>
                                 <td class="text-ink-soft">{{ $writeOff->warehouse?->name }}</td>
                                 <td class="whitespace-nowrap text-ink-soft">{{ $writeOff->write_off_date?->format('Y-m-d') }}</td>
                                 <td class="max-w-[200px] truncate text-ink-soft">{{ $writeOff->reason ?? '—' }}</td>

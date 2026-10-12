@@ -26,7 +26,7 @@
         </x-card>
 
         <div class="flex flex-wrap items-center gap-2 rounded-xl border border-primary/15 bg-primary/5 px-4 py-3 text-sm text-ink-soft">
-            <x-icon name="calendar" class="size-4 text-primary" />
+            <x-icon name="calendar" class="size-4 text-primary-ink" />
             Showing <strong class="text-ink">{{ $from->format('d M Y') }}</strong> to <strong class="text-ink">{{ $to->format('d M Y') }}</strong>
             <span class="text-ink-faint">·</span>
             <span>{{ ucfirst($period) }} period</span>
@@ -69,7 +69,7 @@
                 <dl class="divide-y divide-line">
                     <div class="flex items-center justify-between py-3"><dt class="text-sm text-ink-soft">Active customers</dt><dd class="font-semibold text-ink">{{ number_format($summary['customers']) }}</dd></div>
                     <div class="flex items-center justify-between py-3"><dt class="text-sm text-ink-soft">Invoices</dt><dd class="font-semibold text-ink">{{ number_format($summary['sales_orders']) }}</dd></div>
-                    <div class="flex items-center justify-between py-3"><dt class="text-sm text-ink-soft">Revenue</dt><dd class="font-semibold text-primary">{{ money($summary['sales_revenue']) }}</dd></div>
+                    <div class="flex items-center justify-between py-3"><dt class="text-sm text-ink-soft">Revenue</dt><dd class="font-semibold text-primary-ink">{{ money($summary['sales_revenue']) }}</dd></div>
                     <div class="flex items-center justify-between py-3"><dt class="text-sm text-ink-soft">Collected</dt><dd class="font-semibold text-emerald-600">{{ money($summary['sales_collected']) }}</dd></div>
                 </dl>
             </x-card>
@@ -77,7 +77,7 @@
                 <dl class="divide-y divide-line">
                     <div class="flex items-center justify-between py-3"><dt class="text-sm text-ink-soft">Active employees</dt><dd class="font-semibold text-ink">{{ number_format($summary['employees']) }}</dd></div>
                     <div class="flex items-center justify-between py-3"><dt class="text-sm text-ink-soft">Attendance records</dt><dd class="font-semibold text-ink">{{ number_format($summary['attendance_records']) }}</dd></div>
-                    <div class="flex items-center justify-between py-3"><dt class="text-sm text-ink-soft">POS revenue</dt><dd class="font-semibold text-primary">{{ money($summary['pos_revenue']) }}</dd></div>
+                    <div class="flex items-center justify-between py-3"><dt class="text-sm text-ink-soft">POS revenue</dt><dd class="font-semibold text-primary-ink">{{ money($summary['pos_revenue']) }}</dd></div>
                     <div class="flex items-center justify-between py-3"><dt class="text-sm text-ink-soft">Customer visits</dt><dd class="font-semibold text-ink">{{ number_format($summary['visits']) }}</dd></div>
                 </dl>
             </x-card>
@@ -85,7 +85,7 @@
                 <dl class="divide-y divide-line">
                     <div class="flex items-center justify-between py-3"><dt class="text-sm text-ink-soft">Assets added</dt><dd class="font-semibold text-ink">{{ number_format($summary['assets_added']) }}</dd></div>
                     <div class="flex items-center justify-between py-3"><dt class="text-sm text-ink-soft">Investments added</dt><dd class="font-semibold text-ink">{{ number_format($summary['investments_added']) }}</dd></div>
-                    <div class="flex items-center justify-between py-3"><dt class="text-sm text-ink-soft">Capital contributed</dt><dd class="font-semibold text-primary">{{ money($summary['capital_added']) }}</dd></div>
+                    <div class="flex items-center justify-between py-3"><dt class="text-sm text-ink-soft">Capital contributed</dt><dd class="font-semibold text-primary-ink">{{ money($summary['capital_added']) }}</dd></div>
                     <div class="flex items-center justify-between py-3"><dt class="text-sm text-ink-soft">Low stock alerts</dt><dd class="font-semibold {{ $summary['low_stock'] ? 'text-amber-600' : 'text-emerald-600' }}">{{ number_format($summary['low_stock']) }}</dd></div>
                 </dl>
             </x-card>

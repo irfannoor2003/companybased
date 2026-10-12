@@ -59,7 +59,7 @@
                             @foreach ($budgets as $budget)
                                 <tr>
                                     <td>
-                                        <a href="{{ route('accounting.budgets.show', $budget) }}" class="font-medium text-ink hover:text-primary">
+                                        <a href="{{ route('accounting.budgets.show', $budget) }}" class="font-medium text-ink hover:text-primary-ink">
                                             {{ $budget->name }}
                                         </a>
                                     </td>

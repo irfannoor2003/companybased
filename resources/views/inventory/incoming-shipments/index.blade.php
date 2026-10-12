@@ -35,7 +35,7 @@
                 </x-select>
             </div>
             <label class="flex items-center gap-2 text-sm text-ink-soft">
-                <input type="checkbox" name="overdue" value="1" @checked(request('overdue')) class="size-4 rounded border-line text-primary focus:ring-primary">
+                <input type="checkbox" name="overdue" value="1" @checked(request('overdue')) class="size-4 rounded border-line text-primary-ink focus:ring-primary">
                 Overdue (not approved)
             </label>
             <div class="flex gap-2">
@@ -65,7 +65,7 @@
                     <tbody>
                         @foreach ($shipments as $shipment)
                             <tr>
-                                <td class="font-mono text-xs font-medium text-primary">{{ $shipment->number }}</td>
+                                <td class="font-mono text-xs font-medium text-primary-ink">{{ $shipment->number }}</td>
                                 <td class="text-ink-soft">{{ $shipment->supplier?->company_name ?? '—' }}</td>
                                 <td class="text-ink-soft">{{ $shipment->warehouse?->name ?? '—' }}</td>
                                 <td class="whitespace-nowrap text-ink-soft">{{ $shipment->expected_arrival_at?->format('Y-m-d') ?: '—' }}</td>

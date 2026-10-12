@@ -25,7 +25,7 @@
                         @foreach ($roles as $role)
                             <label class="flex cursor-pointer items-center gap-3 rounded-lg border border-line px-3 py-2.5 transition-colors has-[:checked]:border-primary has-[:checked]:bg-primary/5">
                                 <input type="checkbox" name="roles[]" value="{{ $role->id }}" @checked(in_array($role->id, old('roles', [])))
-                                    class="size-4 rounded border-line text-primary focus:ring-primary">
+                                    class="size-4 rounded border-line text-primary-ink focus:ring-primary">
                                 <span class="min-w-0">
                                     <span class="block text-sm font-medium text-ink">{{ $role->label ?: $role->name }}</span>
                                     <span class="block truncate text-xs text-ink-faint">{{ $role->description }}</span>

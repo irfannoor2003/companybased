@@ -97,7 +97,7 @@
                 <div class="mt-4">
                     <x-sales.status-badge :status="$quote->status" />
                     @if ($quote->order)
-                        <p class="mt-2 text-xs text-ink-faint">Converted to <a href="{{ route('sales.orders.edit', $quote->order) }}" class="text-primary hover:underline">{{ $quote->order->number }}</a></p>
+                        <p class="mt-2 text-xs text-ink-faint">Converted to <a href="{{ route('sales.orders.edit', $quote->order) }}" class="text-primary-ink hover:underline">{{ $quote->order->number }}</a></p>
                     @endif
                 </div>
             </x-card>

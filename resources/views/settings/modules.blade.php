@@ -11,7 +11,7 @@
                 <div class="surface-card p-5 {{ $module->is_core ? 'opacity-90' : '' }}">
                     <div class="flex items-start justify-between gap-3">
                         <div class="flex items-center gap-3">
-                            <div class="flex size-10 shrink-0 items-center justify-center rounded-lg {{ $module->enabled ? 'bg-primary/10 text-primary' : 'bg-surface-muted text-ink-faint' }}">
+                            <div class="flex size-10 shrink-0 items-center justify-center rounded-lg {{ $module->enabled ? 'bg-primary/10 text-primary-ink' : 'bg-surface-muted text-ink-faint' }}">
                                 <x-icon :name="$module->icon" class="size-5" />
                             </div>
                             <div class="min-w-0">

@@ -55,7 +55,7 @@
                             @foreach ($departments as $department)
                                 <tr>
                                     <td>
-                                        <a href="{{ route('employees.departments.show', $department) }}" class="font-medium text-ink hover:text-primary">
+                                        <a href="{{ route('employees.departments.show', $department) }}" class="font-medium text-ink hover:text-primary-ink">
                                             {{ $department->name }}
                                         </a>
                                     </td>

@@ -30,7 +30,7 @@
                     <div class="mt-1 space-y-2">
                         @foreach ([config('roles.salesman'), config('roles.employee'), config('roles.inventory_manager')] as $role)
                             <label class="flex items-center gap-2">
-                                <input type="checkbox" name="roles[]" value="{{ $role }}" @checked(in_array($role, old('roles', $rule->roles ?? []))) class="rounded border-line text-primary focus:ring-primary">
+                                <input type="checkbox" name="roles[]" value="{{ $role }}" @checked(in_array($role, old('roles', $rule->roles ?? []))) class="rounded border-line text-primary-ink focus:ring-primary">
                                 <span class="text-sm text-ink">{{ $role }}</span>
                             </label>
                         @endforeach
@@ -38,7 +38,7 @@
                 </div>
 
                 <div class="flex items-center gap-3">
-                    <input type="checkbox" name="is_active" value="1" @checked(old('is_active', $rule->is_active)) class="rounded border-line text-primary focus:ring-primary">
+                    <input type="checkbox" name="is_active" value="1" @checked(old('is_active', $rule->is_active)) class="rounded border-line text-primary-ink focus:ring-primary">
                     <label class="text-sm text-ink">Active</label>
                 </div>
             </div>

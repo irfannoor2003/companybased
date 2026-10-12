@@ -58,7 +58,7 @@
                         @foreach ($receipts as $receipt)
                             <tr>
                                 <td>
-                                    <a href="{{ route('sales.withholding_tax_receipts.edit', $receipt) }}" class="font-medium text-ink hover:text-primary">{{ $receipt->number }}</a>
+                                    <a href="{{ route('sales.withholding_tax_receipts.edit', $receipt) }}" class="font-medium text-ink hover:text-primary-ink">{{ $receipt->number }}</a>
                                 </td>
                                 <td class="text-ink-soft">{{ $receipt->customer?->company_name }}</td>
                                 <td class="text-ink-soft">{{ $receipt->receipt_date?->format('Y-m-d') }}</td>

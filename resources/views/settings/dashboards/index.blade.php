@@ -15,7 +15,7 @@
                             <span class="block truncate text-sm font-semibold text-ink">{{ $item->label ?: $item->name }}</span>
                             <span class="block text-xs text-ink-faint">{{ $item->users_count ?? $item->users()->count() }} users</span>
                         </span>
-                        @if ($item->id === $role->id)<x-icon name="chevron-right" class="size-4 text-primary" />@endif
+                        @if ($item->id === $role->id)<x-icon name="chevron-right" class="size-4 text-primary-ink" />@endif
                     </a>
                 @endforeach
             </nav>
@@ -30,16 +30,16 @@
                         <p class="text-sm font-semibold text-ink">Permission-aware layout</p>
                         <p class="mt-1 text-xs leading-5 text-ink-soft">Select the widgets this role should see. A widget disappears automatically if the role no longer has its required permission.</p>
                     </div>
-                    <x-icon name="shield" class="size-5 shrink-0 text-primary" />
+                    <x-icon name="shield" class="size-5 shrink-0 text-primary-ink" />
                 </div>
 
                 <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
                     @foreach ($definitions as $key => $definition)
                         @php $isVisible = ! $preferences->isNotEmpty() || $preferences->get($key)?->is_visible; @endphp
                         <label class="group flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition {{ $isVisible ? 'border-primary/30 bg-primary/5' : 'border-line bg-surface hover:border-primary/20' }}">
-                            <input type="checkbox" name="widgets[]" value="{{ $key }}" @checked($isVisible) class="mt-1 size-4 rounded border-line text-primary focus:ring-primary/30">
+                            <input type="checkbox" name="widgets[]" value="{{ $key }}" @checked($isVisible) class="mt-1 size-4 rounded border-line text-primary-ink focus:ring-primary/30">
                             <span class="min-w-0 flex-1">
-                                <span class="flex items-center gap-2 text-sm font-semibold text-ink"><x-icon :name="$definition['icon']" class="size-4 text-primary" />{{ $definition['label'] }}</span>
+                                <span class="flex items-center gap-2 text-sm font-semibold text-ink"><x-icon :name="$definition['icon']" class="size-4 text-primary-ink" />{{ $definition['label'] }}</span>
                                 <span class="mt-1 block text-xs leading-5 text-ink-soft">{{ $definition['description'] }}</span>
                                 <span class="mt-2 inline-flex rounded-full bg-surface-muted px-2 py-0.5 text-[11px] font-medium text-ink-faint">{{ $definition['section'] }}</span>
                             </span>

@@ -51,7 +51,7 @@
                         <tbody>
                             @foreach ($account->journalItems as $item)
                                 <tr>
-                                    <td><span class="font-mono text-xs font-medium text-primary">{{ $item->entry?->number }}</span></td>
+                                    <td><span class="font-mono text-xs font-medium text-primary-ink">{{ $item->entry?->number }}</span></td>
                                     <td class="text-ink-soft">{{ $item->entry?->entry_date?->format('Y-m-d') }}</td>
                                     <td class="text-ink-soft">{{ $item->memo ?: '—' }}</td>
                                     <td class="text-right text-ink">{{ $item->debit > 0 ? money($item->debit) : '—' }}</td>

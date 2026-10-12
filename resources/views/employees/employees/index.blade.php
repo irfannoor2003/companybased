@@ -70,7 +70,7 @@
                             @foreach ($employees as $employee)
                                 <tr>
                                     <td>
-                                        <a href="{{ route('employees.employees.show', $employee) }}" class="font-medium text-ink hover:text-primary">
+                                        <a href="{{ route('employees.employees.show', $employee) }}" class="font-medium text-ink hover:text-primary-ink">
                                             {{ $employee->fullName() }}
                                         </a>
                                         @if ($employee->email)

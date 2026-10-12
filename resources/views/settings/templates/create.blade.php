@@ -56,11 +56,11 @@
                     @endforeach
                 </x-select>
                 <div class="flex items-center gap-3 pt-6">
-                    <input type="checkbox" name="show_logo" value="1" @checked(old('show_logo', true)) class="rounded border-line text-primary focus:ring-primary">
+                    <input type="checkbox" name="show_logo" value="1" @checked(old('show_logo', true)) class="rounded border-line text-primary-ink focus:ring-primary">
                     <label class="text-sm text-ink">Show company logo</label>
                 </div>
                 <div class="flex items-center gap-3 pt-6">
-                    <input type="checkbox" name="show_tax" value="1" @checked(old('show_tax', true)) class="rounded border-line text-primary focus:ring-primary">
+                    <input type="checkbox" name="show_tax" value="1" @checked(old('show_tax', true)) class="rounded border-line text-primary-ink focus:ring-primary">
                     <label class="text-sm text-ink">Show tax details</label>
                 </div>
             </div>
@@ -75,7 +75,7 @@
         </x-card>
 
         <div class="flex items-center gap-3">
-            <input type="checkbox" name="is_default" value="1" @checked(old('is_default')) class="rounded border-line text-primary focus:ring-primary">
+            <input type="checkbox" name="is_default" value="1" @checked(old('is_default')) class="rounded border-line text-primary-ink focus:ring-primary">
             <label class="text-sm text-ink">Set as default template for this document type</label>
         </div>
 

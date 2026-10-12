@@ -40,7 +40,7 @@
                         @foreach (['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as $day)
                             @php $checked = in_array($day, old('weekend_days', $rules['weekend_days']), true); @endphp
                             <label class="flex cursor-pointer items-center gap-2">
-                                <input type="checkbox" name="weekend_days[]" value="{{ $day }}" {{ $checked ? 'checked' : '' }} class="size-4 rounded border-line text-primary focus:ring-primary" />
+                                <input type="checkbox" name="weekend_days[]" value="{{ $day }}" {{ $checked ? 'checked' : '' }} class="size-4 rounded border-line text-primary-ink focus:ring-primary" />
                                 <span class="text-sm text-ink">{{ $day }}</span>
                             </label>
                         @endforeach

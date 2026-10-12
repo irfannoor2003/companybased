@@ -70,7 +70,7 @@
                             @foreach ($entries as $entry)
                                 <tr>
                                     <td>
-                                        <a href="{{ route('accounting.journal.show', $entry) }}" class="font-mono text-xs font-medium text-primary hover:underline">
+                                        <a href="{{ route('accounting.journal.show', $entry) }}" class="font-mono text-xs font-medium text-primary-ink hover:underline">
                                             {{ $entry->number }}
                                         </a>
                                     </td>

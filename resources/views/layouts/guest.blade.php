@@ -20,16 +20,35 @@
             :root {
                 --color-primary: {{ $appBrand['primaryRgb'] }};
                 --color-primary-strong: {{ $appBrand['primaryStrongRgb'] }};
+                --color-primary-ink: {{ $appBrand['primaryRgb'] }};
                 --color-accent: {{ $appBrand['accentRgb'] }};
+            }
+
+            .dark {
+                --color-primary-ink: {{ $appBrand['primaryInkRgb'] }};
             }
         </style>
 
+        {{--
+            Three-tier, matching layouts/app.blade.php exactly: an explicit choice,
+            then the tenant's configured default, then the OS.
+
+            This previously fell back straight to the OS, ignoring
+            `branding.dark_mode`. An organisation set to dark therefore got a LIGHT
+            login page and then a dark app the moment it signed in -- the theme
+            visibly flipping with no user action. `window.__cbTheme` was also unset
+            here, so anything reading it on a guest page got undefined.
+        --}}
         <script>
             (function () {
                 var stored = localStorage.getItem('cb-theme');
+                var serverDefault = '{{ $appBrand['darkMode'] }}';
                 var pref = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-                var theme = stored === 'dark' || stored === 'light' ? stored : pref;
+                var theme = stored === 'dark' || stored === 'light'
+                    ? stored
+                    : (serverDefault === 'dark' || serverDefault === 'light' ? serverDefault : pref);
                 if (theme === 'dark') document.documentElement.classList.add('dark');
+                window.__cbTheme = theme;
             })();
         </script>
     </head>

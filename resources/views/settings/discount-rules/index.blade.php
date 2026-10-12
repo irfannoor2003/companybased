@@ -27,7 +27,7 @@
                                 Type: {{ ucfirst($rule->type) }}
                             </span>
                             @foreach ($rule->roles as $role)
-                                <span class="rounded bg-primary/10 px-2 py-1 text-xs font-medium text-primary">{{ $role }}</span>
+                                <span class="rounded bg-primary/10 px-2 py-1 text-xs font-medium text-primary-ink">{{ $role }}</span>
                             @endforeach
                         </div>
                     </div>

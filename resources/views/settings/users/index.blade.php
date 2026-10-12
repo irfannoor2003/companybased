@@ -56,7 +56,7 @@
                                 <tr>
                                     <td>
                                         <div class="flex items-center gap-3">
-                                            <div class="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary">
+                                            <div class="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary-ink">
                                                 {{ $user->initials() }}
                                             </div>
                                             <div class="min-w-0">

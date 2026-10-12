@@ -73,7 +73,7 @@
                         </tr>
                         <tr>
                             <td class="font-semibold text-ink">Total liabilities & equity</td>
-                            <td class="text-right font-bold text-primary">{{ money($balanceSheet['liabilities'] + $balanceSheet['equity'] + $balanceSheet['retained']) }}</td>
+                            <td class="text-right font-bold text-primary-ink">{{ money($balanceSheet['liabilities'] + $balanceSheet['equity'] + $balanceSheet['retained']) }}</td>
                         </tr>
                     </tbody>
                 </table>

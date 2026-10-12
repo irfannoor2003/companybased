@@ -57,7 +57,7 @@
                                         'pointer-events-none opacity-60' => ! $item['url'],
                                     ])
                                 >
-                                    <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                                    <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary-ink">
                                         <x-icon :name="$item['icon']" class="size-4" />
                                     </div>
                                     <div class="min-w-0 flex-1">

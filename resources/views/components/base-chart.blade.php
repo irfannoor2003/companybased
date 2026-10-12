@@ -17,11 +17,21 @@
             var el = document.getElementById(@json($chartId));
             if (!el || !window.Chart || el.dataset.cbRendered) return;
             el.dataset.cbRendered = '1';
-            new window.Chart(el.getContext('2d'), {
+            var chart = new window.Chart(el.getContext('2d'), {
                 type: @json($type),
                 data: {!! $data !!},
                 options: {!! $options !!}
             });
+
+            /**
+             * Chart.js does not read CSS custom properties, so the server-supplied
+             * options bring light-mode axis and grid colours with them. Re-tint from
+             * the live tokens now, and re-tint again whenever the theme is toggled
+             * (see the cb:themechange listener in app.js).
+             */
+            if (window.__cbThemeChart) {
+                window.__cbThemeChart(chart);
+            }
         };
 
         window.__cbRenderCharts = window.__cbRenderCharts || [];

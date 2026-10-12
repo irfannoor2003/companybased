@@ -42,7 +42,7 @@
                 <tr>
                     <td>
                         <a href="{{ route('accounting.fiscal_periods.show', $period) }}"
-                           class="font-medium text-primary">{{ $period->label() }}</a>
+                           class="font-medium text-primary-ink">{{ $period->label() }}</a>
                     </td>
                     <td>{{ $period->start_date->format('Y-m-d') }} to {{ $period->end_date->format('Y-m-d') }}</td>
                     <td>@include('accounting.fiscal_periods.partials.status', ['period' => $period])</td>

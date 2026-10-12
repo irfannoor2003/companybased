@@ -47,7 +47,7 @@
                     <p class="text-sm text-ink-faint">Issue date: {{ $invoice->issue_date?->format('Y-m-d') }}</p>
                     <p class="text-sm text-ink-faint">Due date: {{ $invoice->due_date?->format('Y-m-d') ?: '—' }}</p>
                     @if ($invoice->productionOrder)
-                        <p class="text-sm text-ink-faint">Against production order: <a href="{{ route('inventory.production_orders.show', $invoice->productionOrder) }}" class="text-primary underline">{{ $invoice->productionOrder->number }}</a></p>
+                        <p class="text-sm text-ink-faint">Against production order: <a href="{{ route('inventory.production_orders.show', $invoice->productionOrder) }}" class="text-primary-ink underline">{{ $invoice->productionOrder->number }}</a></p>
                     @endif
                     <p class="text-sm text-ink-faint">Status: {{ ucfirst(str_replace('_', ' ', $invoice->status)) }}</p>
                 </div>

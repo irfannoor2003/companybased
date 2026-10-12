@@ -52,7 +52,7 @@
                         @foreach ($warehouses as $warehouse)
                             <tr>
                                 <td>
-                                    <span class="inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 font-mono text-xs font-medium text-primary">
+                                    <span class="inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 font-mono text-xs font-medium text-primary-ink">
                                         {{ $warehouse->code }}
                                     </span>
                                 </td>

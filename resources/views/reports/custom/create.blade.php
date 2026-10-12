@@ -116,7 +116,7 @@
                                         :value="field.key"
                                         @change="toggleField(field.key)"
                                         :checked="selectedFields.includes(field.key)"
-                                        class="size-4 rounded border-line text-primary"
+                                        class="size-4 rounded border-line text-primary-ink"
                                     />
                                     <span class="text-sm" x-text="field.label"></span>
                                 </label>
@@ -197,7 +197,7 @@
 
                     <x-card>
                         <div class="flex gap-3">
-                            <div class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                            <div class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary-ink">
                                 <x-icon name="info" class="size-4" />
                             </div>
                             <div>

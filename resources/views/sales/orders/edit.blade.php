@@ -126,7 +126,7 @@
             @if ($order->deliveryNotes->isNotEmpty())
                 <x-card title="Delivery notes">
                     @foreach ($order->deliveryNotes as $dn)
-                        <a href="{{ route('sales.delivery_notes.edit', $dn) }}" class="flex items-center justify-between py-1 text-sm hover:text-primary">
+                        <a href="{{ route('sales.delivery_notes.edit', $dn) }}" class="flex items-center justify-between py-1 text-sm hover:text-primary-ink">
                             <span class="font-medium text-ink">{{ $dn->number }}</span>
                             <x-sales.status-badge :status="$dn->status" />
                         </a>

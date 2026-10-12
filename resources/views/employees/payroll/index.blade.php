@@ -54,7 +54,7 @@
                             @foreach ($runs as $run)
                                 <tr>
                                     <td>
-                                        <a href="{{ route('employees.payroll.show', $run) }}" class="font-mono font-medium text-ink hover:text-primary">
+                                        <a href="{{ route('employees.payroll.show', $run) }}" class="font-mono font-medium text-ink hover:text-primary-ink">
                                             {{ $run->number }}
                                         </a>
                                     </td>

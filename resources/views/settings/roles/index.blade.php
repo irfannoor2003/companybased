@@ -17,7 +17,7 @@
                 <div class="surface-card flex flex-col p-5">
                     <div class="flex items-start justify-between gap-3">
                         <div class="flex items-center gap-3">
-                            <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                            <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary-ink">
                                 <x-icon name="shield" class="size-5" />
                             </div>
                             <div class="min-w-0">

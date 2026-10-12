@@ -32,7 +32,7 @@
                      <div class="border-t border-line pt-3"><dt class="text-ink-faint">Conclusion</dt><dd class="mt-1 whitespace-pre-line text-ink-soft">{{ $visit->outcome_notes }}</dd></div>
                  @endif
                  @if ($visit->completion_image_path)
-                     <div class="border-t border-line pt-3"><dt class="text-ink-faint">Visit image</dt><dd class="mt-2"><a href="{{ route('visits.completion-image', $visit) }}" target="_blank" class="inline-flex items-center gap-1 text-sm text-primary"><x-icon name="eye" class="size-4" /> View image</a></dd></div>
+                     <div class="border-t border-line pt-3"><dt class="text-ink-faint">Visit image</dt><dd class="mt-2"><a href="{{ route('visits.completion-image', $visit) }}" target="_blank" class="inline-flex items-center gap-1 text-sm text-primary-ink"><x-icon name="eye" class="size-4" /> View image</a></dd></div>
                  @endif
                  @if ($visit->notes)
                      <div class="border-t border-line pt-3"><dt class="text-ink-faint">Notes</dt><dd class="mt-1 whitespace-pre-line text-ink-soft">{{ $visit->notes }}</dd></div>
@@ -118,7 +118,7 @@
                                 <div class="flex items-start justify-between gap-3 px-5 py-3">
                                     <div class="min-w-0">
                                         <p class="text-sm font-medium text-ink">
-                                            <span class="mr-2 inline-flex size-5 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">{{ $i + 1 }}</span>
+                                            <span class="mr-2 inline-flex size-5 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary-ink">{{ $i + 1 }}</span>
                                             {{ $stop->customer?->company_name ?: 'Direct' }}
                                         </p>
                                         <p class="mt-0.5 text-xs text-ink-faint">

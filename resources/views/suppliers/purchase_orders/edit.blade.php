@@ -173,7 +173,7 @@
             @if ($order->invoices->isNotEmpty())
                 <x-card title="Invoices">
                     @foreach ($order->invoices as $inv)
-                        <a href="{{ route('suppliers.purchase_invoices.edit', $inv) }}" class="flex items-center justify-between py-1 text-sm hover:text-primary">
+                        <a href="{{ route('suppliers.purchase_invoices.edit', $inv) }}" class="flex items-center justify-between py-1 text-sm hover:text-primary-ink">
                             <span class="font-medium text-ink">{{ $inv->number }}</span>
                             <x-suppliers.status-badge :status="$inv->status" />
                         </a>

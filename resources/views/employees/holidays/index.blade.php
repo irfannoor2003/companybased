@@ -17,8 +17,8 @@
                     <div class="px-5 py-4" x-data="{ editing: false }">
                         <div class="flex items-center gap-4">
                             <div class="w-16 shrink-0 rounded-xl bg-primary/10 p-2 text-center">
-                                <p class="text-lg font-bold text-primary">{{ $holiday->holiday_date->format('d') }}</p>
-                                <p class="text-[10px] font-semibold uppercase text-primary">{{ $holiday->holiday_date->format('M') }}</p>
+                                <p class="text-lg font-bold text-primary-ink">{{ $holiday->holiday_date->format('d') }}</p>
+                                <p class="text-[10px] font-semibold uppercase text-primary-ink">{{ $holiday->holiday_date->format('M') }}</p>
                             </div>
                             <div class="min-w-0 flex-1">
                                 <p class="text-sm font-semibold text-ink">{{ $holiday->name }} @if ($holiday->is_default)<x-badge color="info">Default</x-badge>@endif</p>
@@ -53,7 +53,7 @@
                                         value="{{ old('description', $holiday->description) }}" />
                                 </div>
                                 <label class="flex items-center gap-2 text-sm text-ink-soft">
-                                    <input type="checkbox" name="is_active" value="1" @checked($holiday->is_active) class="size-4 rounded border-line text-primary">
+                                    <input type="checkbox" name="is_active" value="1" @checked($holiday->is_active) class="size-4 rounded border-line text-primary-ink">
                                     Mark as active
                                 </label>
                                 <div class="flex gap-2">
@@ -76,7 +76,7 @@
                     <x-input name="holiday_date" label="Date" type="date" required :error="$errors->first('holiday_date')" />
                     <x-input name="name" label="Holiday name" required placeholder="e.g. Company Foundation Day" :error="$errors->first('name')" />
                     <x-textarea name="description" label="Description" placeholder="Optional note for HR and payroll" />
-                    <label class="flex items-center gap-2 text-sm text-ink-soft"><input type="checkbox" name="is_active" value="1" checked class="size-4 rounded border-line text-primary"> Mark as active</label>
+                    <label class="flex items-center gap-2 text-sm text-ink-soft"><input type="checkbox" name="is_active" value="1" checked class="size-4 rounded border-line text-primary-ink"> Mark as active</label>
                     <x-button type="submit" class="w-full" icon="plus">Add holiday</x-button>
                 </form>
             </x-card>

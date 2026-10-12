@@ -16,7 +16,7 @@
                     $active = request()->routeIs($tab['route']) || request()->routeIs(str_replace('.index', '.', $tab['route']).'*');
                 @endphp
                 <a href="{{ route($tab['route']) }}"
-                    class="inline-flex items-center gap-2 rounded-t-lg px-4 py-2.5 text-sm font-medium transition {{ $active ? 'border-b-2 border-primary bg-primary/5 text-primary' : 'text-ink-soft hover:bg-surface-muted/60 hover:text-ink' }}">
+                    class="inline-flex items-center gap-2 rounded-t-lg px-4 py-2.5 text-sm font-medium transition {{ $active ? 'border-b-2 border-primary bg-primary/5 text-primary-ink' : 'text-ink-soft hover:bg-surface-muted/60 hover:text-ink' }}">
                     <x-icon :name="$tab['icon']" class="size-4" />
                     {{ $tab['label'] }}
                 </a>

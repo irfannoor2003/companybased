@@ -49,7 +49,7 @@
 
                     @if ($widget['type'] === 'chart')
                         <x-card title="{{ $widget['label'] }}" description="{{ $widget['description'] }}" class="h-full">
-                            <x-slot name="actions"><div class="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary"><x-icon :name="$widget['icon']" class="size-4" /></div></x-slot>
+                            <x-slot name="actions"><div class="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary-ink"><x-icon :name="$widget['icon']" class="size-4" /></div></x-slot>
                             <div class="h-72">
                                 <x-base-chart
                                     type="line"
@@ -62,7 +62,7 @@
                     @elseif ($widget['type'] === 'metrics' || $widget['type'] === 'progress')
                         <x-card title="{{ $widget['label'] }}" description="{{ $widget['description'] }}" class="h-full">
                             <x-slot name="actions">
-                                <div class="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                                <div class="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary-ink">
                                     <x-icon :name="$widget['icon']" class="size-4" />
                                 </div>
                             </x-slot>
@@ -70,7 +70,7 @@
                                 @foreach ($items as $item)
                                     @php
                                         $toneClasses = [
-                                            'primary' => 'bg-primary/10 text-primary',
+                                            'primary' => 'bg-primary/10 text-primary-ink',
                                             'success' => 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400',
                                             'warning' => 'bg-amber-100 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400',
                                             'danger' => 'bg-rose-100 text-rose-600 dark:bg-rose-500/15 dark:text-rose-400',
@@ -98,13 +98,13 @@
                         </x-card>
                     @elseif ($widget['type'] === 'actions')
                         <x-card title="{{ $widget['label'] }}" description="{{ $widget['description'] }}" class="h-full">
-                            <x-slot name="actions"><x-icon :name="$widget['icon']" class="size-5 text-primary" /></x-slot>
+                            <x-slot name="actions"><x-icon :name="$widget['icon']" class="size-5 text-primary-ink" /></x-slot>
                             <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
                                 @foreach ($items as $action)
                                     <a href="{{ $action['href'] }}" class="group flex items-center gap-3 rounded-xl border border-line p-3 transition hover:border-primary/30 hover:bg-primary/5">
-                                        <span class="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary"><x-icon :name="$action['icon']" class="size-4" /></span>
+                                        <span class="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary-ink"><x-icon :name="$action['icon']" class="size-4" /></span>
                                         <span class="flex-1 text-sm font-semibold text-ink">{{ $action['label'] }}</span>
-                                        <x-icon name="arrow-right" class="size-4 text-ink-faint transition group-hover:translate-x-0.5 group-hover:text-primary" />
+                                        <x-icon name="arrow-right" class="size-4 text-ink-faint transition group-hover:translate-x-0.5 group-hover:text-primary-ink" />
                                     </a>
                                 @endforeach
                             </div>
@@ -112,7 +112,7 @@
                     @else
                         <x-card title="{{ $widget['label'] }}" description="{{ $widget['description'] }}" class="h-full" :padding="false">
                             <x-slot name="actions">
-                                <div class="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary"><x-icon :name="$widget['icon']" class="size-4" /></div>
+                                <div class="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary-ink"><x-icon :name="$widget['icon']" class="size-4" /></div>
                             </x-slot>
                             <div class="divide-y divide-line">
                                 @forelse ($items as $item)

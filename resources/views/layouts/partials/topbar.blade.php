@@ -63,7 +63,7 @@
                             @click.prevent="select(result)"
                             role="option"
                         >
-                            <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                            <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary-ink">
                                 <x-icon name="document" class="size-4" />
                             </div>
                             <div class="min-w-0 flex-1">
@@ -85,7 +85,7 @@
 
             {{-- "view all" footer --}}
             <div class="border-t border-line px-4 py-2" x-show="! loading && results.length > 0">
-                <button type="button" class="text-xs font-medium text-primary hover:text-primary-strong" @click="submit()">
+                <button type="button" class="text-xs font-medium text-primary-ink hover:text-primary-strong" @click="submit()">
                     View all results
                 </button>
             </div>
@@ -121,7 +121,7 @@
                 @if ($unreadCount > 0)
                     <form method="POST" action="{{ route('notifications.read-all') }}">
                         @csrf
-                        <button type="submit" class="text-xs font-medium text-primary hover:text-primary-strong">Mark all read</button>
+                        <button type="submit" class="text-xs font-medium text-primary-ink hover:text-primary-strong">Mark all read</button>
                     </form>
                 @endif
             </div>
@@ -146,7 +146,7 @@
         <x-dropdown align="right">
             @slot('trigger')
                 <button type="button" class="flex items-center gap-2 rounded-lg p-1.5 transition-colors hover:bg-surface-muted">
-                    <div class="flex size-8 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary">
+                    <div class="flex size-8 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary-ink">
                         {{ auth()->user()->initials() }}
                     </div>
                     <span class="hidden text-sm font-medium text-ink sm:block">{{ auth()->user()->displayName() }}</span>

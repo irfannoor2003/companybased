@@ -82,7 +82,7 @@
                             @foreach ($visits as $visit)
                                 <tr>
                                     <td>
-                                        <a href="{{ route('visits.show', $visit) }}" class="font-mono font-medium text-ink hover:text-primary">
+                                        <a href="{{ route('visits.show', $visit) }}" class="font-mono font-medium text-ink hover:text-primary-ink">
                                             {{ $visit->visit_number }}
                                         </a>
                                         @if ($visit->purpose)

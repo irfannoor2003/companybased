@@ -35,7 +35,7 @@
             @foreach ($summary as $row)
                 <x-card>
                     <div class="flex items-center gap-3">
-                        <div class="flex size-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        <div class="flex size-10 items-center justify-center rounded-full bg-primary/10 text-primary-ink">
                             <x-icon name="users" class="size-5" />
                         </div>
                         <div>
@@ -66,7 +66,7 @@
                         @foreach ($orders as $order)
                             <tr class="hover:bg-surface-muted/50">
                                 <td class="whitespace-nowrap px-4 py-3 font-medium">
-                                    <a href="{{ route('sales.orders.edit', $order) }}" class="text-primary hover:underline">{{ $order->number }}</a>
+                                    <a href="{{ route('sales.orders.edit', $order) }}" class="text-primary-ink hover:underline">{{ $order->number }}</a>
                                 </td>
                                 <td class="whitespace-nowrap px-4 py-3 text-ink-soft">{{ $order->issue_date }}</td>
                                 <td class="whitespace-nowrap px-4 py-3">{{ $order->salesman?->name ?? '—' }}</td>

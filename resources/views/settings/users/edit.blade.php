@@ -25,10 +25,10 @@
                         <span class="label">Account status</span>
                         <div class="flex items-center gap-6 rounded-lg border border-line px-3 py-2.5">
                             <label class="flex cursor-pointer items-center gap-2 text-sm text-ink">
-                                <input type="radio" name="is_active" value="1" @checked(old('is_active', $user->is_active)) class="size-4 text-primary focus:ring-primary"> Active
+                                <input type="radio" name="is_active" value="1" @checked(old('is_active', $user->is_active)) class="size-4 text-primary-ink focus:ring-primary"> Active
                             </label>
                             <label class="flex cursor-pointer items-center gap-2 text-sm text-ink">
-                                <input type="radio" name="is_active" value="0" @checked(old('is_active', $user->is_active) === false || old('is_active') === '0') class="size-4 text-primary focus:ring-primary"> Inactive
+                                <input type="radio" name="is_active" value="0" @checked(old('is_active', $user->is_active) === false || old('is_active') === '0') class="size-4 text-primary-ink focus:ring-primary"> Inactive
                             </label>
                         </div>
                     </div>
@@ -43,7 +43,7 @@
                             <label class="flex cursor-pointer items-center gap-3 rounded-lg border border-line px-3 py-2.5 transition-colors has-[:checked]:border-primary has-[:checked]:bg-primary/5">
                                 <input type="checkbox" name="roles[]" value="{{ $role->id }}"
                                     @checked(in_array($role->id, old('roles', $user->roles->pluck('id')->all())))
-                                    class="size-4 rounded border-line text-primary focus:ring-primary">
+                                    class="size-4 rounded border-line text-primary-ink focus:ring-primary">
                                 <span class="min-w-0">
                                     <span class="block text-sm font-medium text-ink">{{ $role->label ?: $role->name }}</span>
                                     <span class="block truncate text-xs text-ink-faint">{{ $role->description }}</span>

@@ -13,10 +13,10 @@
 
 <x-guest-layout :page-title="$heading">
     <div class="text-center">
-        <div class="mx-auto flex size-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+        <div class="mx-auto flex size-16 items-center justify-center rounded-2xl bg-primary/10 text-primary-ink">
             <x-icon :name="$icon" class="size-8" />
         </div>
-        <p class="mt-6 text-sm font-semibold text-primary">Error {{ $status }}</p>
+        <p class="mt-6 text-sm font-semibold text-primary-ink">Error {{ $status }}</p>
         <h1 class="mt-2 text-2xl font-bold tracking-tight text-ink">{{ $heading }}</h1>
         <p class="mt-2 text-sm leading-6 text-ink-soft">{{ $message }}</p>
         <div class="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">

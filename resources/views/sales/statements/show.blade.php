@@ -59,7 +59,7 @@
                                 </td>
                                 <td>
                                     @if (! empty($entry['url']))
-                                        <a href="{{ $entry['url'] }}" class="font-medium text-primary hover:underline">{{ $entry['reference'] }}</a>
+                                        <a href="{{ $entry['url'] }}" class="font-medium text-primary-ink hover:underline">{{ $entry['reference'] }}</a>
                                     @else
                                         <span class="text-ink-soft">{{ $entry['reference'] }}</span>
                                     @endif

@@ -67,7 +67,7 @@
                         @foreach ($invoices as $invoice)
                             <tr>
                                 <td>
-                                    <a href="{{ route('suppliers.purchase_invoices.edit', $invoice) }}" class="font-medium text-ink hover:text-primary">{{ $invoice->number }}</a>
+                                    <a href="{{ route('suppliers.purchase_invoices.edit', $invoice) }}" class="font-medium text-ink hover:text-primary-ink">{{ $invoice->number }}</a>
                                 </td>
                                 <td class="text-ink-soft">{{ $invoice->supplier?->company_name }}</td>
                                 <td class="text-ink-soft">{{ $invoice->issue_date?->format('Y-m-d') }}</td>

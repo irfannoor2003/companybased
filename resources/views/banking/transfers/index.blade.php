@@ -61,7 +61,7 @@
                     <tbody>
                         @foreach ($transfers as $transfer)
                             <tr>
-                                <td><span class="font-mono text-xs font-medium text-primary">{{ $transfer->number }}</span></td>
+                                <td><span class="font-mono text-xs font-medium text-primary-ink">{{ $transfer->number }}</span></td>
                                 <td class="text-ink-soft">{{ $transfer->transfer_date?->format('Y-m-d') }}</td>
                                 <td class="text-ink">{{ $transfer->fromAccount?->name }}</td>
                                 <td class="text-ink">{{ $transfer->toAccount?->name }}</td>

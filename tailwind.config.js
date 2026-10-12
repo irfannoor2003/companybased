@@ -20,6 +20,7 @@ export default {
             colors: {
                 primary: 'rgb(var(--color-primary) / <alpha-value>)',
                 'primary-strong': 'rgb(var(--color-primary-strong) / <alpha-value>)',
+                'primary-ink': 'rgb(var(--color-primary-ink) / <alpha-value>)',
                 accent: 'rgb(var(--color-accent) / <alpha-value>)',
                 surface: 'rgb(var(--color-surface) / <alpha-value>)',
                 'surface-muted': 'rgb(var(--color-surface-muted) / <alpha-value>)',

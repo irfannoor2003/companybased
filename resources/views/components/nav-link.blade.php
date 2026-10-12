@@ -2,7 +2,7 @@
 
 @php
 $classes = ($active ?? false)
-            ? 'inline-flex items-center px-1 pt-1 border-b-2 border-primary text-sm font-medium leading-5 text-ink focus:outline-none focus:border-indigo-700 transition duration-150 ease-in-out'
+            ? 'inline-flex items-center px-1 pt-1 border-b-2 border-primary text-sm font-medium leading-5 text-ink focus:outline-none focus:border-primary-ink transition duration-150 ease-in-out'
             : 'inline-flex items-center px-1 pt-1 border-b-2 border-transparent text-sm font-medium leading-5 text-ink-faint hover:text-ink hover:border-line focus:outline-none focus:text-ink focus:border-line transition duration-150 ease-in-out';
 @endphp
 

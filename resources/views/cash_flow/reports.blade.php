@@ -47,7 +47,7 @@
                         </tr>
                         <tr>
                             <td class="font-semibold text-ink">Closing cash & bank</td>
-                            <td class="text-right font-bold text-primary">{{ money($closing) }}</td>
+                            <td class="text-right font-bold text-primary-ink">{{ money($closing) }}</td>
                         </tr>
                     </tbody>
                 </table>

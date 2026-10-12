@@ -69,7 +69,7 @@
                     <tbody>
                         @foreach ($transactions as $transaction)
                             <tr>
-                                <td><span class="font-mono text-xs font-medium text-primary">{{ $transaction->number }}</span></td>
+                                <td><span class="font-mono text-xs font-medium text-primary-ink">{{ $transaction->number }}</span></td>
                                 <td class="text-ink-soft">{{ $transaction->transaction_date?->format('Y-m-d') }}</td>
                                 <td class="text-ink">{{ $transaction->account?->name }}</td>
                                 <td>

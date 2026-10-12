@@ -71,7 +71,7 @@
                             @foreach ($returns as $return)
                                 <tr>
                                     <td>
-                                        <a href="{{ route('accounting.tax_returns.show', $return) }}" class="font-mono text-xs font-medium text-primary hover:underline">
+                                        <a href="{{ route('accounting.tax_returns.show', $return) }}" class="font-mono text-xs font-medium text-primary-ink hover:underline">
                                             {{ $return->number }}
                                         </a>
                                     </td>

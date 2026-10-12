@@ -76,7 +76,7 @@
                     @endif
                 </div>
                 @if ($deliveryNote->order)
-                    <p class="mt-3 text-xs text-ink-faint">For order <a href="{{ route('sales.orders.edit', $deliveryNote->order) }}" class="text-primary hover:underline">{{ $deliveryNote->order->number }}</a></p>
+                    <p class="mt-3 text-xs text-ink-faint">For order <a href="{{ route('sales.orders.edit', $deliveryNote->order) }}" class="text-primary-ink hover:underline">{{ $deliveryNote->order->number }}</a></p>
                 @endif
             </x-card>
 

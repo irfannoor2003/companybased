@@ -45,7 +45,7 @@
                                         name="channels[]"
                                         value="{{ $channel }}"
                                         {{ in_array($channel, $rule->channels ?? [], true) ? 'checked' : '' }}
-                                        class="size-4 rounded border-line text-primary focus:ring-primary"
+                                        class="size-4 rounded border-line text-primary-ink focus:ring-primary"
                                     >
                                     {{ ucfirst($channel) }}
                                 </label>
@@ -99,7 +99,7 @@
                                     name="channels[]"
                                     value="{{ $channel }}"
                                     {{ in_array($channel, old('channels', ['mail']), true) ? 'checked' : '' }}
-                                    class="size-4 rounded border-line text-primary focus:ring-primary"
+                                    class="size-4 rounded border-line text-primary-ink focus:ring-primary"
                                 >
                                 {{ ucfirst($channel) }}
                             </label>

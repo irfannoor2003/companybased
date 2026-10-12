@@ -78,7 +78,7 @@
                             @foreach ($claims as $claim)
                                 <tr>
                                     <td>
-                                        <a href="{{ route('accounting.expense_claims.show', $claim) }}" class="font-mono text-xs font-medium text-primary hover:underline">
+                                        <a href="{{ route('accounting.expense_claims.show', $claim) }}" class="font-mono text-xs font-medium text-primary-ink hover:underline">
                                             {{ $claim->number }}
                                         </a>
                                     </td>

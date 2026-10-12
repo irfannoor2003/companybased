@@ -728,9 +728,72 @@ function appShell() {
             this.isDark = !this.isDark;
             document.documentElement.classList.toggle('dark', this.isDark);
             localStorage.setItem('cb-theme', this.isDark ? 'dark' : 'light');
+
+            /**
+             * Chart.js canvases are not DOM, so the `dark` class does not reach
+             * them. Axis ticks kept Chart.js's default #666 and gridlines kept
+             * rgba(0,0,0,0.1) -- both tuned for a white background, and measured
+             * 3.20:1 on the dark surface. Every dashboard and report left its
+             * charts looking like they belonged to a different theme until the
+             * page was reloaded.
+             *
+             * Announce the change so live charts can re-read the tokens.
+             */
+            window.dispatchEvent(new CustomEvent('cb:themechange', { detail: { dark: this.isDark } }));
         },
     };
 }
+
+/**
+ * Re-tint a Chart.js instance from the live CSS custom properties.
+ *
+ * Colours are read from the tokens rather than hardcoded here, so a tenant's
+ * branding and any future palette change apply to charts automatically. Exposed on
+ * window because base-chart.blade.php renders one inline script per chart and
+ * cannot import from here.
+ */
+window.__cbThemeChart = function (chart) {
+    const token = (name, fallback) => {
+        const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+        if (!raw) return fallback;
+        // Tokens are space-separated "R G B" triplets.
+        const parts = raw.split(/[\s,]+/).map(Number).filter((n) => !Number.isNaN(n));
+        return parts.length === 3 ? `rgb(${parts[0]}, ${parts[1]}, ${parts[2]})` : fallback;
+    };
+
+    const inkSoft = token('--color-ink-soft', '#475569');
+    const line = token('--color-line', '#e2e8f0');
+    const surface = token('--color-surface', '#ffffff');
+    const isDark = document.documentElement.classList.contains('dark');
+
+    Object.keys(chart.options.scales || {}).forEach((axis) => {
+        const scale = chart.options.scales[axis];
+        scale.ticks = Object.assign({}, scale.ticks, { color: inkSoft });
+        scale.grid = Object.assign({}, scale.grid, {
+            color: isDark ? 'rgba(148, 163, 184, 0.16)' : 'rgba(15, 23, 42, 0.08)',
+        });
+    });
+
+    if (chart.options.plugins && chart.options.plugins.legend) {
+        chart.options.plugins.legend.labels = Object.assign({}, chart.options.plugins.legend.labels, {
+            color: inkSoft,
+        });
+    }
+
+    if (chart.options.plugins && chart.options.plugins.tooltip) {
+        chart.options.plugins.tooltip.backgroundColor = isDark ? '#242a3d' : '#0f172a';
+        chart.options.plugins.tooltip.titleColor = surface;
+        chart.options.plugins.tooltip.bodyColor = surface;
+    }
+
+    chart.update('none');
+};
+
+document.addEventListener('cb:themechange', () => {
+    window.Chart && window.Chart.instances && Object.keys(window.Chart.instances).forEach((key) => {
+        window.__cbThemeChart(window.Chart.instances[key]);
+    });
+});
 
 window.appShell = appShell;
 

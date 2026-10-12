@@ -31,7 +31,7 @@
                         <tr>
                             <td>
                                 <a href="{{ route('accounting.journal.show', $entry) }}"
-                                   class="font-medium text-primary">{{ $entry->number }}</a>
+                                   class="font-medium text-primary-ink">{{ $entry->number }}</a>
                             </td>
                             <td>{{ $entry->entry_date->format('Y-m-d') }}</td>
                             <td>{{ $entry->description ?: '—' }}</td>

@@ -57,7 +57,7 @@
                         <tbody>
                             @foreach ($receivablesDue as $item)
                                 <tr>
-                                    <td><span class="font-mono text-xs font-medium text-primary">{{ $item['number'] }}</span></td>
+                                    <td><span class="font-mono text-xs font-medium text-primary-ink">{{ $item['number'] }}</span></td>
                                     <td class="text-ink">{{ $item['customer'] ?? '—' }}</td>
                                     <td class="text-ink-soft">{{ $item['due_date']?->format('Y-m-d') }}</td>
                                     <td class="text-right font-medium text-emerald-600 dark:text-emerald-400">{{ money($item['balance']) }}</td>
@@ -86,7 +86,7 @@
                         <tbody>
                             @foreach ($payablesDue as $item)
                                 <tr>
-                                    <td><span class="font-mono text-xs font-medium text-primary">{{ $item['number'] }}</span></td>
+                                    <td><span class="font-mono text-xs font-medium text-primary-ink">{{ $item['number'] }}</span></td>
                                     <td class="text-ink">{{ $item['supplier'] ?? '—' }}</td>
                                     <td class="text-ink-soft">{{ $item['due_date']?->format('Y-m-d') }}</td>
                                     <td class="text-right font-medium text-rose-600 dark:text-rose-400">{{ money($item['balance']) }}</td>

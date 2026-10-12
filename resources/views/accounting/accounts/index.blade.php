@@ -70,9 +70,9 @@
                         <tbody>
                             @foreach ($accounts as $account)
                                 <tr>
-                                    <td><span class="font-mono text-xs font-medium text-primary">{{ $account->code }}</span></td>
+                                    <td><span class="font-mono text-xs font-medium text-primary-ink">{{ $account->code }}</span></td>
                                     <td>
-                                        <a href="{{ route('accounting.accounts.show', $account) }}" class="font-medium text-ink hover:text-primary">
+                                        <a href="{{ route('accounting.accounts.show', $account) }}" class="font-medium text-ink hover:text-primary-ink">
                                             {{ $account->name }}
                                         </a>
                                     </td>

@@ -76,7 +76,7 @@
                                             href="{{ route($child['route']) }}"
                                             @click="drawerOpen = false"
                                             :class="collapsed ? 'lg:justify-center lg:px-0' : ''"
-                                            class="{{ $isActive($child['route']) ? 'bg-primary/10 text-primary' : 'text-ink-soft hover:bg-surface-muted hover:text-ink' }} flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors"
+                                            class="{{ $isActive($child['route']) ? 'bg-primary/10 text-primary-ink' : 'text-ink-soft hover:bg-surface-muted hover:text-ink' }} flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors"
                                         >
                                             <x-icon :name="$child['icon']" class="size-5 shrink-0" />
                                             <span class="truncate" :class="collapsed ? 'lg:hidden' : ''">{{ $child['label'] }}</span>
@@ -92,7 +92,7 @@
                                 href="{{ route($nav['item']['route']) }}"
                                 @click="drawerOpen = false"
                                 :class="collapsed ? 'lg:justify-center lg:px-0' : ''"
-                                class="{{ $isActive($nav['item']['route']) ? 'bg-primary/10 text-primary' : 'text-ink-soft hover:bg-surface-muted hover:text-ink' }} flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors"
+                                class="{{ $isActive($nav['item']['route']) ? 'bg-primary/10 text-primary-ink' : 'text-ink-soft hover:bg-surface-muted hover:text-ink' }} flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors"
                             >
                                 <x-icon :name="$nav['item']['icon']" class="size-5 shrink-0" />
                                 <span class="truncate" :class="collapsed ? 'lg:hidden' : ''">{{ $nav['item']['label'] }}</span>
@@ -116,7 +116,7 @@
         </button>
 
         <a href="{{ route('profile.edit') }}" class="mt-1 flex items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-surface-muted" :class="collapsed ? 'lg:justify-center lg:px-0' : ''">
-            <div class="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary">
+            <div class="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary-ink">
                 {{ auth()->user()->initials() }}
             </div>
             <div class="min-w-0" :class="collapsed ? 'lg:hidden' : ''">

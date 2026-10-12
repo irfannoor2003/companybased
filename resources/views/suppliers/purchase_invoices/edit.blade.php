@@ -44,7 +44,7 @@
                                     </a>
                                 @endif
                                 @if ($invoice->productionOrder)
-                                    <a href="{{ route('inventory.production_orders.show', $invoice->productionOrder) }}" class="inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm text-primary hover:border-primary/40">
+                                    <a href="{{ route('inventory.production_orders.show', $invoice->productionOrder) }}" class="inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm text-primary-ink hover:border-primary/40">
                                         <x-icon name="zap" class="size-4" />
                                         Production {{ $invoice->productionOrder->number }}
                                     </a>

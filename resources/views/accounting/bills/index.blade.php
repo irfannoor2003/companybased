@@ -70,7 +70,7 @@
                             @foreach ($bills as $bill)
                                 <tr>
                                     <td>
-                                        <a href="{{ route('accounting.bills.show', $bill) }}" class="font-mono text-xs font-medium text-primary hover:underline">
+                                        <a href="{{ route('accounting.bills.show', $bill) }}" class="font-mono text-xs font-medium text-primary-ink hover:underline">
                                             {{ $bill->number }}
                                         </a>
                                     </td>

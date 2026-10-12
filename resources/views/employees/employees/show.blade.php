@@ -69,7 +69,7 @@
             @endif
             @if (auth()->user()->can('employees.salary_structures.view'))
                 <div class="border-t border-line px-5 py-3">
-                    <a href="{{ route('employees.salary_structures.index', ['employee_id' => $employee->id]) }}" class="text-sm font-medium text-primary hover:underline">View all structures</a>
+                    <a href="{{ route('employees.salary_structures.index', ['employee_id' => $employee->id]) }}" class="text-sm font-medium text-primary-ink hover:underline">View all structures</a>
                 </div>
             @endif
         </x-card>
