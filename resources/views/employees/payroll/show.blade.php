@@ -98,7 +98,7 @@
                                     <td class="text-right text-rose-600 dark:text-rose-400">{{ money($payslip->statutory_deductions, $run->currency) }}</td>
                                     <td class="text-right font-medium text-ink">{{ money($payslip->net_pay, $run->currency) }}</td>
                                     <td class="text-right">
-                                        <x-button :href="route('payroll.payslip', [$run, $payslip])" variant="ghost"
+                                        <x-button :href="route('employees.payroll.payslip', [$run, $payslip])" variant="ghost"
                                                   size="sm" icon="printer" target="_blank">Payslip</x-button>
                                     </td>
                                 </tr>

@@ -31,6 +31,7 @@ class RouteSweep
         'asset' => 'fixed_assets',
         'bill' => 'bills',
         'billOfMaterial' => 'inventory_bill_of_materials',
+        'workCentre' => 'inventory_work_centres',
         'brand' => 'brands',
         'budget' => 'budgets',
         'category' => 'categories',
