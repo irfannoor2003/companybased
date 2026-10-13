@@ -110,46 +110,48 @@ class MaterialRequirementsService
         return $planned;
     }
 
-    /**
+/**
      * Component requirements for a BOM at a quantity, net of what is available.
+     *
+     * Multi-level. A component that is itself built from a recipe is expanded into
+     * the parts below it rather than reported as itself -- an earlier version read
+     * only the top level, so planning told the buyer to purchase an unbuilt
+     * sub-assembly that no supplier sells.
      *
      * @return array<int, array<string, mixed>>
      */
     public function explode(InventoryBillOfMaterial $bom, float $quantity): array
     {
+        $explosion = app(BomExplosionService::class);
+        $leaves = $explosion->explode($bom, $quantity);
+
         $lines = [];
 
-        foreach ($bom->items()->with('componentItem.product')->get() as $bomItem) {
-            $component = $bomItem->componentItem;
+        foreach ($leaves as $leaf) {
+            $component = $leaf['item'];
 
-            if (! $component) {
-                continue;
-            }
-
-            // Wastage is added to the requirement, not deducted from the shortfall.
-            $wastageFactor = 1 + ((float) $bomItem->wastage_percent / 100);
-            $gross = $quantity * (float) $bomItem->quantity * $wastageFactor;
-
-/**
-         * Stock comes from the stock table, not from a column on the item.
-         *
-         * Reading it through InventoryLedger::onHand() is what makes this agree
-         * with the rest of the application: inventory_items has no
-         * quantity_on_hand, so a figure read from one would be 0 forever and every
-         * component would look permanently short.
-         */
+            /**
+             * Stock comes from the stock table, not from a column on the item.
+             *
+             * Reading it through InventoryLedger::onHand() is what makes this agree
+             * with the rest of the application: inventory_items has no
+             * quantity_on_hand, so a figure read from one would be 0 forever and
+             * every component would look permanently short.
+             */
             $onHand = (float) InventoryLedger::onHand($component->id, $this->warehouseId);
             $onOrder = $this->onOrder($component);
             $committed = $this->committedToProduction($component);
 
             $available = $onHand + $onOrder - $committed;
-            $net = max(0.0, $gross - $available);
+            $net = max(0.0, $leaf['gross'] - $available);
 
             $lines[] = [
                 'item' => $component,
                 'product' => $component->product,
-                'bom_item' => $bomItem,
-                'gross' => round($gross, 3),
+                'bom_item' => $leaf['bom_item'],
+                'level' => $leaf['level'],
+                'path' => $leaf['path'],
+                'gross' => round($leaf['gross'], 3),
                 'on_hand' => round($onHand, 3),
                 'on_order' => round($onOrder, 3),
                 'committed' => round($committed, 3),

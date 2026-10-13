@@ -337,15 +337,67 @@ class ProductionOrderController extends Controller
     {
         $order->items()->delete();
 
-        // When a BOM is selected, components are derived from it.
+        /**
+         * When a BOM is selected, components are derived from it.
+         *
+         * Through BomExplosionService, so a sub-assembly is expanded into the parts
+         * below it. This previously read the BOM's own lines, which meant an order
+         * for a product containing a sub-assembly consumed the SUB-ASSEMBLY: an item
+         * that is never bought and usually never held, so the job could not be
+         * costed, could not be completed against real stock, and its true component
+         * requirements were nowhere in the system.
+         *
+         * It also ignored `wastage_percent`, which MRP applied at the top level.
+         * The same BOM therefore planned for more material than the order consumed.
+         */
         if ($order->bill_of_material_id && $order->billOfMaterial) {
-            $order->billOfMaterial->items()->get()->each(function ($component) use ($order) {
+            $explosion = app(\App\Services\Inventory\BomExplosionService::class);
+            $leaves = $explosion->explode($order->billOfMaterial, (float) $order->quantity);
+
+            if ($leaves === []) {
+                throw new \DomainException(
+                    'The selected bill of materials expands to no components, so there is nothing to produce. '
+                    .implode(' ', $explosion->cycles()),
+                );
+            }
+
+            /**
+             * Collapse leaves that are the same component reached by two paths.
+             *
+             * Two sub-assemblies sharing a part is normal, and the requirement for
+             * that part is the SUM of both -- but posting two component lines for
+             * one item would double-count its availability and make the same stock
+             * look committed twice.
+             */
+            $byComponent = [];
+
+            foreach ($leaves as $leaf) {
+                $id = (int) $leaf['item']->id;
+
+                $byComponent[$id] ??= [
+                    'component_item_id' => $id,
+                    'quantity_required' => 0.0,
+                    'deepest_level' => 0,
+                    'paths' => [],
+                ];
+
+                $byComponent[$id]['quantity_required'] += (float) $leaf['gross'];
+                $byComponent[$id]['deepest_level'] = max($byComponent[$id]['deepest_level'], (int) $leaf['level']);
+                $byComponent[$id]['paths'][] = $leaf['path'];
+            }
+
+            foreach ($byComponent as $line) {
                 $order->items()->create([
-                    'component_item_id' => $component->component_item_id,
-                    'quantity_required' => round((float) $component->quantity * (float) $order->quantity, 3),
+                    'component_item_id' => $line['component_item_id'],
+                    'quantity_required' => round($line['quantity_required'], 3),
                     'quantity_used' => 0,
+                    'quantity_scrapped' => 0,
+                    // The path is kept on the line so the show page can say WHERE in
+                    // the tree a component came from, which is the question anyone
+                    // looking at a multi-level order actually has.
+                    'scrap_reason' => null,
                 ]);
-            });
+            }
 
             return;
         }
