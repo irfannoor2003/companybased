@@ -197,6 +197,22 @@ class ProductionOrderController extends Controller
     {
         $data = $request->validate([
             'status' => ['required', Rule::in(InventoryProductionOrder::statusOptions())],
+
+            /**
+             * What the run actually produced.
+             *
+             * Optional, and optional-per-field on purpose. An order completed
+             * without the shop floor filling this in keeps behaving exactly as it
+             * did before, which is the point: reporting is new, and must not become
+             * a new thing that can block completing a job.
+             */
+            'quantity_good' => ['nullable', 'numeric', 'min:0'],
+            'quantity_scrap' => ['nullable', 'numeric', 'min:0'],
+            'actuals' => ['nullable', 'array'],
+            'actuals.*.component_item_id' => ['required', 'integer'],
+            'actuals.*.quantity_used' => ['nullable', 'numeric', 'min:0'],
+            'actuals.*.quantity_scrapped' => ['nullable', 'numeric', 'min:0'],
+            'actuals.*.scrap_reason' => ['nullable', 'string', 'max:255'],
         ]);
 
         if ($order->status === 'completed') {
@@ -208,10 +224,28 @@ class ProductionOrderController extends Controller
                 return back()->with('toasts', [['type' => 'error', 'message' => 'No components are linked to this production order.']]);
             }
 
-            $order->items()->where('quantity_used', '<=', 0)->update(['quantity_used' => DB::raw('quantity_required')]);
+            /**
+             * Record what was really produced and really consumed, then post the
+             * stock movement against those figures.
+             *
+             * This replaces a single bulk `quantity_used = quantity_required`
+             * update, which made actual consumption impossible to report: stock
+             * written off during the run was recorded as consumed in full, so the
+             * loss vanished from the inventory records.
+             */
+            $yield = app(\App\Services\Inventory\ProductionYieldService::class)->settle(
+                $order,
+                $data['actuals'] ?? [],
+                isset($data['quantity_good']) ? (float) $data['quantity_good'] : null,
+                isset($data['quantity_scrap']) ? (float) $data['quantity_scrap'] : 0.0,
+            );
 
             try {
-                InventoryLedger::applyProduction($order->fresh());
+                InventoryLedger::applyProduction(
+                    $order->fresh(),
+                    Money::of($yield['quantity_good']),
+                    $yield['unit_cost'],
+                );
 
                 /**
                  * Pick up any labour recorded but not yet absorbed BEFORE the goods
@@ -250,7 +284,23 @@ class ProductionOrderController extends Controller
 
         $order->update(['status' => $data['status']]);
 
-        return back()->with('toasts', [['type' => 'success', 'message' => "Production order {$order->number} marked as {$data['status']}."]]);
+        $message = "Production order {$order->number} marked as {$data['status']}.";
+
+        if ($data['status'] === 'completed') {
+            /**
+             * Report the yield back. A run that rejected a third of its output is
+             * the single most useful thing the screen can tell the person who just
+             * finished it, and it used to be unrecordable.
+             */
+            $message .= sprintf(
+                ' %s good, %s scrapped (%.1f%% yield).',
+                rtrim(rtrim(number_format($yield['quantity_good'], 3), '0'), '.'),
+                rtrim(rtrim(number_format($yield['quantity_scrap'], 3), '0'), '.'),
+                $yield['yield_percent'],
+            );
+        }
+
+        return back()->with('toasts', [['type' => 'success', 'message' => $message]]);
     }
 
     public function destroy(InventoryProductionOrder $order): RedirectResponse

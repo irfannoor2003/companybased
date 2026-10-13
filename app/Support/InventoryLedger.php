@@ -256,14 +256,38 @@ final class InventoryLedger
         });
     }
 
-    public static function applyProduction(InventoryProductionOrder $order): void
+    /**
+     * Post a completed production order: components out, finished goods in.
+     *
+     * `$quantityGood` and `$unitCost` are passed by ProductionYieldService rather
+     * than read from the order, because two things are needed here that the order
+     * row does not hold:
+     *
+     *  - The GOOD output, not the ordered quantity. Output is hardcoded to
+     *    `order->quantity` in the original, so a run that produced 90 saleable units
+     *    out of 100 attempted posted 100 into stock.
+     *
+     *  - The unit cost of that output, which is what moves the finished item's
+     *    moving average. Without it a manufactured product kept whatever average it
+     *    had before it was ever made, so goods produced at a component cost of 50
+     *    were carried at a standard cost of 40 and the difference surfaced only as
+     *    a variance on every single order.
+     *
+     * Scrap is not received: the material in it was consumed, and its cost is
+     * already inside `$unitCost`, which is a per-unit cost over good AND scrap.
+     */
+    public static function applyProduction(InventoryProductionOrder $order, ?string $quantityGood = null, ?string $unitCost = null): void
     {
-        DB::transaction(function () use ($order) {
+        $good = $quantityGood ?? (string) $order->quantity;
+
+        DB::transaction(function () use ($order, $good, $unitCost) {
             foreach ($order->items as $component) {
                 static::adjust($component->component_item_id, $order->warehouse_id, '-'.$component->quantity_used, 'production_out', $order, $order->number);
             }
 
-            static::adjust($order->item_id, $order->warehouse_id, $order->quantity, 'production_in', $order, $order->number);
+            if ((float) $good > 0) {
+                static::adjust($order->item_id, $order->warehouse_id, $good, 'production_in', $order, $order->number, $unitCost);
+            }
         });
     }
 

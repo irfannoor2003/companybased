@@ -13,6 +13,32 @@
         </x-page-header>
     </x-slot>
 
+    {{--
+        Yield, only once the run has reported it. These are the numbers the shop
+        floor gives when the job is finished, so they are meaningless before then.
+    --}}
+    @if ($order->status === 'completed' && $order->quantity_good !== null)
+        @php
+            $scrap = (float) ($order->quantity_scrap ?? 0);
+            $produced = (float) $order->quantity_good + $scrap;
+            $yieldPercent = $produced > 0 ? round(((float) $order->quantity_good / $produced) * 100, 1) : 0;
+        @endphp
+        <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <x-stat-card label="Good output" :value="rtrim(rtrim(number_format((float) $order->quantity_good, 3), '0'), '.')"
+                         icon="check" tone="success" />
+            <x-stat-card label="Scrapped" :value="rtrim(rtrim(number_format($scrap, 3), '0'), '.')"
+                         icon="warning" :tone="$scrap > 0 ? 'danger' : 'default'" />
+            <x-stat-card label="Yield" :value="$yieldPercent.'%'" icon="chart"
+                         :tone="$yieldPercent >= 95 ? 'success' : ($yieldPercent >= 80 ? 'warning' : 'danger')" />
+        </div>
+        <p class="mt-2 text-xs text-ink-faint">
+            Ordered {{ rtrim(rtrim(number_format((float) $order->quantity, 3), '0'), '.') }},
+            produced {{ rtrim(rtrim(number_format($produced, 3), '0'), '.') }}.
+            Scrap is absorbed into the cost of the good output and surfaces on
+            Production Variance against the standard cost.
+        </p>
+    @endif
+
     <div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div class="lg:col-span-2">
             <x-card :padding="false">
@@ -34,6 +60,7 @@
                                     <th>SKU</th>
                                     <th class="text-right">Required</th>
                                     <th class="text-right">Used</th>
+                                    <th class="text-right">Scrapped</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -43,6 +70,14 @@
                                         <td class="text-ink-soft">{{ $line->componentItem?->product?->sku ?? '—' }}</td>
                                         <td class="text-right text-ink">{{ $line->quantity_required }}</td>
                                         <td class="text-right text-ink">{{ $line->quantity_used }}</td>
+                                        {{-- Component scrap only appears once reported, so an
+                                             order that predates this column stays clean. --}}
+                                        @if ((float) ($line->quantity_scrapped ?? 0) > 0)
+                                            <td class="text-right text-rose-600 dark:text-rose-400"
+                                                title="{{ $line->scrap_reason }}">{{ $line->quantity_scrapped }}</td>
+                                        @else
+                                            <td class="text-right text-ink-faint">—</td>
+                                        @endif
                                     </tr>
                                 @endforeach
                             </tbody>

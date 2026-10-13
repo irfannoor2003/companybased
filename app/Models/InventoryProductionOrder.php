@@ -16,7 +16,9 @@ class InventoryProductionOrder extends Model
 
     protected $fillable = [
         'number', 'item_id', 'bill_of_material_id', 'warehouse_id', 'quantity',
+        'quantity_good', 'quantity_scrap',
         'scheduled_start_date', 'scheduled_end_date', 'status', 'note',
+        'started_at', 'completed_at',
     ];
 
     protected $auditModule = 'inventory';
@@ -25,8 +27,12 @@ class InventoryProductionOrder extends Model
     {
         return [
             'quantity' => 'decimal:3',
+            'quantity_good' => 'decimal:3',
+            'quantity_scrap' => 'decimal:3',
             'scheduled_start_date' => 'date',
             'scheduled_end_date' => 'date',
+            'started_at' => 'datetime',
+            'completed_at' => 'datetime',
         ];
     }
 

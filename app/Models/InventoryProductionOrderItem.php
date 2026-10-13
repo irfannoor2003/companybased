@@ -9,6 +9,7 @@ class InventoryProductionOrderItem extends Model
 {
     protected $fillable = [
         'production_order_id', 'component_item_id', 'quantity_required', 'quantity_used',
+        'quantity_scrapped', 'scrap_reason',
     ];
 
     protected function casts(): array
@@ -16,6 +17,7 @@ class InventoryProductionOrderItem extends Model
         return [
             'quantity_required' => 'decimal:3',
             'quantity_used' => 'decimal:3',
+            'quantity_scrapped' => 'decimal:3',
         ];
     }
 
