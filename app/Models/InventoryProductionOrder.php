@@ -56,6 +56,17 @@ class InventoryProductionOrder extends Model
         return $this->hasMany(InventoryProductionOrderItem::class, 'production_order_id');
     }
 
+    /**
+     * The routing as it was released onto this order.
+     *
+     * Copied from the bill of materials rather than referenced, so editing a recipe
+     * cannot retime work that is already half done.
+     */
+    public function operations(): HasMany
+    {
+        return $this->hasMany(InventoryProductionOrderOperation::class, 'production_order_id');
+    }
+
     public function scopeSearch(Builder $query, ?string $term): Builder
     {
         if (! $term) {

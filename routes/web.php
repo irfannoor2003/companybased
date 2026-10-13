@@ -46,6 +46,7 @@ use App\Http\Controllers\Inventory\IncomingShipmentController;
 use App\Http\Controllers\Inventory\ItemController;
   use App\Http\Controllers\Inventory\MaterialRequirementsController;
 use App\Http\Controllers\Inventory\ProductionOrderController;
+use App\Http\Controllers\Inventory\WorkCentreController;
 use App\Http\Controllers\Inventory\TransferController;
 use App\Http\Controllers\Inventory\WarehouseController;
 use App\Http\Controllers\Inventory\WriteOffController;
@@ -528,8 +529,32 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:inventory.bill_of_materials.create')->name('bill_of_materials.store');
         Route::put('/bill-of-materials/{billOfMaterial}', [BillOfMaterialController::class, 'update'])
             ->middleware('permission:inventory.bill_of_materials.edit')->name('bill_of_materials.update');
-        Route::delete('/bill-of-materials/{billOfMaterial}', [BillOfMaterialController::class, 'destroy'])
+Route::delete('/bill-of-materials/{billOfMaterial}', [BillOfMaterialController::class, 'destroy'])
             ->middleware('permission:inventory.bill_of_materials.delete')->name('bill_of_materials.destroy');
+
+        /**
+         * Work centres and their load.
+         *
+         * `capacity` is declared before the `{workCentre}` routes so a request for
+         * /work-centres/capacity is not swallowed by the parameterised route and
+         * reported as a missing work centre.
+         */
+        Route::get('/work-centres/capacity', [WorkCentreController::class, 'capacity'])
+            ->middleware('permission:inventory.work_centres.view_capacity')->name('work_centres.capacity');
+        Route::get('/work-centres', [WorkCentreController::class, 'index'])
+            ->middleware('permission:inventory.work_centres.view')->name('work_centres.index');
+        Route::get('/work-centres/create', [WorkCentreController::class, 'create'])
+            ->middleware('permission:inventory.work_centres.create')->name('work_centres.create');
+        Route::get('/work-centres/export', [WorkCentreController::class, 'export'])
+            ->middleware('permission:inventory.work_centres.export')->name('work_centres.export');
+        Route::post('/work-centres', [WorkCentreController::class, 'store'])
+            ->middleware('permission:inventory.work_centres.create')->name('work_centres.store');
+        Route::get('/work-centres/{workCentre}/edit', [WorkCentreController::class, 'edit'])
+            ->middleware('permission:inventory.work_centres.edit')->name('work_centres.edit');
+        Route::put('/work-centres/{workCentre}', [WorkCentreController::class, 'update'])
+            ->middleware('permission:inventory.work_centres.edit')->name('work_centres.update');
+        Route::delete('/work-centres/{workCentre}', [WorkCentreController::class, 'destroy'])
+            ->middleware('permission:inventory.work_centres.delete')->name('work_centres.destroy');
 
         Route::get('/material-requirements', [MaterialRequirementsController::class, 'index'])
   ->middleware('permission:inventory.material_requirements.view')->name('material-requirements.index');
@@ -551,6 +576,8 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:inventory.production_orders.update_status')->name('production_orders.status');
         Route::post('/production-orders/{order}/labour', [ProductionOrderController::class, 'storeLabour'])
             ->middleware('permission:inventory.production_orders.record_labour')->name('production_orders.labour.store');
+        Route::post('/production-orders/{order}/operations', [ProductionOrderController::class, 'recordOperation'])
+            ->middleware('permission:inventory.production_orders.record_labour')->name('production_orders.operations.store');
         Route::delete('/production-orders/{order}', [ProductionOrderController::class, 'destroy'])
             ->middleware('permission:inventory.production_orders.delete')->name('production_orders.destroy');
 

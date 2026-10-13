@@ -41,6 +41,83 @@
 
     <div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div class="lg:col-span-2">
+            {{--
+                The routing, as released onto this order.
+
+                Planned against actual, because that comparison is the point: a
+                standard time nothing records against is an assumption, not a plan.
+            --}}
+            @if ($order->operations->isNotEmpty())
+                <x-card :padding="false" class="mb-6">
+                    <div class="border-b border-line px-5 py-4">
+                        <h2 class="text-sm font-semibold text-ink">Operations</h2>
+                        <p class="mt-1 text-xs text-ink-faint">
+                            Released from the bill of materials. Recorded time is never
+                            overwritten by re-releasing the routing.
+                        </p>
+                    </div>
+                    <div class="table-wrap !border-0 !rounded-none">
+                        <table class="table-base">
+                            <thead>
+                                <tr>
+                                    <th class="w-10">#</th>
+                                    <th>Operation</th>
+                                    <th>Work centre</th>
+                                    <th class="text-right">Planned</th>
+                                    <th class="text-right">Actual</th>
+                                    <th class="text-right">Variance</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($order->operations as $operation)
+                                    <tr>
+                                        <td class="text-ink-faint">{{ $operation->sequence }}</td>
+                                        <td class="font-medium text-ink">{{ $operation->name }}</td>
+                                        <td class="text-ink-soft">{{ $operation->workCentre?->name ?? '—' }}</td>
+                                        <td class="text-right text-ink">{{ number_format((float) $operation->planned_minutes, 1) }}</td>
+                                        <td class="text-right text-ink">
+                                            @if ($operation->isReported())
+                                                {{ number_format((float) $operation->minutes_spent, 1) }}
+                                            @else
+                                                <span class="text-ink-faint">Not reported</span>
+                                            @endif
+                                        </td>
+                                        <td class="text-right">
+                                            @php $variance = $operation->varianceMinutes(); @endphp
+                                            @if ($variance === null)
+                                                <span class="text-ink-faint">—</span>
+                                            @elseif ($variance < 0)
+                                                {{-- Over standard: the number the shop floor
+                                                     actually wants to see. --}}
+                                                <span class="text-rose-600 dark:text-rose-400">
+                                                    {{ number_format(abs($variance), 1) }} over
+                                                </span>
+                                            @else
+                                                <span class="text-emerald-600 dark:text-emerald-400">
+                                                    {{ number_format($variance, 1) }} under
+                                                </span>
+                                            @endif
+                                        </td>
+                                        <td class="text-right">
+                                            @if (auth()->user()->can('inventory.production_orders.record_labour') && ! in_array($order->status, ['completed', 'cancelled']))
+                                                <form method="POST" action="{{ route('inventory.production_orders.operations.store', $order) }}" class="flex items-center justify-end gap-2">
+                                                    @csrf
+                                                    <input type="hidden" name="operation_id" value="{{ $operation->id }}">
+                                                    <input type="number" name="minutes" step="0.1" min="0" placeholder="min"
+                                                           class="w-20 rounded-lg border-line text-sm text-ink">
+                                                    <x-button type="submit" size="sm" variant="ghost" icon="check">Record</x-button>
+                                                </form>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </x-card>
+            @endif
+
             <x-card :padding="false">
                 <div class="border-b border-line px-5 py-4">
                     <h2 class="text-sm font-semibold text-ink">Components</h2>

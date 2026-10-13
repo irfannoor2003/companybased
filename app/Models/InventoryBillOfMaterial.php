@@ -30,6 +30,19 @@ class InventoryBillOfMaterial extends Model
         return $this->hasMany(InventoryBillOfMaterialItem::class, 'bill_of_material_id');
     }
 
+    /**
+     * The routing: which work centres make this, in what order.
+     *
+     * Held on the bill of materials rather than the product, because the operations
+     * belong to the recipe. A separate routing table would let a product end up with
+     * a bill of materials describing its parts and a routing describing a process
+     * nobody can make it by.
+     */
+    public function operations(): HasMany
+    {
+        return $this->hasMany(InventoryBomOperation::class, 'bill_of_material_id');
+    }
+
     public function scopeSearch(Builder $query, ?string $term): Builder
     {
         if (! $term) {

@@ -51,7 +51,7 @@ class ProductionOrderController extends Controller
 
     public function show(InventoryProductionOrder $order): View
     {
-        $order->load(['item.product', 'warehouse', 'billOfMaterial', 'items.componentItem.product']);
+        $order->load(['item.product', 'warehouse', 'billOfMaterial', 'items.componentItem.product', 'operations' => fn ($q) => $q->with('workCentre')->orderBy('sequence')]);
 
         // Labour recorded against this order, so the cost capitalised into work in
         // progress is visible on the order that incurred it rather than only on the
@@ -91,13 +91,17 @@ class ProductionOrderController extends Controller
 
         $this->syncItems($order, $request->input('items', []));
 
+        // Release the BOM's routing onto the order, so the shop floor has a sequence
+        // of work centres and standard times to work to.
+        app(\App\Services\Inventory\RoutingService::class)->releaseFromOrderBom($order->fresh());
+
         return redirect()->route('inventory.production_orders.index')
             ->with('toasts', [['type' => 'success', 'message' => "Production order {$order->number} created."]]);
     }
 
     public function edit(InventoryProductionOrder $order): View
     {
-        $order->load(['item.product', 'warehouse', 'billOfMaterial', 'items.componentItem.product']);
+        $order->load(['item.product', 'warehouse', 'billOfMaterial', 'items.componentItem.product', 'operations' => fn ($q) => $q->with('workCentre')->orderBy('sequence')]);
         $items = InventoryItem::query()->with('product')->where('is_active', true)->orderBy('id')->get();
         $warehouses = InventoryWarehouse::query()->where('is_active', true)->orderBy('name')->get();
         $billOfMaterials = InventoryBillOfMaterial::query()->where('status', 'active')->with('item.product')->orderBy('name')->get();
@@ -125,6 +129,10 @@ class ProductionOrderController extends Controller
         ]);
 
         $this->syncItems($order, $request->input('items', []));
+
+        // Release the BOM's routing onto the order, so the shop floor has a sequence
+        // of work centres and standard times to work to.
+        app(\App\Services\Inventory\RoutingService::class)->releaseFromOrderBom($order->fresh());
 
         return back()->with('toasts', [['type' => 'success', 'message' => "Production order {$order->number} updated."]]);
     }
@@ -190,6 +198,50 @@ class ProductionOrderController extends Controller
         return back()->with('toasts', [[
             'type' => 'success',
             'message' => 'Recorded '.Money::of($entry->labour_cost).' of labour and absorbed it into work in progress.',
+        ]]);
+    }
+
+    /**
+     * Record time actually spent on one operation.
+     *
+     * This is what turns a routing's standard time into a comparison rather than an
+     * assumption. Without it a routing says what a job should take and nothing
+     * records what it did take, so there is no way to know which routes need
+     * re-timing and no basis for reporting capacity against reality.
+     *
+     * The minutes are ADDED to any already recorded, not replaced: a supervisor who
+     * clocks an operation in and then tops up the time because the job ran long
+     * expects a total, and overwriting would discard the entry somebody wrote down
+     * on paper first.
+     */
+    public function recordOperation(Request $request, InventoryProductionOrder $order): RedirectResponse
+    {
+        if (in_array($order->status, ['completed', 'cancelled'])) {
+            return back()->with('toasts', [[
+                'type' => 'error',
+                'message' => 'Completed or cancelled production orders cannot have operation time recorded.',
+            ]]);
+        }
+
+        $data = $request->validate([
+            'operation_id' => ['required', 'integer', 'exists:inventory_production_order_operations,id'],
+            'minutes' => ['required', 'numeric', 'min:0', 'max:100000'],
+        ]);
+
+        $operation = \App\Models\InventoryProductionOrderOperation::query()
+            ->where('production_order_id', $order->id)
+            ->findOrFail($data['operation_id']);
+
+        app(\App\Services\Inventory\RoutingService::class)
+            ->recordMinutes($operation, (float) $data['minutes']);
+
+        return back()->with('toasts', [[
+            'type' => 'success',
+            'message' => sprintf(
+                'Recorded %s minutes against %s.',
+                rtrim(rtrim(number_format((float) $data['minutes'], 2), '0'), '.'),
+                $operation->name,
+            ),
         ]]);
     }
 
