@@ -27,8 +27,11 @@ Laravel ERP application for independent local-business deployments in Pakistan. 
 ## Current Status
 
 **Last verified: 2026-10-12 — full suite green (1,384 passing, 0 failures), all 23
-migrations applied.** What remains are documented scope limits rather than defects:
-see [Still missing](#still-missing).
+migrations applied.** The wiring is mechanically verified: a census suite renders
+every route, checks every auth guard, and proves every route name used in a Blade is
+registered. **Three subsystems are backend-only and have no input screen yet** — see
+[Not reachable from the interface](#not-reachable-from-the-interface) before calling
+this finished. Nothing has been rendered in a browser, and no human has used it.
 
 ### Test suite
 
@@ -613,6 +616,25 @@ Covered by `LedgerPostingTest`, `LedgerReversalTest` (10),
 These are scope limits, stated rather than hidden. None of them is a defect, and
 none of them blocks the application being correct for the business it serves.
 
+#### Not reachable from the interface
+
+**The most important gap on this page.** Three subsystems have working services,
+controllers and tests, but no screen to drive them. Each is currently reachable only
+by POSTing to the endpoint directly:
+
+| Feature | Backend status | Missing |
+|---|---|---|
+| **Scrap and yield reporting** | Columns, service, endpoint and display all work | **No input form.** `quantity_good`, `quantity_scrap` and per-component actuals must be POSTed to `PATCH /inventory/production-orders/{order}/status` by hand |
+| **BOM routings** | `inventory_bom_operations`, models, release-on-order and capacity all work | **No editor.** A routing can only be created programmatically; the BOM form edits components only |
+| **POS receipt printing** | Route, template and 80mm geometry all work | The **sale screen never links to it**. A cashier reaches it via the receipts list, not from the sale they just rang up |
+
+Tests exercise all three by calling the service and the endpoint directly, so they
+prove the logic and prove nothing about whether an operator can use it. Treat these
+as **half-built**: the rules are right and the arithmetic is verified, but nobody can
+perform the task in the application yet.
+
+#### Deliberate scope
+
 - **Absorption is still labour-hour based.** Work centres, machines and routings now
   exist and record planned against actual minutes, so a machine-hour basis is now
   *measurable* — but the basis itself has not been switched over, because a shop must
@@ -636,6 +658,9 @@ none of them blocks the application being correct for the business it serves.
   there is no authority-specific export format.
 - **Historical foreign-currency rows** were backfilled at face value (rate 1). The
   migration documents this rather than correcting it.
+- **Never rendered in a browser.** Contrast is measured and asserted by
+  `ContrastTest`, but no page has been looked at. The census suite proves every route
+  does not crash; it does not prove any page is *correct*.
 - **No CRM, helpdesk, e-commerce or multi-channel.** This is a single-company ERP,
   not an Odoo clone, and it is not intended to become one.
 
@@ -672,6 +697,11 @@ therefore taken over good **and** scrap:
 What keeps it visible is **Production Variance** (6700), which measures real
 production cost against standard cost. Reporting is entirely optional and optional
 per field: an order completed without it behaves exactly as before.
+
+> **No input screen yet.** The columns, the service, the endpoint and the display
+> all work and are tested, but there is no form for reporting them — the values must
+> be POSTed to the status endpoint by hand. See
+> [Not reachable from the interface](#not-reachable-from-the-interface).
 
 Covered by `ProductionYieldTest` (9).
 
@@ -731,6 +761,12 @@ that day, **including completed ones**. Excluding completed operations is the ob
 reading and is wrong: the minutes a finished job took are exactly what it consumed
 from the centre. An operation nobody has reported on has *no* variance, which is
 different from zero — reporting 0 minutes would claim it was infinitely quick.
+
+> **No routing editor yet.** Work centres have a full CRUD interface, and a routing
+> is released onto an order and reported on correctly — but there is no screen for
+> *defining* a routing on a bill of materials. `inventory_bom_operations` can only be
+> populated programmatically today; the BOM form still edits components only. See
+> [Not reachable from the interface](#not-reachable-from-the-interface).
 
 Covered by `WorkCentreRoutingTest` (14).
 
