@@ -26,20 +26,24 @@ Laravel ERP application for independent local-business deployments in Pakistan. 
 
 ## Current Status
 
-**Last verified: 2026-10-09 — full suite green, all 20 migrations applied, and the
-upgrade path rehearsed against a copy of real data. What remains are design gaps,
-not defects: see [Still missing](#still-missing) and LOW-2/LOW-3 in
-[Known Issues](#known-issues).**
+**Last verified: 2026-10-12 — full suite green (1,384 passing, 0 failures), all 23
+migrations applied.** What remains are documented scope limits rather than defects:
+see [Still missing](#still-missing).
 
 ### Test suite
 
 | Status | Count |
 |---|---|
-| Passing | **1,247 tests** |
-| Assertions | **3,214** |
+| Passing | **1,384 tests** |
+| Assertions | **3,718** |
 | Failures / errors | **0** |
 | Skipped | 1 (`InvoicePdfSampleTest`, needs `SAMPLE_PDF_PATH` — a visual helper, not an assertion) |
-| Wall clock | ~31 min (Feature suite; there is no Unit suite) |
+| Wall clock | ~28 min (Feature suite; there is no Unit suite) |
+
+> **Do not run two suites at the same time.** They share one MySQL schema
+> (`companybased_test`). A concurrent run rebuilds it under the other and produces a
+> wall of "table doesn't exist" and deadlock errors that look like real failures and
+> are not. See [Running two suites at the same time](#running-two-suites-at-the-same-time).
 
 **No test skips for a known defect.** The CALC-1/2/3 arithmetic skips, and the
 CRITICAL-4 / AUTH-1 / AUTH-2 / HIGH-4 entries this file listed for several
@@ -353,12 +357,13 @@ It now converts line items first and derives the header from them via the shared
 | **Catalog** | Products, categories, units, price lists |
 | **Sales** | Customers, quotes, orders, invoices, payments, credit notes, withholding tax receipts |
 | **Purchasing** | Suppliers, purchase quotes, purchase orders, purchase invoices, supplier payments, debit notes |
-| **Inventory** | Warehouses, stock transfers, inventory ledger, low-stock alerts, valuation |
-| **Accounting** | Chart of accounts, general ledger (manual posting), trial balance, balance sheet, P&L |
+| **Inventory** | Warehouses, stock transfers, inventory ledger, low-stock alerts, **weighted-average valuation** |
+| **Accounting** | Chart of accounts, general ledger, trial balance, balance sheet, P&L, **year-end close to retained earnings**, **ledger-computed tax returns** |
 | **Banking** | Bank accounts, bank transfers, reconciliation, cash flow |
 | **Employees** | Employee profiles, attendance (manual / QR / button / UDP fingerprint), leaves, holidays, visits |
-| **Payroll** | Payroll runs, payslips, deductions, allowances |
-| **POS** | Till sessions, shifts, sales, variance |
+| **Payroll** | Payroll runs, payslips (itemised, printable), statutory deductions |
+| **POS** | Till sessions, shifts, sales, variance, **80mm thermal receipts** |
+| **Manufacturing** | **Multi-level BOMs**, **scrap and yield reporting**, **work centres and routings**, material requirements |
 | **Fixed Assets** | Asset register, depreciation |
 | **Investments** | Investment tracking |
 | **Reports** | Grand report (daily/weekly/monthly/yearly), financial statements, cash flow |
@@ -522,6 +527,67 @@ charges instead of reporting everything as cost of goods sold. Sales lines snaps
 the product's `cost_price` as `unit_cost`, so repricing a product cannot rewrite a
 past invoice's margin.
 
+### Year-end close and retained earnings
+
+`php artisan accounting:close-year --until=2026-12-31`
+
+Retained earnings is read from account **3100**, not computed as
+`assets - liabilities - equity`. The plug version forced the balance sheet to agree
+by arithmetic whatever the ledger contained: a transposition, a misposting or a
+missing entry simply moved the retained line to hide it. The balance sheet always
+agreed, which meant it never told anybody anything.
+
+The close moves the period's revenue and expense into 3100 — debit each revenue,
+credit each expense, credit the net profit (or debit the loss). Only **posted**
+entries dated on or before the period end are closed, so a draft in progress cannot
+be folded into a closed year, and closing the same year twice is refused rather than
+crediting retained earnings again with nothing left in the P&L to justify it.
+
+Covered by `YearEndCloseTest` (7) and `DocumentPageNumberTest` (6).
+
+### Weighted-average inventory valuation
+
+Cost of goods sold was recognised at the product's `cost_price` — a figure someone
+typed onto the product record. That is only correct if every purchase of that product
+happened at the same price. A business buying the same item at 100 and then at 140 is
+carrying stock worth neither, and the margin it reports on the sale in between is a
+fiction.
+
+```
+On a receipt of Q at cost C against Q0 on hand at average A:
+    A' = (Q0 x A + Q x C) / (Q0 + Q)
+On a sale the average does NOT move — the method consumes no cost layers.
+```
+
+The average lives on the **inventory item**, because that is the level stock is
+tracked at, and it is updated inside `InventoryLedger::adjust()` — the one place every
+quantity change passes through. Purchase receipts and incoming shipments pass their
+own cost; a receipt with no cost is ignored rather than blended in at zero, which
+would write off everything already on the shelf. Manufacturing output feeds it too.
+
+Covered by `WeightedAverageValuationTest` (11) and `CostOfGoodsSoldTest` (8).
+
+### Tax returns
+
+Every figure on a return used to be a required form field. That is the weakest
+possible position for the most consequential document the business produces: the
+return cannot be reproduced from the books that generated it.
+
+`TaxReturnCalculator` derives them from the general ledger, **posted entries only**:
+
+| Figure | Source |
+|---|---|
+| Output tax | Movement on 2200 — credits **minus** debits |
+| Input tax | Movement on 1310 — debits **minus** credits |
+| Taxable amount | Revenue accounts, credited net of tax |
+| Gross receipts | Taxable amount + output tax |
+
+A credit note debits 2200 and so reduces the period's output tax rather than
+increasing it. `POST /accounting/tax-returns/{tax}/recompute` refreshes a **draft**;
+a filed return is a historical statement and is refused.
+
+Covered by `TaxReturnCalculatorTest` (11).
+
 ### Absorption
 
 Manufacturing labour and overhead are capitalised into work in progress rather than
@@ -544,21 +610,129 @@ Covered by `LedgerPostingTest`, `LedgerReversalTest` (10),
 
 ### Still missing
 
-- **Manufacturing is labour-hour based only.** There is no work centre, machine or
-  equipment record in the application, so machine-hour or rate-per-unit absorption is
-  not possible yet. Absorption is also manual — someone types minutes in; there is no
-  timesheet integration from attendance.
-- **MRP is net requirements only.** No forward scheduling, capacity loading,
-  lead-time sequencing or demand forecasting, and the planning screen does not raise
-  purchase orders.
+These are scope limits, stated rather than hidden. None of them is a defect, and
+none of them blocks the application being correct for the business it serves.
+
+- **Absorption is still labour-hour based.** Work centres, machines and routings now
+  exist and record planned against actual minutes, so a machine-hour basis is now
+  *measurable* — but the basis itself has not been switched over, because a shop must
+  choose it deliberately rather than have it change underneath them. Absorption is
+  still manual: someone types minutes in, with no timesheet integration from
+  attendance.
+- **No forward scheduling.** Work centre capacity is reported per day and overloaded
+  centres sort to the top, but there is no finite-capacity scheduler, no lead-time
+  sequencing and no demand forecasting. MRP remains net requirements only.
+- **Scrap is absorbed, not expensed.** A run rejecting 10 of 100 units carries the
+  whole batch cost on the 90 that survive, which is what the material actually did.
+  The difference surfaces on **Production Variance** against standard cost. There is
+  no separate scrap expense line, and no rework or repair order type.
+- **`tax_rates.account_id` is informational.** Posting uses the fixed output and input
+  tax accounts; nothing reads the column. It is checked by
+  `php artisan accounting:verify-tax-rates` rather than trusted, because a rate that
+  names the wrong account is worse than one that names none. Honouring it per rate
+  would need `tax_rate_id` on nine document item tables.
 - **No tax jurisdiction rules** beyond the single effective-dated rate catalogue.
-  No VAT/GST registration, filing or return workflow.
+  No VAT/GST registration or filing workflow; returns are computed from the ledger but
+  there is no authority-specific export format.
 - **Historical foreign-currency rows** were backfilled at face value (rate 1). The
   migration documents this rather than correcting it.
 - **No CRM, helpdesk, e-commerce or multi-channel.** This is a single-company ERP,
   not an Odoo clone, and it is not intended to become one.
 
 ---
+
+## Manufacturing
+
+### Scrap and yield
+
+Completion used to write `quantity_used = quantity_required` over every component
+line with one bulk update, and receive the ordered quantity into stock. That is an
+accounting problem, not a reporting one, in three places: stock written off during a
+run was recorded as consumed in full and the loss vanished; a run producing 90 good
+units out of 100 posted 100 into stock; and material that went into rejected output
+had no home, so it stayed buried in the cost of the good units and quietly flattered
+the margin on what did sell.
+
+The two numbers the shop floor can actually report are now recorded —
+`quantity_good` and `quantity_scrap`, plus per-component `quantity_scrapped` with a
+reason — because "12 units of component 4 were scrapped" and "12 units were rejected
+at final inspection" are different problems needing different fixes.
+
+**Scrap is absorbed into the good units, not expensed.** The material really was
+consumed to make them, and a run rejecting 10 of 100 produces 90 units that cost what
+the whole batch cost. Expensing the scrap would credit the good units with a cost
+they were never charged, understating inventory and overstating margin. Unit cost is
+therefore taken over good **and** scrap:
+
+```
+1,000 components at 10 = 10,000, over 100 units produced = 100 each
+90 good units are carried at 9,000, absorbing the 1,000 the scrap consumed
+```
+
+What keeps it visible is **Production Variance** (6700), which measures real
+production cost against standard cost. Reporting is entirely optional and optional
+per field: an order completed without it behaves exactly as before.
+
+Covered by `ProductionYieldTest` (9).
+
+### Multi-level bills of materials
+
+A BOM could already *express* a sub-assembly — a component line points at an
+inventory item, and that item can be the subject of a BOM of its own — but nothing
+read the second level. A product built from a sub-assembly planned to buy the
+**sub-assembly**: an item no supplier sells, so the requirement could not become a
+purchase order, the order could not be costed, and it could never be completed
+against real stock.
+
+`BomExplosionService` recurses to the purchasable leaves. Wastage applies at **every**
+level, not only the top — a sub-assembly is built with its own loss, and ignoring that
+under-orders whatever it is made of. MRP and the production order go through the same
+service so they cannot disagree. A component reached by two paths is one line with
+the requirement summed; two lines would double-count its availability.
+
+**The cycle guard is the load-bearing part.** A BOM can contain itself by accident,
+and A-requires-B-requires-A is one data-entry mistake. That is not an error to
+return — it is an unbounded recursion that exhausts memory and takes the request
+process with it. The chain of items being expanded is carried down and a repeat is
+**reported**, not followed, because a broken recipe is a data error the owner must
+fix and silently returning the branches that happened to work would let it look fine.
+A cycle on one branch does not lose the branches that are healthy.
+
+Covered by `MultiLevelBomTest` (11).
+
+### Work centres and routings
+
+There was no work centre, machine or equipment record anywhere in this application.
+`ProductionAbsorptionService` absorbed overhead on direct labour hours and said why in
+its own docblock. That limitation is now removed rather than documented around.
+
+A **work centre** is a place work happens — a machine, a bench, a person — carrying
+its own rate and available minutes per day. The type is stated rather than implied by
+a name, because it changes what the rate *means*: a machine hour and a labour hour are
+different units.
+
+A **routing** is the sequence of operations a product goes through, attached to its
+bill of materials rather than to the product, because the operations belong to the
+recipe. Standard time is `setup + (run per unit × quantity)`: a 10-unit and a
+1,000-unit batch take very different times on the same centre.
+
+```bash
+# GET /inventory/work-centres          — the centres
+# GET /inventory/work-centres/capacity — committed minutes per day, worst first
+```
+
+An order owns a **copy** of the routing it was released against, so editing a BOM
+cannot retime work already half done, and re-releasing overwrites only the planned
+side of operations nobody has reported on. Reported minutes **accumulate** rather than
+replace, because the first entry is the one most likely to exist on paper.
+
+Capacity counts the greater of recorded and planned minutes for every operation due
+that day, **including completed ones**. Excluding completed operations is the obvious
+reading and is wrong: the minutes a finished job took are exactly what it consumed
+from the centre. An operation nobody has reported on has *no* variance, which is
+different from zero — reporting 0 minutes would claim it was infinitely quick.
+
+Covered by `WorkCentreRoutingTest` (14).
 
 ## Document System
 
@@ -606,6 +780,31 @@ View files:
   table layout a `width: 61%` cell carrying `padding-left: 6mm` is 61% *plus* 6mm,
   so the canvas column has to be cut back to leave room or the right-hand edge runs
   off the paper.
+- **`@page` margin boxes do not render at `margin: 0`** -- which the full-bleed
+  document rail requires. Page numbering therefore uses a `position: fixed` block
+  with `content: counter(page)`, the same mechanism the rail relies on, and DomPDF
+  re-emits it on every page. Do **not** write "Page N of M": `counter(pages)`
+  resolves to 0 because the total is unknown during layout, so it prints "Page 3 of 0".
+- **Streams are compressed and fonts are Identity-H CID subsets**, so grepping a
+  rendered PDF for text does not work. `tests/Support/PdfText.php` decompresses the
+  streams and reads the text back through the ToUnicode CMaps.
+
+### Printable POS receipts and payslips
+
+| Document | Route | Notes |
+|---|---|---|
+| POS receipt | `GET /pos/receipts/{sale}/print` | **80mm thermal roll by default**, `?size=a4` for the filed copy |
+| Payslip | `GET /employees/payroll/{run}/payslips/{payslip}` | Bind through its run, so a payslip id from another run is a 404 |
+
+POS receipts had no printable form at all — the only view was an HTML screen page.
+The 80mm geometry is asserted in points (226.77pt), because passing `a4` to
+`setPaper()` would render a perfectly readable receipt on the wrong roll and still
+pass every content check.
+
+Payslips itemise attendance and statutory withholding **separately**: statutory money
+is withheld by law and never belonged to the employee, so presented as one
+"deductions" figure it reads as a penalty. A run that is neither approved nor paid is
+stamped on the document.
 
 ### Verifying layout visually
 
@@ -756,8 +955,20 @@ Skips are declarations, not escape hatches: each carries a reason, and `test_the
 
 ### Test files
 
+Test files added most recently, plus the ones most worth knowing about:
+
 | Test file | Tests | What it covers |
 |---|---|---|
+| `YearEndCloseTest` | 7 | Retained earnings is a real figure, not a plug; close idempotency; unrelated accounts must not block it |
+| `WeightedAverageValuationTest` | 11 | Blend by quantity, a sale does not move the average, value conserved, 4-decimal unit costs |
+| `TaxReturnCalculatorTest` | 11 | Posted-only, credit note reduces the period, draft returns recomputable, filed ones refused |
+| `ProductionYieldTest` | 9 | Only good output received, scrap absorbed, actual consumption recorded, valuation of output |
+| `MultiLevelBomTest` | 11 | Sub-assemblies expanded, **cycle guard**, wastage at every level, shared components summed |
+| `WorkCentreRoutingTest` | 14 | Recorded time survives re-release, minutes accumulate, capacity and overloading |
+| `ContrastTest` | 11 | WCAG AA on every token pair; series colours at 3:1; no status colour without a `dark:` variant |
+| `DocumentPageNumberTest` | 6 | Page number on **every** page; the PDF text extractor itself |
+| `PosReceiptPrintTest` | 9 | 80mm geometry asserted in points; A4 variant; change-due box |
+| `PayslipPdfTest` | 9 | Deductions itemised separately; figures reconcile; filed runs stamped |
 | `InventoryLedgerTest` | 12 | On-hand == sum of movements, negative-stock rejection, decimal drift |
 | `MailSettingsSecurityTest` | 14 | PUT/GET /settings/mail -- whitespace passwords, blank-box preservation, secret non-rendering |
 | `MailTransportSchemeTest` | 7 | Transport scheme normalisation (ssl->smtps, tls->smtp, blank->smtp) |
