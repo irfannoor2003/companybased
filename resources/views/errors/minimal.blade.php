@@ -9,6 +9,26 @@
         503 => ['Service unavailable', 'The application is temporarily unavailable. Please try again shortly.', 'refresh'],
     ];
     [$heading, $message, $icon] = $titles[$status] ?? $titles[500];
+
+    // A 403 raised as abort(403, '...') carries a message somebody wrote for the
+    // user: 'The "Employees" module is currently disabled...', 'Core modules
+    // cannot be disabled', 'Attendance is only available to employees on the
+    // payroll'. This template used to discard all of them and show the generic
+    // "You do not have permission to access this page" instead, which is both
+    // wrong and actively unhelpful — it blamed the user's permissions for what
+    // is a configuration state.
+    //
+    // Restricted to 403 on purpose. 403 is the only status this codebase aborts
+    // with authored copy, it is never used to surface internals, and a
+    // message-less abort (IncomingShipmentController) falls back to the default
+    // above, as does the framework's own authorization failure.
+    $authored = $status === 403 && isset($exception)
+        ? trim((string) $exception->getMessage())
+        : '';
+
+    if ($authored !== '') {
+        $message = $authored;
+    }
 @endphp
 
 <x-guest-layout :page-title="$heading">

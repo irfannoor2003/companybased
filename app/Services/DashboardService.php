@@ -41,8 +41,7 @@ class DashboardService
         $widgets = collect($keys)
             ->map(fn (string $key): ?array => isset($definitions[$key]) ? array_merge($definitions[$key], ['key' => $key]) : null)
             ->filter()
-            ->filter(fn (array $definition): bool => $user->can($definition['permission'])
-                && Module::isEnabled(explode('.', $definition['permission'])[0]))
+            ->filter(fn (array $definition): bool => $this->canUseModuleAction($user, $definition['permission']))
             ->map(function (array $definition) use ($user): array {
                 return array_merge($definition, ['data' => $this->dataFor($definition['key'], $user)]);
             })
@@ -422,26 +421,69 @@ class DashboardService
     {
         $actions = [];
 
-        if ($user->can('sales.customers.create')) {
+        if ($this->canUseModuleAction($user, 'sales.customers.create')) {
             $actions[] = ['label' => 'New customer', 'href' => route('sales.customers.create'), 'icon' => 'users'];
         }
-        if ($user->can('sales.orders.create')) {
+        if ($this->canUseModuleAction($user, 'sales.orders.create')) {
             $actions[] = ['label' => 'New order', 'href' => route('sales.orders.create'), 'icon' => 'orders'];
         }
-        if ($user->can('inventory.items.view')) {
+        if ($this->canUseModuleAction($user, 'inventory.items.view')) {
             $actions[] = ['label' => 'Stock items', 'href' => route('inventory.items.index'), 'icon' => 'inventory'];
         }
-        if ($user->can('employees.attendance.mark')) {
+        if ($this->canUseModuleAction($user, 'employees.attendance.mark')) {
             $actions[] = ['label' => 'Mark attendance', 'href' => route('employees.attendance.index'), 'icon' => 'clock'];
         }
-        if ($user->can('employees.my_leave.create')) {
+        if ($this->canUseModuleAction($user, 'employees.my_leave.create')) {
             $actions[] = ['label' => 'Request leave', 'href' => route('employees.leave.my.create'), 'icon' => 'calendar'];
         }
-        if ($user->can('pos.sale_screen.use')) {
+        if ($this->canUseModuleAction($user, 'pos.sale_screen.use')) {
             $actions[] = ['label' => 'Open POS', 'href' => route('pos.sale_screen.index'), 'icon' => 'pos'];
         }
 
+        // Super Admin (and any role holding them) configuration shortcuts.
+        if ($this->canUseModuleAction($user, 'settings.company.view')) {
+            $actions[] = ['label' => 'Company profile', 'href' => route('settings.company'), 'icon' => 'company'];
+        }
+        if ($this->canUseModuleAction($user, 'settings.mail.view')) {
+            $actions[] = ['label' => 'Mail server', 'href' => route('settings.mail'), 'icon' => 'mail'];
+        }
+        if ($this->canUseModuleAction($user, 'settings.modules.view')) {
+            $actions[] = ['label' => 'Modules', 'href' => route('settings.modules'), 'icon' => 'modules'];
+        }
+        if ($this->canUseModuleAction($user, 'settings.dashboard.view')) {
+            $actions[] = ['label' => 'Dashboards', 'href' => route('settings.dashboards.index'), 'icon' => 'dashboard'];
+        }
+        if ($this->canUseModuleAction($user, 'settings.audit.view')) {
+            $actions[] = ['label' => 'Audit log', 'href' => route('settings.audit-log'), 'icon' => 'audit'];
+        }
+        if ($this->canUseModuleAction($user, 'settings.backup.view')) {
+            $actions[] = ['label' => 'Backups', 'href' => route('settings.backups'), 'icon' => 'backup'];
+        }
+        if ($this->canUseModuleAction($user, 'settings.subscription.view')) {
+            $actions[] = ['label' => 'Subscription', 'href' => route('settings.subscription'), 'icon' => 'subscription'];
+        }
+
         return ['items' => $actions];
+    }
+
+    /**
+     * Whether a quick action's destination is actually reachable.
+     *
+     * Permission alone was not enough, and this was the one place a disabled
+     * module still leaked onto the screen: with Employees off, a manager's
+     * dashboard kept showing "Mark attendance" and "Request leave" shortcuts
+     * because the role still held the permissions. The nav hid the group and
+     * the route correctly refused, so the shortcut was the odd one out — the
+     * only surviving evidence of a feature that was supposed to be invisible.
+     *
+     * A permission's first segment is its module key ('employees.attendance.mark'
+     * -> 'employees'). Shared by the widget filter and quickActions so the two
+     * cannot drift — they are the same rule about the same thing.
+     */
+    private function canUseModuleAction(User $user, string $permission): bool
+    {
+        return $user->can($permission)
+            && Module::isEnabled(explode('.', $permission)[0]);
     }
 
     private function money(float|int|string $value): string

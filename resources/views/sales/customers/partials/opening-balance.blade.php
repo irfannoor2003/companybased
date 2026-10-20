@@ -17,9 +17,10 @@
         />
 
         @php
-            $direction = old('opening_balance_direction', $customer?->opening_balance < 0 ? 'credit' : 'debit');
+            $direction = old('opening_balance_direction', $customer?->opening_balance != 0 ? ($customer->opening_balance < 0 ? 'credit' : 'debit') : '');
         @endphp
         <x-select name="opening_balance_direction" label="Direction">
+            <option value="" @selected($direction === '' || $direction === null)>— None (no opening balance)</option>
             <option value="debit" @selected($direction === 'debit')>+ Owed to me</option>
             <option value="credit" @selected($direction === 'credit')>− In credit with customer</option>
         </x-select>

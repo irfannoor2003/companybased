@@ -4,9 +4,9 @@ namespace App\Services\Accounting;
 
 use App\Models\Employee;
 use App\Models\InventoryProductionOrder;
+use App\Models\InventoryProductionOrderOperation;
 use App\Models\JournalEntry;
 use App\Models\ProductionLabourEntry;
-use App\Models\SalaryStructure;
 use App\Models\Setting;
 use App\Support\Money;
 
@@ -38,18 +38,56 @@ use App\Support\Money;
  * So labour is MOVED from expense to inventory. Total cost is unchanged. Only its
  * location on the balance sheet changes, which is exactly what absorption means.
  *
- * Overhead is absorbed on a DIRECT LABOUR HOUR basis rather than per unit or per
- * machine hour. There is no work centre, machine or equipment record anywhere in
- * this application, so a machine-hour rate would have nothing to measure against.
- * Labour hours are recorded, so they are the basis. This is a real limitation, and
- * it is stated rather than hidden behind a setting that implies more precision than
- * the underlying data supports.
+ * OVERHEAD IS ABSORBED ON A CHOSEN BASIS, AND THE BASIS IS A SETTING.
+ *
+ * `production.absorption_basis` selects it:
+ *
+ *   labour_hour      (default)  overhead_rate_per_hour x recorded direct labour hours
+ *   work_centre_hour             each work centre's own hourly_rate x its own minutes
+ *
+ * Labour hours were the original basis because nothing measured a machine hour. That
+ * reason expired when work centres arrived, but the basis was NOT switched
+ * underneath existing users: a shop has to pick deliberately, because the two produce
+ * different inventory values for the same job and silently repricing every job in a
+ * live ledger is not a change anybody should have to discover in a margin report.
+ *
+ * Work centres record the minutes a job actually took, so the machine-hour basis is
+ * now measurable rather than hypothetical. It is still not the default, and the
+ * difference is worth stating: a labour-hour basis charges overhead in proportion to
+ * how many people touched the job, which misprices a capital-intensive shop badly. A
+ * shop running its own machinery should switch. One that bills by the hour should not.
  */
 class ProductionAbsorptionService
 {
     public const WORK_IN_PROGRESS = '1350';
+
     public const MANUFACTURING_OVERHEAD = '1450';
+
     public const SALARIES_AND_WAGES = '6200';
+
+    /**
+     * Overhead as a share of direct labour hours.
+     */
+    public const BASIS_LABOUR_HOUR = 'labour_hour';
+
+    /**
+     * Overhead as each work centre's own recovery rate over the minutes it consumed.
+     */
+    public const BASIS_WORK_CENTRE_HOUR = 'work_centre_hour';
+
+    public const ABSORPTION_BASES = [
+        self::BASIS_LABOUR_HOUR,
+        self::BASIS_WORK_CENTRE_HOUR,
+    ];
+
+    /**
+     * The default basis.
+     *
+     * Labour hours, unchanged from when it was the only option. A default has to be
+     * the behaviour existing users already have, or switching a setting nobody has
+     * touched would silently restate their inventory.
+     */
+    public const DEFAULT_BASIS = self::BASIS_LABOUR_HOUR;
 
     /**
      * Standard monthly hours used to turn a monthly salary into an hourly rate.
@@ -131,18 +169,36 @@ class ProductionAbsorptionService
     }
 
     /**
-     * Overhead applied on direct labour hours.
+     * The overhead cost of one order, on the configured basis.
      *
-     * Rate is a setting, defaulting to zero. Zero is the right default rather than a
-     * guess: absorbing overhead that was never configured would invent factory cost
-     * out of nothing and put it in inventory.
+     * ONE place computes it, because `absorbOverhead()` and `absorbedTotal()` both need
+     * the figure and they must not be able to disagree: the first writes it to the
+     * ledger, the second is what the completion posting relieves work in progress by. A
+     * drift between them would leave WIP never returning to zero.
+     *
+     * `labour_hour` -- a single blended rate over recorded direct labour hours. Zero by
+     * default rather than a guess: absorbing overhead nobody configured would invent
+     * factory cost out of nothing and put it into inventory.
+     *
+     * `work_centre_hour` -- each centre's own `hourly_rate` over the minutes the job
+     * consumed from it: recorded time where there is any, standard time otherwise. A
+     * centre with no rate contributes nothing rather than defaulting to the global
+     * rate: it was never costed, so guessing one would put invented cost into
+     * inventory.
      */
-    public function absorbOverhead(InventoryProductionOrder $order, ?string $date = null): ?JournalEntry
+    public function overheadFor(InventoryProductionOrder $order): string
+    {
+        return $this->basis() === self::BASIS_WORK_CENTRE_HOUR
+            ? $this->workCentreOverheadFor($order)
+            : $this->labourHourOverheadFor($order);
+    }
+
+    private function labourHourOverheadFor(InventoryProductionOrder $order): string
     {
         $rate = (float) Setting::get('production.overhead_rate_per_hour', 0);
 
         if ($rate <= 0.0) {
-            return null;
+            return '0.00';
         }
 
         $minutes = (int) ProductionLabourEntry::query()
@@ -150,10 +206,81 @@ class ProductionAbsorptionService
             ->sum('minutes');
 
         if ($minutes <= 0) {
-            return null;
+            return '0.00';
         }
 
-        $overhead = Money::of(Money::multiply((string) $rate, (string) ($minutes / 60)));
+        return Money::of(Money::multiply((string) $rate, (string) ($minutes / 60)));
+    }
+
+    private function workCentreOverheadFor(InventoryProductionOrder $order): string
+    {
+        $total = '0';
+
+        $operations = InventoryProductionOrderOperation::query()
+            ->where('production_order_id', $order->id)
+            ->with('workCentre')
+            ->get();
+
+        foreach ($operations as $operation) {
+            $centre = $operation->workCentre;
+
+            if ($centre === null || (float) $centre->hourly_rate <= 0.0) {
+                continue;
+            }
+
+            /**
+             * Recorded time when there is any, standard time otherwise.
+             *
+             * Deliberately NOT the greater of the two, which is what the capacity report
+             * uses. Capacity is a question about how loaded a centre is, and worst-case
+             * is the honest answer to that. Absorption is a question about what a job
+             * cost, and there the truth is the minutes the centre was actually occupied.
+             *
+             * Taking the greater would charge a job that ran in 30 minutes against a
+             * 120-minute standard for 120 minutes of machine time -- inflating the cost
+             * of the job that came in under, which is backwards, and burying the
+             * favourable variance the shop most wants to see.
+             *
+             * With nothing recorded, the standard is the only figure there is. That is
+             * not a claim the job took exactly that long; it is the plan until somebody
+             * reports otherwise.
+             */
+            $minutes = $operation->isReported()
+                ? (float) $operation->minutes_spent
+                : (float) $operation->planned_minutes;
+
+            if ($minutes <= 0.0) {
+                continue;
+            }
+
+            $total = Money::add($total, $centre->costForMinutes($minutes));
+        }
+
+        return Money::of($total);
+    }
+
+    /**
+     * The configured absorption basis.
+     *
+     * Unknown values fall back to the default rather than throwing. A typo in a setting
+     * must not stop a production order completing; and because the fallback is the
+     * previous behaviour, the cost lands where it always did.
+     */
+    public function basis(): string
+    {
+        $configured = (string) Setting::get('production.absorption_basis', self::DEFAULT_BASIS);
+
+        return in_array($configured, self::ABSORPTION_BASES, true)
+            ? $configured
+            : self::DEFAULT_BASIS;
+    }
+
+    /**
+     * Post the order's overhead into work in progress.
+     */
+    public function absorbOverhead(InventoryProductionOrder $order, ?string $date = null): ?JournalEntry
+    {
+        $overhead = $this->overheadFor($order);
 
         if (Money::equals($overhead, '0')) {
             return null;
@@ -189,15 +316,7 @@ class ProductionAbsorptionService
             ->whereNotNull('absorbed_at')
             ->sum('labour_cost');
 
-        $rate = (float) Setting::get('production.overhead_rate_per_hour', 0);
-        $minutes = (int) ProductionLabourEntry::query()
-            ->where('production_order_id', $order->id)
-            ->sum('minutes');
-
-        return Money::add(
-            Money::of($labour),
-            $rate > 0 ? Money::of(Money::multiply((string) $rate, (string) ($minutes / 60))) : '0.00',
-        );
+        return Money::add(Money::of($labour), $this->overheadFor($order));
     }
 
     /**

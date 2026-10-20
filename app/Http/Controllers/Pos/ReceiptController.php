@@ -62,11 +62,7 @@ class ReceiptController extends Controller
 
         $html = view('pos.receipts.print', ['sale' => $sale, 'narrow' => ! $a4])->render();
 
-        $pdf = Pdf::loadHTML($html)->setOptions([
-            'isRemoteEnabled' => false,
-            'isPhpEnabled' => false,
-            'defaultFont' => 'DejaVu Sans',
-        ]);
+        $pdf = Pdf::loadHTML($html)->setOptions(pdf_options());
 
         /**
          * 80mm x 297mm.

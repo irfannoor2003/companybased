@@ -30,6 +30,21 @@ class UsersSeeder extends Seeder
             config('roles.inventory_manager'), config('roles.employee'),
         ];
 
+        /*
+         * Super Admin is the INSTALLATION owner, not the operator.
+         *
+         * It can see the package, activate and deactivate a plan, and take backups.
+         * It deliberately cannot manage users, roles, or open any sales, purchasing,
+         * inventory or accounting screen — see `$superAdmin` in RolesSeeder.
+         *
+         * Two accounts are seeded so the distinction is never in doubt:
+         *
+         *   superadmin@  the person who owns this installation and its subscription
+         *   admin@       the person who runs the company, day to day
+         *
+         * Handover is admin@nexosdigital.test. Signing in as superadmin@ and finding
+         * a 403 on /settings/users is the intended behaviour, not a misconfiguration.
+         */
         $superAdminUser = $this->makeUser('Super Admin', 'superadmin@nexosdigital.test', 'Password123!');
         $superAdminUser->syncRoles([$superAdmin]);
 

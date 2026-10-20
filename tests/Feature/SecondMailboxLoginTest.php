@@ -95,28 +95,46 @@ class SecondMailboxLoginTest extends TestCase
         $this->assertSame('no-reply-secret', Setting::get('mail.password'));
     }
 
-    public function test_a_team_username_without_a_password_is_rejected(): void
+    /**
+     * A half-configured team mailbox is DISCARDED, not refused.
+     *
+     * These two used to assert the opposite. The refusal happened before `setMany` ran,
+     * so a team username without its password also stopped the PRIMARY SMTP settings
+     * being written — an optional feature blocking the required one.
+     *
+     * Nothing is lost by dropping the pair: `MailConfigServiceProvider` only registers
+     * the team transport when both halves are non-empty, so half a login could never
+     * have sent mail. What matters now is that it does not survive as something that
+     * merely LOOKS configured.
+     */
+    public function test_a_team_username_without_a_password_is_discarded(): void
     {
         $this->actingAs($this->superAdmin())
             ->put('/settings/mail', $this->payload([
                 'team_username' => 'info@xyz.com',
                 'team_password' => '',
             ]))
-            ->assertSessionHasErrors('team_password');
+            ->assertSessionHasNoErrors();
 
         Setting::flushCache();
 
-        $this->assertNull(Setting::get('mail.team_username'));
+        $this->assertSame('', (string) Setting::get('mail.team_username'));
+        $this->assertSame('', (string) Setting::get('mail.team_password'));
     }
 
-    public function test_a_team_password_without_a_username_is_rejected(): void
+    public function test_a_team_password_without_a_username_is_discarded(): void
     {
         $this->actingAs($this->superAdmin())
             ->put('/settings/mail', $this->payload([
                 'team_username' => '',
                 'team_password' => 'info-secret',
             ]))
-            ->assertSessionHasErrors('team_username');
+            ->assertSessionHasNoErrors();
+
+        Setting::flushCache();
+
+        $this->assertSame('', (string) Setting::get('mail.team_username'));
+        $this->assertSame('', (string) Setting::get('mail.team_password'));
     }
 
     public function test_a_blank_team_password_keeps_the_stored_one(): void

@@ -52,7 +52,7 @@ class ViewIntegrityTest extends TestCase
     ];
 
     /**
-     * @return array<string, string>  relative path => file contents
+     * @return array<string, string> relative path => file contents
      */
     private function bladeFiles(): array
     {
@@ -74,7 +74,7 @@ class ViewIntegrityTest extends TestCase
     }
 
     /**
-     * @return array<string, string>  file => comma-separated offenders
+     * @return array<string, string> file => comma-separated offenders
      */
     private function offenders(callable $extract, callable $isValid): array
     {
@@ -116,8 +116,8 @@ class ViewIntegrityTest extends TestCase
 
         return sprintf(
             "The following reference names that do not exist.\n%s\n\n%s\n\n"
-            ."If a listed name is legitimately conditional, add it to the allow-list with a comment "
-            ."explaining the condition. Otherwise fix the reference.",
+            .'If a listed name is legitimately conditional, add it to the allow-list with a comment '
+            .'explaining the condition. Otherwise fix the reference.',
             implode("\n", $lines),
             $consequence,
         );
@@ -128,10 +128,10 @@ class ViewIntegrityTest extends TestCase
         $found = $this->offenders(
             // route('x') and <x-export route="x">.
             //
-            // The negative lookbehind excludes `->route('x')`, which is how
-            // reset-password.blade.php reads the token parameter
-            // ($request->route('token')) rather than generating a URL. Dynamic
-            // names (route($var)) are not literals and are out of scope.
+            // The negative lookbehind excludes `->route('x')`, which is how a view
+            // reads the current route parameter ($request->route('token')) rather
+            // than generating a URL. Dynamic names (route($var)) are not literals
+            // and are out of scope.
             fn (string $source): array => array_merge(
                 $this->capture($source, "/(?<![->\w])route\(\s*'([^']+)'/"),
                 $this->capture($source, '/route\s*=\s*"([^"]+)"/'),

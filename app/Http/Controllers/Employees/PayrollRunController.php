@@ -178,11 +178,7 @@ class PayrollRunController extends Controller
 
         return Pdf::loadHTML($html)
             ->setPaper('a4', 'portrait')
-            ->setOptions([
-                'isRemoteEnabled' => false,
-                'isPhpEnabled' => false,
-                'defaultFont' => 'DejaVu Sans',
-            ])
+            ->setOptions(pdf_options())
             ->download('payslip-'.$run->number.'-'.($payslip->employee?->employee_code ?: $payslip->id).'.pdf');
     }
 

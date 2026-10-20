@@ -38,8 +38,14 @@
                         </div>
                     @endif
 
+                    @if ($onLeaveToday)
+                        <div class="border-t border-line pt-4">
+                            <p class="text-sm text-ink-faint text-center">You are on approved leave today — attendance is not required.</p>
+                        </div>
+                    @endif
+
                     {{-- QR Code Scanner --}}
-                    @if (! ($today && $today->check_in_at && $today->check_out_at))
+                    @if (! $onLeaveToday && ! ($today && $today->check_in_at && $today->check_out_at))
                         <div class="border-t border-line pt-4">
                             <p class="text-xs text-ink-faint mb-2">Scan the office QR code to mark attendance</p>
                             <div id="qr-reader" class="mb-3 hidden overflow-hidden rounded-xl border border-line"></div>
@@ -66,7 +72,7 @@
                     </template>
 
                     {{-- Manual Clock In/Out (with location) --}}
-                    @if (auth()->user()->can('employees.my_attendance.mark') && ! ($today && $today->check_in_at && $today->check_out_at))
+                    @if (auth()->user()->can('employees.my_attendance.mark') && ! $onLeaveToday && ! ($today && $today->check_in_at && $today->check_out_at))
                         <form method="POST" action="{{ route('employees.my_attendance.mark') }}" id="attendanceForm"
                             x-ref="form" @submit.prevent="markAttendance()">
                             @csrf

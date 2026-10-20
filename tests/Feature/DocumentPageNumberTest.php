@@ -71,7 +71,7 @@ class DocumentPageNumberTest extends TestCase
 
         return Pdf::loadHTML($html)
             ->setPaper('a4', 'portrait')
-            ->setOptions(['isRemoteEnabled' => false, 'isPhpEnabled' => false, 'defaultFont' => 'DejaVu Sans'])
+            ->setOptions(pdf_options())
             ->output();
     }
 
@@ -86,6 +86,73 @@ class DocumentPageNumberTest extends TestCase
         $this->assertStringContainsString('QUO-PAGE-0001', $text, 'the extractor could not read the document number back');
         $this->assertStringContainsString('Northwind Traders Ltd', $text);
         $this->assertStringContainsString('Line item 001', $text);
+    }
+
+    /**
+     * THE REGRESSION, and the reason the other assertions here are worth anything.
+     *
+     * `PdfText` found stream bodies with
+     * `stream\r?\n(?P<body>.*?)\r?\nendstream`. `.*?` is lazy, so it stops at the
+     * EARLIEST newline followed by `endstream` -- and the byte before `endstream` is
+     * very often part of the compressed data rather than a separator. A stream whose
+     * deflate bytes happen to end in `0x0a` was captured one byte short, failed to
+     * inflate, and was silently skipped. The page came back as an empty string.
+     *
+     * Nothing failed. Every `assertStringNotContainsString()` written against an
+     * empty string passes, which is how a bank-details assertion sat there green
+     * while checking that a document did not contain text the extractor had never
+     * read.
+     *
+     * Whether a given render trips it depends on the compressed bytes, so it is
+     * content-dependent: one footer label was enough to make a whole class of
+     * assertions meaningless. Which is the argument for the throw below rather than
+     * a warning.
+     */
+    public function test_the_extractor_refuses_a_pdf_it_cannot_read_rather_than_returning_nothing(): void
+    {
+        $pdf = $this->renderQuote(3);
+
+        $this->assertGreaterThan(0, strlen(trim(PdfText::all($pdf))), 'the extractor read nothing at all');
+
+        // Corrupt the very first content stream so it cannot inflate.
+        $broken = preg_replace_callback(
+            '#(?<=stream\n)[^\n]{40,}#',
+            fn (array $m): string => str_repeat("\x00", strlen($m[0])),
+            $pdf,
+            1,
+        );
+
+        $this->assertNotSame($pdf, $broken, 'the fixture could not be corrupted; the test is not testing anything');
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('FlateDecode');
+
+        PdfText::all((string) $broken);
+    }
+
+    /**
+     * A document that genuinely printed nothing must still be refused, for the same
+     * reason: "the extractor failed" and "the page is blank" are indistinguishable
+     * from the outside, and guessing wrong makes an assertion pass vacuously.
+     *
+     * Built by hand rather than by mangling a real render, because the real render's
+     * text lives inside a compressed stream -- there is no `BT` in the file to strip.
+     * This is the smallest PDF DomPDF could have produced for a page with nothing on
+     * it, and `PdfText` still has to refuse it rather than return an empty string.
+     */
+    public function test_the_extractor_refuses_a_pdf_with_no_readable_text(): void
+    {
+        $pdf = "%PDF-1.3\n"
+            ."1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            ."2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            ."3 0 obj\n<< /Type /Page /MediaBox [0 0 595 842] /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            ."4 0 obj\n<< /Length 0 >>\nstream\n\nendstream\nendobj\n"
+            .'trailer'."\n<< /Root 1 0 R >>\n%%EOF";
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('could not read any text');
+
+        PdfText::all($pdf);
     }
 
     public function test_a_single_page_document_is_numbered(): void

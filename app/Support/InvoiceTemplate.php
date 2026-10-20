@@ -3,16 +3,22 @@
 namespace App\Support;
 
 /**
- * Which invoice PDF template to render, and where it lives.
+ * The invoice template NAMES accepted by the editor.
  *
- * The four templates are thin skins over one shared skeleton rather than four
- * independent stylesheets. They used to be independent, which is how the classic
- * and modern ones drifted apart on the header rule, the date format and the
- * totals block — fixing one meant editing four files, and they quietly
- * disagreed about what an invoice looked like.
+ * WHAT CHANGED
  *
- * Keeping the name-to-path mapping here means a template is added in one place
- * and validated by the same test that proves the others render.
+ * This used to map a name to one of four standalone views. All four are gone: every
+ * stored name now resolves to the same shared design, and the invoice renders through
+ * `documents/pdf.blade.php` like every other document.
+ *
+ * The names are kept because invoices already in the database carry one in
+ * `sales_invoices.template`, and because the editor's picker offers a choice. Removing
+ * the accepted values would make every existing invoice unsaveable for the sake of a
+ * tidy enum.
+ *
+ * The choice the four names appear to offer is now made where it actually takes
+ * effect -- Settings -> Templates, which changes the style and the blocks the shared
+ * design prints with. Two template systems is one too many.
  */
 class InvoiceTemplate
 {
@@ -33,18 +39,14 @@ class InvoiceTemplate
     }
 
     /**
-     * The view for a template name.
+     * The view an invoice prints from.
      *
-     * Every name resolves to the same document design. The four names used to be
-     * four unrelated stylesheets, which is how they came to disagree about the
-     * header rule, the date format and the totals block — and why a customer
-     * could be shown two different layouts for the same invoice depending on a
-     * setting an office worker changed. They are kept as accepted values so
-     * invoices already stored with one still render, and so the existing template
-     * switcher does not start rejecting saves.
+     * Every name resolves to the same document design, and the stored template name is
+     * ignored. Kept as a method so a caller reaching for the old seam lands on the
+     * single renderer rather than on a removed per-template stylesheet.
      */
     public static function view(string $template): string
     {
-        return 'sales.invoices.partials.pdf-rail';
+        return 'documents.pdf';
     }
 }

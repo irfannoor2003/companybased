@@ -3,7 +3,7 @@
 namespace App\Mail;
 
 use App\Models\SalesInvoice;
-use App\Support\InvoiceTemplate;
+use App\Support\DocumentData;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailables\Attachment;
@@ -46,10 +46,13 @@ class SalesInvoiceMailable extends CompanyMailable implements ShouldQueue
 
     public function attachments(): array
     {
-        $this->invoice->loadMissing(['customer', 'items.product', 'payments', 'creditNotes']);
+        $this->invoice->loadMissing(['customer', 'items.product', 'payments', 'creditNotes', 'order.salesman']);
 
-        $html = view(InvoiceTemplate::view((string) $this->invoice->template), ['invoice' => $this->invoice])->render();
-        $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait')->output();
+        // The same renderer as the download button, from the same payload. An emailed
+        // invoice that looked different from the one on screen would be its own bug
+        // report, and the two were separate code paths for years.
+        $html = view('documents.pdf', DocumentData::build($this->invoice))->render();
+        $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait')->setOptions(pdf_options())->output();
 
         return [
             Attachment::fromData(fn () => $pdf, 'invoice-'.$this->invoice->number.'.pdf')

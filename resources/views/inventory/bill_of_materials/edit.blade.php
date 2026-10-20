@@ -35,9 +35,29 @@
                         'quantity' => (float) $item->quantity,
                         'wastage_percent' => (float) $item->wastage_percent,
                     ])->all();
+
+                    // The routing carries each operation's id back through the form so
+                    // the controller can update rows in place. Deleting and recreating
+                    // would orphan every production order already released against it.
+                    $initialOperations = $billOfMaterial->operations
+                        ->sortBy('sequence')
+                        ->values()
+                        ->map(fn ($operation) => [
+                            'id' => (string) $operation->id,
+                            'sequence' => (int) $operation->sequence,
+                            'work_centre_id' => (string) ($operation->work_centre_id ?? ''),
+                            'name' => (string) $operation->name,
+                            'setup_minutes' => (float) $operation->setup_minutes,
+                            'run_minutes_per_unit' => (float) $operation->run_minutes_per_unit,
+                            'notes' => (string) $operation->notes,
+                        ])->all();
                 @endphp
 
                 <x-inventory.bom-items-editor :items="$items" :initial-items="$initialItems" />
+
+                <div class="border-t border-line pt-5">
+                    <x-inventory.bom-routing-editor :work-centres="$workCentres" :initial-operations="$initialOperations" />
+                </div>
 
                 <x-textarea name="note" label="Note" rows="3">{{ old('note', $billOfMaterial->note) }}</x-textarea>
 

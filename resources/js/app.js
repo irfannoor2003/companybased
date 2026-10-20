@@ -363,10 +363,6 @@ document.addEventListener('alpine:init', () => {
                 );
             });
 
-            if (isTrigger) {
-                return;
-            }
-
             const receive = (isOpen) => {
                 if (this.show === isOpen) {
                     return;
@@ -378,6 +374,10 @@ document.addEventListener('alpine:init', () => {
 
             document.addEventListener(previewEvent('open'), () => receive(true));
             document.addEventListener(previewEvent('close'), () => receive(false));
+
+            if (isTrigger) {
+                return;
+            }
         },
         printPreview() {
             this.refreshPreview();

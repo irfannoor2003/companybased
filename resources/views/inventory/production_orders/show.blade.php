@@ -171,8 +171,18 @@
                 </div>
 
                 @if (auth()->user()->can('inventory.production_orders.record_labour') && ! in_array($order->status, ['completed', 'cancelled']))
+                    {{--
+                        flex, not grid.
+
+                        Every child here is a flex idiom -- `flex-1`, `min-w-[180px]`,
+                        `w-32`, `w-40` -- and `flex-1` does nothing in a grid. This row
+                        also carried a `grid-wrap` token that is defined nowhere in
+                        app.css and is not a Tailwind utility, so it silently did
+                        nothing. The result was four auto-sized columns on one line with
+                        no wrapping, overflowing on a narrow screen instead of stacking.
+                    --}}
                     <form method="POST" action="{{ route('inventory.production_orders.labour.store', $order) }}"
-                        class="grid grid-wrap items-end gap-3 border-b border-line px-5 py-4">
+                        class="flex flex-wrap items-end gap-3 border-b border-line px-5 py-4">
                         @csrf
                         <div class="min-w-[180px] flex-1">
                             <x-select name="employee_id" label="Employee" size="sm" required>
@@ -278,6 +288,28 @@
                     </div>
                 </dl>
             </x-card>
+
+            {{--
+                Completing the run, with the yield reported on the same submission.
+
+                This used to be reachable only by hand-POSTing quantity_good and
+                quantity_scrap to the status endpoint. The figures decide what the
+                finished goods cost, so an operator being unable to enter them meant
+                the costing was arithmetic performed outside the application.
+
+                Withheld entirely once the order is closed: the yield stat cards at the
+                top of the page already report the outcome, so an editable-looking form
+                that cannot be submitted would only be misleading.
+            --}}
+            @if (! in_array($order->status, ['completed', 'cancelled'], true)
+                && auth()->user()->can('inventory.production_orders.update_status'))
+                <x-card title="Complete and report yield" class="mt-6">
+                    <x-inventory.production-yield-form
+                        :order="$order"
+                        :action="route('inventory.production_orders.status', $order)"
+                    />
+                </x-card>
+            @endif
         </div>
-    </div>
+
 </x-app-layout>

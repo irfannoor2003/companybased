@@ -118,6 +118,9 @@ class VisitsController extends Controller
             'sales_rep_id' => $data['sales_rep_id'] ?? null,
             'purpose' => $data['purpose'] ?? null,
             'scheduled_at' => $data['scheduled_at'],
+            'distance_km' => array_key_exists('distance_km', $data) ? ($data['distance_km'] === null ? null : (string) $data['distance_km']) : $visit->distance_km,
+            'notes' => array_key_exists('notes', $data) ? $data['notes'] : $visit->notes,
+            'outcome_notes' => array_key_exists('outcome_notes', $data) ? $data['outcome_notes'] : $visit->outcome_notes,
         ]);
 
         return back()->with('toasts', [['type' => 'success', 'message' => "Visit {$visit->visit_number} updated."]]);
@@ -300,6 +303,9 @@ class VisitsController extends Controller
             'sales_rep_id' => ['nullable', 'integer', Rule::exists('employees', 'id')],
             'purpose' => ['required', 'string', 'max:255'],
             'scheduled_at' => ['required', 'date'],
+            'distance_km' => ['nullable', 'numeric', 'min:0', 'max:100000'],
+            'notes' => ['nullable', 'string', 'max:5000'],
+            'outcome_notes' => ['nullable', 'string', 'max:5000'],
         ]);
     }
 

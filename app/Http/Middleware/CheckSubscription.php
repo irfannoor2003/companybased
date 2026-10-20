@@ -15,7 +15,9 @@ class CheckSubscription
      */
     protected array $excluded = [
         'login', 'logout', 'register', 'register.*',
-        'password.request', 'password.email', 'password.reset', 'password.update', 'password.confirm',
+        // password.request / password.email / password.reset / password.store are gone
+        // with the self-service reset flow; an administrator resets passwords instead.
+        'password.update', 'password.confirm',
         'verification.*', 'up',
         'settings.subscription', 'settings.subscription.activate', 'settings.subscription.deactivate',
     ];

@@ -21,6 +21,10 @@ class VisitPitStopController extends Controller
 
     public function store(Request $request, Visit $visit): RedirectResponse
     {
+        if ($blocked = $this->refuseIfCompleted($visit)) {
+            return $blocked;
+        }
+
         $data = $request->validate([
             'customer_id' => ['nullable', 'integer', Rule::exists('sales_customers', 'id')],
             'purpose' => ['nullable', 'string', 'max:255'],
@@ -53,6 +57,10 @@ class VisitPitStopController extends Controller
 
     public function update(Request $request, Visit $visit, VisitPitstop $pitstop): RedirectResponse
     {
+        if ($blocked = $this->refuseIfCompleted($visit)) {
+            return $blocked;
+        }
+
         $data = $request->validate([
             'customer_id' => ['nullable', 'integer', Rule::exists('sales_customers', 'id')],
             'purpose' => ['nullable', 'string', 'max:255'],
@@ -85,6 +93,10 @@ class VisitPitStopController extends Controller
 
     public function destroy(Visit $visit, VisitPitstop $pitstop): RedirectResponse
     {
+        if ($blocked = $this->refuseIfCompleted($visit)) {
+            return $blocked;
+        }
+
         if ($pitstop->image_path) {
             Storage::disk('public')->delete($pitstop->image_path);
         }
@@ -92,6 +104,24 @@ class VisitPitStopController extends Controller
         $pitstop->delete();
 
         return back()->with('toasts', [['type' => 'success', 'message' => 'Pit-stop removed.']]);
+    }
+
+    /**
+     * A completed visit is a closed record: its route, distance and pit-stops
+     * are frozen so the audit trail (and the payroll that may depend on it) can
+     * not be quietly rewritten afterwards. Pit-stops belong to the journey, so
+     * they are frozen along with everything else.
+     */
+    private function refuseIfCompleted(Visit $visit): ?RedirectResponse
+    {
+        if ($visit->status !== 'completed' && is_null($visit->completed_at)) {
+            return null;
+        }
+
+        return back()->with('toasts', [[
+            'type' => 'error',
+            'message' => 'Pit-stops cannot be changed on a completed visit.',
+        ]]);
     }
 
     public function image(VisitPitstop $pitstop): \Symfony\Component\HttpFoundation\BinaryFileResponse

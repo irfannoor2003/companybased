@@ -27,8 +27,8 @@
                     @can($viewPermission)
                         <x-button :href="$editRoute" variant="secondary" icon="edit">Edit</x-button>
                     @endcan
+                    <x-button :href="$backRoute" variant="secondary" icon="arrow-left" class="print:hidden">Back</x-button>
                 </div>
-                <x-button :href="$backRoute" variant="secondary" icon="arrow-left">Back</x-button>
             </x-slot>
         </x-page-header>
     </x-slot>
@@ -43,7 +43,7 @@
         <div class="document">
             <div class="flex justify-between border-b border-line pb-4 mb-6">
                 <div>
-                    @if (settings('branding.logo'))
+                    @if (company_logo_path())
                         <img src="{{ Storage::url(settings('branding.logo')) }}" alt="{{ company_name() }}" class="h-20">
                     @else
                         <span class="text-xl font-bold text-ink">{{ company_name() }}</span>

@@ -6,6 +6,33 @@
     </x-page-header>
 
     <form method="POST" action="{{ route('settings.mail.update') }}" class="mt-6 space-y-6 max-w-3xl">
+            {{--
+                Every reason this form refused to save.
+
+                Rendered because it was NOT rendered, and that is the whole bug. The
+                save path rejects a half-configured SMTP login -- a blank password with
+                no stored one -- which is exactly the state of a newly deployed site.
+                With no error summary and no per-field messages, the browser posted,
+                the server redirected back, the form looked untouched, and the only
+                conclusion available to the operator was "this does not save".
+
+                `x-input` only renders a message when it is handed `:error`
+                explicitly; it does not read the error bag. So a summary here is the
+                single place every rejection is guaranteed to be visible, rather than
+                relying on each field being wired to say so.
+            --}}
+            @if ($errors->any())
+                <div class="rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 dark:border-rose-500/40 dark:bg-rose-500/10">
+                    <p class="text-sm font-semibold text-rose-700 dark:text-rose-400">
+                        Mail settings were not saved. Fix the following:
+                    </p>
+                    <ul class="mt-2 space-y-1 text-sm text-rose-700 dark:text-rose-400">
+                        @foreach ($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
         @csrf
         @method('PUT')
 
@@ -43,7 +70,7 @@
             </div>
         </x-card>
 
-        <x-card title="Automated Email (No-Reply)" description="Used for welcome emails, order status updates, low stock alerts and password resets. Replies are redirected to the Reply-To address below, so nothing gets lost.">
+        <x-card title="Automated Email (No-Reply)" description="Used for welcome emails, order status updates and low stock alerts. Replies are redirected to the Reply-To address below, so nothing gets lost.">
             <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
                 <x-input name="system_from_address" label="From email" type="email" required placeholder="noreply@yourcompany.com" value="{{ old('system_from_address', $mail['system_from_address']) }}" />
                 <x-input name="system_from_name" label="From name" placeholder="{{ company_name() }}" value="{{ old('system_from_name', $mail['system_from_name']) }}" />
@@ -76,6 +103,29 @@
 
         <x-card title="Second Mailbox Login (info@)" description="On shared hosting such as Hostinger and cPanel, every mailbox is a separate login with its own password, even though they all relay through the same server. Set the team mailbox login here when its password differs from the no-reply one.">
             <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                <x-input
+                    name="team_host"
+                    label="Team SMTP host"
+                    placeholder="{{ $mail['host'] ?: 'smtp.example.com' }}"
+                    value="{{ old('team_host', $mail['team_host']) }}"
+                    hint="Leave blank to use the primary SMTP host."
+                />
+                <x-input
+                    name="team_port"
+                    label="Team SMTP port"
+                    type="number"
+                    min="1"
+                    max="65535"
+                    placeholder="{{ $mail['port'] ?: 587 }}"
+                    value="{{ old('team_port', $mail['team_port']) }}"
+                    hint="Leave blank to use the primary SMTP port."
+                />
+                <x-select name="team_encryption" label="Team encryption">
+                    @foreach (['' => 'Inherit primary', 'tls' => 'TLS (recommended)', 'ssl' => 'SSL'] as $val => $lbl)
+                        <option value="{{ $val }}" @selected(old('team_encryption', $mail['team_encryption']) === $val)>{{ $lbl }}</option>
+                    @endforeach
+                </x-select>
+                <div></div>
                 <x-input
                     name="team_username"
                     label="Team username"
@@ -110,6 +160,29 @@
                 <x-input name="accounts_from_name" label="Accounts from name" placeholder="{{ company_name() }} Accounts" value="{{ old('accounts_from_name', $mail['accounts_from_name']) }}" />
 
                 <x-input
+                    name="accounts_host"
+                    label="Accounts SMTP host"
+                    placeholder="{{ $mail['host'] ?: 'smtp.example.com' }}"
+                    value="{{ old('accounts_host', $mail['accounts_host']) }}"
+                    hint="Leave blank to use the primary SMTP host."
+                />
+                <x-input
+                    name="accounts_port"
+                    label="Accounts SMTP port"
+                    type="number"
+                    min="1"
+                    max="65535"
+                    placeholder="{{ $mail['port'] ?: 587 }}"
+                    value="{{ old('accounts_port', $mail['accounts_port']) }}"
+                    hint="Leave blank to use the primary SMTP port."
+                />
+                <x-select name="accounts_encryption" label="Accounts encryption">
+                    @foreach (['' => 'Inherit primary', 'tls' => 'TLS (recommended)', 'ssl' => 'SSL'] as $val => $lbl)
+                        <option value="{{ $val }}" @selected(old('accounts_encryption', $mail['accounts_encryption']) === $val)>{{ $lbl }}</option>
+                    @endforeach
+                </x-select>
+                <div></div>
+                <x-input
                     name="accounts_username"
                     label="Accounts mailbox username"
                     placeholder="e.g. billing@yourcompany.com"
@@ -143,6 +216,29 @@
                     </label>
                 </div>
 
+                <x-input
+                    name="sales_host"
+                    label="Sales SMTP host"
+                    placeholder="{{ $mail['host'] ?: 'smtp.example.com' }}"
+                    value="{{ old('sales_host', $mail['sales_host']) }}"
+                    hint="Leave blank to use the primary SMTP host."
+                />
+                <x-input
+                    name="sales_port"
+                    label="Sales SMTP port"
+                    type="number"
+                    min="1"
+                    max="65535"
+                    placeholder="{{ $mail['port'] ?: 587 }}"
+                    value="{{ old('sales_port', $mail['sales_port']) }}"
+                    hint="Leave blank to use the primary SMTP port."
+                />
+                <x-select name="sales_encryption" label="Sales encryption">
+                    @foreach (['' => 'Inherit primary', 'tls' => 'TLS (recommended)', 'ssl' => 'SSL'] as $val => $lbl)
+                        <option value="{{ $val }}" @selected(old('sales_encryption', $mail['sales_encryption']) === $val)>{{ $lbl }}</option>
+                    @endforeach
+                </x-select>
+                <div></div>
                 <x-input
                     name="sales_username"
                     label="Sales mailbox username"

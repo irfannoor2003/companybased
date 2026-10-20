@@ -4,9 +4,7 @@ use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\ConfirmablePasswordController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use App\Http\Controllers\Auth\EmailVerificationPromptController;
-use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordController;
-use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use Illuminate\Support\Facades\Route;
 
@@ -24,40 +22,23 @@ Route::middleware('guest')->group(function () {
      * shipped. Deleted rather than gated — a flag defaulting to false only means
      * the dangerous path still exists and one env var away from being live.
      * Removed as README PROD-2.
+     *
+     * SELF-SERVICE PASSWORD RESET IS ALSO GONE, deliberately, for the same reason.
+     *
+     * The flow used to ship unreachable: no link on the login page, because accounts
+     * are made and reset by an administrator under Settings > Users. Present but
+     * unlinked it was live attack surface -- `password.email` an unauthenticated
+     * caller could use to spray mail and probe which addresses are registered, and
+     * `password.store` a token endpoint with no reason to exist. Throttling it made it
+     * less bad; deleting it makes the question moot.
+     *
+     * A signed-in user can still change their own password from their profile, which
+     * requires the current password.
      */
-
     Route::get('login', [AuthenticatedSessionController::class, 'create'])
         ->name('login');
 
     Route::post('login', [AuthenticatedSessionController::class, 'store']);
-
-    Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])
-        ->name('password.request');
-
-    /**
-     * Throttled because this endpoint sends mail.
-     *
-     * Without a limit it can be used to spray mail at an address and to enumerate
-     * accounts: the response has to stay identical either way (Laravel's
-     * PasswordBroker does that deliberately), but the *volume* of outgoing mail is
-     * not something an unauthenticated caller should control. Six a minute matches
-     * the verification routes below.
-     */
-    Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])
-        ->middleware('throttle:6,1')
-        ->name('password.email');
-
-    Route::get('reset-password/{token}', [NewPasswordController::class, 'create'])
-        ->name('password.reset');
-
-    /**
-     * Throttled separately from the link request: a leaked or guessed token is
-     * brute-forceable, and without a limit an attacker with a valid email could
-     * cycle through a token space at whatever rate the server allows.
-     */
-    Route::post('reset-password', [NewPasswordController::class, 'store'])
-        ->middleware('throttle:6,1')
-        ->name('password.store');
 });
 
 Route::middleware('auth')->group(function () {

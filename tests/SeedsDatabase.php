@@ -175,7 +175,7 @@ trait SeedsDatabase
     /**
      * A confirmed-ready sales order with one line item.
      */
-    protected function salesOrder(SalesCustomer $customer, Product $product, string $qty = '1', string $price = '100.00', string $status = 'draft'): SalesOrder
+    protected function salesOrder(SalesCustomer $customer, Product $product, string $qty = '1', string $price = '100.00', string $status = 'draft', ?int $salesmanId = null): SalesOrder
     {
         $order = SalesOrder::create([
             'number' => next_document_number('order', 'SO'),
@@ -187,6 +187,9 @@ trait SeedsDatabase
             'subtotal' => '0',
             'tax_amount' => '0',
             'total' => '0',
+            // Nullable on purpose: an order raised by a system job has no rep, and a
+            // test that needs one says so rather than the helper inventing a user.
+            'salesman_id' => $salesmanId,
         ]);
 
         SalesOrderItem::create([

@@ -125,7 +125,7 @@
     <div class="page">
         <div class="header">
             <div class="brand">
-                @if (settings('branding.logo'))
+                @if (company_logo_path())
                     <img src="{{ storage_path('app/public/'.settings('branding.logo')) }}" style="max-height:40px;max-width:140px;">
                 @else
                     <div class="brand-name">{{ company_name() }}</div>

@@ -1,7 +1,23 @@
 <x-settings-layout page-title="Company Profile">
     <div class="mt-6 space-y-6">
-        {{-- Company profile --}}
-        <x-card title="Company details" description="This information appears on documents, emails and reports.">
+        {{--
+            Company profile, AND the office location / attendance QR code.
+
+            These were two separate cards, each with its own <form> pointing at the SAME
+            route (settings.company.update). A browser submits one form, so filling in
+            the whole page and pressing one Save silently saved half of it -- reported
+            live as "only the radius saves, and the QR code comes back empty".
+
+            The controller's per-key guard (`$sent = array_keys($request->all())`) stopped
+            one card from blanking the other, which is why nothing corrupted -- but it
+            also meant the page could not be saved the way it looks like it should be.
+
+            One form, one Save. The location fields moved up into this card rather than
+            being given a route of their own, because the page reads as a single thing
+            and should save as a single thing.
+        --}}
+        <x-card title="Company details" description="This information appears on documents, emails and reports."
+            x-data="officeQrPreview({{ \Illuminate\Support\Js::from(old('qr_code_text', settings('company.qr_code_text', 'NEXOSDIGITAL-OFFICE-ATTENDANCE-2026'))) }})">
             <form method="POST" action="{{ route('settings.company.update') }}" class="space-y-5">
                 @csrf
                 @method('PUT')
@@ -46,6 +62,54 @@
                             <option value="{{ $format }}" @selected(old('date_format', settings('company.date_format', 'M d, Y')) === $format)>{{ $preview }}</option>
                         @endforeach
                     </x-select>
+                </div>
+
+                {{--
+                    Office location and attendance QR code.
+
+                    Moved here from its own card so one Save covers the whole page.
+                    Same field names, same route, same controller -- only the number of
+                    forms changed.
+                --}}
+                <div class="border-t border-line pt-5">
+                    <p class="text-sm font-semibold text-ink">Office location</p>
+                    <p class="mt-1 text-xs text-ink-soft">
+                        Used for attendance and visit tracking. Employees must be within
+                        the radius of these coordinates to clock in or out.
+                    </p>
+
+                    <div class="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-3">
+                        <x-input name="latitude" label="Latitude" type="number" step="any" required
+                            value="{{ old('latitude', settings('company.latitude', '5.6037')) }}" hint="e.g. 5.6037" />
+                        <x-input name="longitude" label="Longitude" type="number" step="any" required
+                            value="{{ old('longitude', settings('company.longitude', '-0.1870')) }}" hint="e.g. -0.1870" />
+                        <x-input name="radius" label="Office radius (meters)" type="number" min="50" max="10000" required
+                            value="{{ old('radius', settings('company.radius', '500')) }}" hint="Default: 500m" />
+                    </div>
+
+                    <div class="mt-5 grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
+                        <x-input name="qr_code_text" label="QR Code Text" required
+                            value="{{ old('qr_code_text', settings('company.qr_code_text', 'NEXOSDIGITAL-OFFICE-ATTENDANCE-2026')) }}"
+                            hint="Text encoded in the office QR code. Employees must scan this exact code."
+                            x-model="qrText" />
+
+                        <div class="flex flex-col items-center gap-3 lg:w-56">
+                            <div class="rounded-xl border-2 border-dashed border-line bg-surface p-3">
+                                <template x-if="qrText.trim()">
+                                    <img :src="previewUrl" alt="Office attendance QR code preview" class="block size-40" />
+                                </template>
+                                <p x-show="! qrText.trim()" class="flex size-40 items-center justify-center px-2 text-center text-xs text-ink-faint">
+                                    Enter a QR code text to preview it
+                                </p>
+                            </div>
+                            <a :href="previewUrl" download="office-attendance-qr-code.png"
+                                class="btn-secondary btn-sm w-full justify-center"
+                                :class="qrText.trim() ? '' : 'pointer-events-none opacity-50'">
+                                <x-icon name="download" class="size-4 shrink-0" />
+                                Download PNG
+                            </a>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="flex justify-end border-t border-line pt-4">
@@ -98,7 +162,7 @@
                     <div>
                         <span class="label">Logo</span>
                         <div class="flex items-center gap-3" x-data="{ removing: false }">
-                            @if (settings('branding.logo'))
+                            @if (company_logo_path())
                                 <img src="{{ Storage::url(settings('branding.logo')) }}" alt="Logo" class="h-10 w-10 rounded-lg object-contain border border-line p-1">
                             @else
                                 <div class="flex size-10 items-center justify-center rounded-lg bg-surface-muted text-ink-faint">
@@ -110,7 +174,7 @@
                                 Choose file
                                 <input type="file" name="logo" accept="image/*" class="hidden">
                             </label>
-                            @if (settings('branding.logo'))
+                            @if (company_logo_path())
                                 <button type="button" class="btn-ghost btn-sm text-rose-500 dark:text-rose-400"
                                     x-on:click="
                                         removing = true;
@@ -183,51 +247,6 @@
             </form>
         </x-card>
 
-        {{-- Office Location --}}
-        <x-card title="Office Location" description="Set your office coordinates and radius for attendance and visit tracking. Employees must be within this radius to clock in/out."
-            x-data="officeQrPreview(@js(old('qr_code_text', settings('company.qr_code_text', 'NEXOSDIGITAL-OFFICE-ATTENDANCE-2026'))))">
-            <form method="POST" action="{{ route('settings.company.update') }}" class="space-y-5">
-                @csrf
-                @method('PUT')
-
-                <div class="grid grid-cols-1 gap-5 sm:grid-cols-3">
-                    <x-input name="latitude" label="Latitude" type="number" step="any" required
-                        value="{{ old('latitude', settings('company.latitude', '5.6037')) }}" hint="e.g. 5.6037" />
-                    <x-input name="longitude" label="Longitude" type="number" step="any" required
-                        value="{{ old('longitude', settings('company.longitude', '-0.1870')) }}" hint="e.g. -0.1870" />
-                    <x-input name="radius" label="Office radius (meters)" type="number" min="50" max="10000" required
-                        value="{{ old('radius', settings('company.radius', '500')) }}" hint="Default: 500m" />
-                </div>
-
-                <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
-                    <x-input name="qr_code_text" label="QR Code Text" required
-                        value="{{ old('qr_code_text', settings('company.qr_code_text', 'NEXOSDIGITAL-OFFICE-ATTENDANCE-2026')) }}"
-                        hint="Text encoded in the office QR code. Employees must scan this exact code."
-                        x-model="qrText" />
-
-                    <div class="flex flex-col items-center gap-3 lg:w-56">
-                        <div class="rounded-xl border-2 border-dashed border-line bg-surface p-3">
-                            <template x-if="qrText.trim()">
-                                <img :src="previewUrl" alt="Office attendance QR code preview" class="block size-40" />
-                            </template>
-                            <p x-show="! qrText.trim()" class="flex size-40 items-center justify-center px-2 text-center text-xs text-ink-faint">
-                                Enter a QR code text to preview it
-                            </p>
-                        </div>
-                        <a :href="previewUrl" download="office-attendance-qr-code.png"
-                            class="btn-secondary btn-sm w-full justify-center"
-                            :class="qrText.trim() ? '' : 'pointer-events-none opacity-50'">
-                            <x-icon name="download" class="size-4 shrink-0" />
-                            Download PNG
-                        </a>
-                    </div>
-                </div>
-
-                <div class="flex justify-end border-t border-line pt-4">
-                    <x-button type="submit" icon="save">Save office location</x-button>
-                </div>
-            </form>
-        </x-card>
     </div>
 
     @push('scripts')

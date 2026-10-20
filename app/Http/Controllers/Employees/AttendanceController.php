@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Employees;
 use App\Http\Controllers\Controller;
 use App\Models\AttendanceRecord;
 use App\Models\Employee;
+use App\Models\LeaveRequest;
 use App\Services\AttendanceService;
 use App\Support\ExportsCsv;
 use App\Support\ExportsJson;
@@ -65,6 +66,12 @@ class AttendanceController extends Controller
 
         $employee = Employee::findOrFail($data['employee_id']);
 
+        if (LeaveRequest::query()->where('employee_id', $employee->id)->where('status', 'approved')
+            ->whereDate('start_date', '<=', now()->toDateString())
+            ->whereDate('end_date', '>=', now()->toDateString())->exists()) {
+            return back()->with('toasts', [['type' => 'danger', 'message' => "{$employee->fullName()} is on approved leave today; attendance cannot be marked."]]);
+        }
+
         $result = $this->attendance->recordScan($employee, 'manual', now(), $data['notes'] ?? null);
 
         if ($result['status'] === 'error') {
@@ -98,6 +105,12 @@ class AttendanceController extends Controller
 
         if (! $employee) {
             return view('employees.attendance.qr-result', ['ok' => false, 'message' => 'Unknown employee code.']);
+        }
+
+        if (LeaveRequest::query()->where('employee_id', $employee->id)->where('status', 'approved')
+            ->whereDate('start_date', '<=', now()->toDateString())
+            ->whereDate('end_date', '>=', now()->toDateString())->exists()) {
+            return view('employees.attendance.qr-result', ['ok' => false, 'message' => 'On approved leave — attendance not recorded.']);
         }
 
         $result = $this->attendance->recordScan($employee, 'qr');

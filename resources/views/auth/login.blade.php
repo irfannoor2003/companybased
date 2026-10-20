@@ -33,12 +33,13 @@
             <x-input-error :messages="$errors->get('password')" class="mt-2" />
         </div>
 
-        {{-- No "Forgot your password?" link, by design: this is a single-tenant
-             install where an administrator resets passwords rather than the user
-             requesting a reset e-mail. Pinned by
-             AuthFlowTest::test_login_page_does_not_link_to_registration_or_password_reset.
-             The password.request route and screen still exist and are reachable
-             directly; they are simply not advertised on the login page. --}}
+        {{-- No "Forgot your password?" link, and no reset screen behind one either:
+             this is a single-tenant install where an administrator resets passwords
+             from Settings > Users rather than the user requesting a reset e-mail.
+             The flow was deleted outright rather than left present-but-unlinked,
+             because an unreachable mail-sending endpoint is attack surface with no
+             benefit. Pinned by
+             AuthFlowTest::test_self_service_password_reset_is_not_reachable. --}}
         <label for="remember_me" class="flex cursor-pointer items-center gap-2">
             <input id="remember_me" type="checkbox" class="size-4 rounded border-line text-primary-ink shadow-sm focus:ring-primary" name="remember">
             <span class="text-sm text-ink-soft">{{ __('Remember me') }}</span>

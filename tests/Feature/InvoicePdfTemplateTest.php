@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\SalesInvoice;
 use App\Models\SalesInvoiceItem;
+use App\Support\DocumentData;
 use App\Support\InvoiceTemplate;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\SeedsDatabase;
@@ -134,25 +135,30 @@ class InvoicePdfTemplateTest extends TestCase
 
     public function test_the_document_lives_in_one_shared_template(): void
     {
-        // One design, one file. The four old per-template stylesheets are gone
-        // rather than kept as skins: they were independently authored, which is
-        // how they came to disagree about the header rule, the date format and
-        // the totals block on the same invoice.
-        $this->assertFileExists(
-            resource_path('views/sales/invoices/partials/pdf-rail.blade.php'),
-        );
+        // One design, one file -- and now one design for EVERY document type, not
+        // just the invoice. The four old per-template stylesheets are gone rather
+        // than kept as skins: they were independently authored, which is how they
+        // came to disagree about the header rule, the date format and the totals
+        // block on the same invoice.
+        $this->assertFileExists(resource_path('views/documents/pdf.blade.php'));
 
-        foreach (['modern', 'minimal', 'corporate', 'classic'] as $template) {
+        foreach ([
+            'views/sales/invoices/partials/pdf-rail.blade.php',
+            'views/sales/invoices/partials/pdf-modern.blade.php',
+            'views/sales/invoices/partials/pdf-minimal.blade.php',
+            'views/sales/invoices/partials/pdf-classic.blade.php',
+            'views/sales/invoices/partials/pdf-corporate.blade.php',
+        ] as $retired) {
             $this->assertFileDoesNotExist(
-                resource_path('views/sales/invoices/partials/pdf-'.$template.'.blade.php'),
-                "The obsolete {$template} stylesheet is back; it must not drift from the live design again.",
+                resource_path($retired),
+                "{$retired} is back; it must not drift from the live design again.",
             );
         }
     }
 
     public function test_the_totals_block_is_a_single_table(): void
     {
-        $html = view(InvoiceTemplate::view('modern'), ['invoice' => $this->invoice()])->render();
+        $html = view('documents.pdf', DocumentData::build($this->invoice()))->render();
 
         // The template wrapped the shared _totals partial in a <table> that the
         // partial already emitted, producing a nested table. The total was still
@@ -189,7 +195,7 @@ class InvoicePdfTemplateTest extends TestCase
             'total' => '947.70',
         ]);
 
-        $html = view(InvoiceTemplate::view('modern'), ['invoice' => $invoice->fresh()])->render();
+        $html = view('documents.pdf', DocumentData::build($invoice->fresh()))->render();
 
         $this->assertStringContainsString('Discount', $html);
         $this->assertStringContainsString('90.00', $html, 'the discount amount must be shown');
@@ -199,7 +205,7 @@ class InvoicePdfTemplateTest extends TestCase
     {
         $invoice = $this->invoice();
 
-        $html = view(InvoiceTemplate::view('modern'), compact('invoice'))->render();
+        $html = view('documents.pdf', DocumentData::build($invoice))->render();
 
         // 10 x 65.00 with 17% tax = 760.50. Unrounded floats are what leave the
         // printed rows not adding up to the printed total.
@@ -212,7 +218,7 @@ class InvoicePdfTemplateTest extends TestCase
     {
         $invoice = $this->invoice();
 
-        $html = view(InvoiceTemplate::view('modern'), compact('invoice'))->render();
+        $html = view('documents.pdf', DocumentData::build($invoice))->render();
 
         $this->assertStringContainsString($invoice->number, $html, 'the system number is the primary identifier');
         $this->assertStringContainsString('INV-OS-4471', $html, 'the manual number must reach the document');
@@ -233,7 +239,7 @@ class InvoicePdfTemplateTest extends TestCase
     {
         // DomPDF cannot resolve a Blade layout, @vite or a Blade component, so a
         // template that reaches for one renders blank or throws.
-        $html = view(InvoiceTemplate::view('modern'), ['invoice' => $this->invoice()])->render();
+        $html = view('documents.pdf', DocumentData::build($this->invoice()))->render();
 
         foreach (['@extends', '@vite', 'x-app-layout', '<x-', '@stack', '@push'] as $forbidden) {
             $this->assertStringNotContainsString($forbidden, $html, "PDF template must not contain {$forbidden}");

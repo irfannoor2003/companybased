@@ -156,7 +156,13 @@ class CustomerController extends Controller
             return 0.0;
         }
 
-        return ($data['opening_balance_direction'] ?? 'debit') === 'credit' ? -$amount : $amount;
+        $direction = $data['opening_balance_direction'] ?? null;
+
+        if (! filled($direction)) {
+            return 0.0;
+        }
+
+        return $direction === 'credit' ? -$amount : $amount;
     }
 
     public function destroy(SalesCustomer $customer): RedirectResponse
@@ -255,7 +261,7 @@ class CustomerController extends Controller
             'price_list_id' => ['nullable', 'integer', Rule::exists('price_lists', 'id')],
             'credit_limit' => ['nullable', 'numeric', 'min:0'],
             'opening_balance' => ['nullable', 'numeric', 'min:0'],
-            'opening_balance_direction' => ['required_with:opening_balance', Rule::in(['debit', 'credit'])],
+            'opening_balance_direction' => ['nullable', 'required_with:opening_balance', Rule::in(['debit', 'credit'])],
             'opening_balance_date' => ['nullable', 'date'],
             'currency' => ['nullable', 'string', 'max:8'],
             'is_active' => ['boolean'],

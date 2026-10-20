@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
+use App\Models\LeaveRequest;
 use App\Services\AttendanceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -29,6 +30,12 @@ class AttendanceApiController extends Controller
         }
 
         $time = $request->filled('timestamp') ? \Carbon\Carbon::parse($data['timestamp'] ?? null) : now();
+
+        if (LeaveRequest::query()->where('employee_id', $employee->id)->where('status', 'approved')
+            ->whereDate('start_date', '<=', $time->toDateString())
+            ->whereDate('end_date', '>=', $time->toDateString())->exists()) {
+            return response()->json(['error' => 'Employee is on approved leave; attendance not recorded.'], 400);
+        }
 
         $result = $this->attendance->recordScan($employee, $data['method'], $time);
 

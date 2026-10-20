@@ -3,13 +3,26 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
 class DocumentTemplate extends Model
 {
+    /**
+     * `style` was missing from this list until this pass, which made the style
+     * picker on Settings -> Templates a complete no-op: the form posted a style,
+     * `TemplateController` passed it to `create()` / `update()`, and mass
+     * assignment discarded it because the column was not fillable. Every template
+     * therefore saved with the column default of `rail`, and the visual design a
+     * customer chose never reached the renderer -- the same "convincing lie"
+     * `PdfLayout` was written to close, one level further in.
+     *
+     * `ModelContractTest` only asserts that every fillable column exists, not that
+     * every column a controller writes is fillable, so nothing caught it. The
+     * regression is pinned by `PdfLayoutTest::test_a_style_chosen_on_the_settings
+     * _screen_is_actually_persisted`.
+     */
     protected $fillable = [
-        'name', 'slug', 'type', 'description', 'colors', 'layout',
+        'name', 'slug', 'type', 'style', 'description', 'colors', 'layout',
         'header_html', 'footer_html', 'css', 'is_default', 'is_system',
     ];
 
@@ -59,12 +72,38 @@ class DocumentTemplate extends Model
         return ucwords(str_replace('_', ' ', $this->type));
     }
 
+    /**
+     * The template's colours, never null.
+     *
+     * The column is nullable, and this accessor used to read `$this->attributes['colors']`
+     * without checking it existed -- so a template row saved without a palette threw
+     * "Undefined array key" the moment anything rendered it, which is every row of
+     * Settings -> Templates rather than the one row that caused it. The settings
+     * screen and the index both read `colors['primary']`, so null is not an option
+     * for callers; the defaults below are what a missing palette means.
+     *
+     * @return array<string, string>
+     */
     public function getColorsAttribute(): array
     {
-        return $this->attributes['colors'] ? json_decode($this->attributes['colors'], true) : [
-            'primary' => '#4f46e5',
-            'accent' => '#0ea5e9',
-            'text' => '#1f2937',
-        ];
+        $colors = $this->attributes['colors'] ?? null;
+
+        if (blank($colors)) {
+            return [
+                'primary' => '#4f46e5',
+                'accent' => '#0ea5e9',
+                'text' => '#1f2937',
+            ];
+        }
+
+        $decoded = json_decode((string) $colors, true);
+
+        return is_array($decoded)
+            ? $decoded + ['primary' => '#4f46e5', 'accent' => '#0ea5e9', 'text' => '#1f2937']
+            : [
+                'primary' => '#4f46e5',
+                'accent' => '#0ea5e9',
+                'text' => '#1f2937',
+            ];
     }
 }

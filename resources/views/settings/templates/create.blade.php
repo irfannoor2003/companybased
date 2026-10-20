@@ -75,6 +75,8 @@
         </x-card>
 
         <div class="flex items-center gap-3">
+            @include('settings.templates.design', ['template' => null])
+
             <input type="checkbox" name="is_default" value="1" @checked(old('is_default')) class="rounded border-line text-primary-ink focus:ring-primary">
             <label class="text-sm text-ink">Set as default template for this document type</label>
         </div>

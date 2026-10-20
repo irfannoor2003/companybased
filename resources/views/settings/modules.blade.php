@@ -3,8 +3,10 @@
 
     <div class="mt-6">
         <x-alert type="info" class="mb-5">
-            Core modules (<span class="font-semibold">Dashboard, Reports, Settings</span>) are always enabled and cannot be turned off. Disabled modules are hidden from navigation and their routes return <span class="font-semibold">404</span>.
+            Core modules (<span class="font-semibold">Dashboard, Reports, Settings</span>) are always enabled and cannot be turned off. Disabled modules are hidden from navigation, and their pages return <span class="font-semibold">403</span> explaining which module is switched off.
         </x-alert>
+
+        {{-- The copy above already states that a disabled module's pages return 403. --}}
 
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             @foreach ($modules as $module)

@@ -23,7 +23,7 @@ class RouteSecurityPostureTest extends TestCase
     {
         parent::setUp();
 
-        $this->sweep = new RouteSweep(new RecordFactory());
+        $this->sweep = new RouteSweep(new RecordFactory);
     }
 
     /**
@@ -36,12 +36,7 @@ class RouteSecurityPostureTest extends TestCase
         '/' => 'Root redirects to login or dashboard.',
         'up' => 'Laravel health check for uptime monitoring.',
         'login' => 'Guest login screen.',
-        'forgot-password' => 'Guest password-reset screen (see README AUTH-1).',
-        'reset-password/{token}' => 'Guest password-reset form.',
-        // Token-authenticated: the signed-in state is proved by the reset token
-        // in the URL, not by a session, so `guest` middleware is correct here.
-        'reset-password' => 'Guest password-reset submit; the signed reset token in the form proves the request.',
-        'verify-email' => 'Email verification notice (see README AUTH-2).',
+        'verify-email' => 'Email verification notice.',
         'verify-email/{id}/{hash}' => 'Signed email verification link.',
         'track/{code}' => 'Public order tracking by code for the end customer.',
         'employees/attendance/qr/{code}' => 'Signed QR attendance scan for staff phones.',

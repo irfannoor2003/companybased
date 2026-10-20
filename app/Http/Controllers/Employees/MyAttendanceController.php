@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Employees;
 
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
+use App\Models\LeaveRequest;
 use App\Services\AttendanceService;
+use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -21,22 +23,80 @@ class MyAttendanceController extends Controller
             return view('employees.my_attendance.index', ['employee' => null]);
         }
 
+        $monthStart = now()->startOfMonth();
+        $monthEnd = now()->endOfMonth();
+
         // whereDate() rather than where(): the `attendance_date` cast round-trips
         // as 'Y-m-d 00:00:00' on SQLite but as a bare 'Y-m-d' on MySQL, so an
         // equality match silently returns nothing on SQLite. That left $today
         // null after a successful clock-in, so the page still offered "Clock in"
         // and never showed the recorded times.
-        $records = $employee->attendanceRecords()
-            ->whereDate('attendance_date', '>=', now()->startOfMonth()->toDateString())
+        $attendanceRecords = $employee->attendanceRecords()
+            ->whereDate('attendance_date', '>=', $monthStart->toDateString())
             ->orderByDesc('attendance_date')
             ->get();
 
-        $today = $employee->attendanceRecords()
+        // Approved leave that overlaps this month. A day on approved leave is
+        // not attendance: no clock-in is expected and none is recorded. It is
+        // shown in the monthly table as an 'on_leave' row so the month is not
+        // silently empty, and the clock-in button is disabled for that day.
+        $approvedLeaves = LeaveRequest::query()
+            ->where('employee_id', $employee->id)
+            ->where('status', 'approved')
+            ->whereDate('start_date', '<=', $monthEnd->toDateString())
+            ->whereDate('end_date', '>=', $monthStart->toDateString())
+            ->get();
+
+        $leaveDates = [];
+        foreach ($approvedLeaves as $leave) {
+            $cursor = $leave->start_date->copy()->max($monthStart);
+            $last = $leave->end_date->copy()->min($monthEnd);
+            while ($cursor->lte($last)) {
+                $leaveDates[$cursor->toDateString()] = $leave;
+                $cursor->addDay();
+            }
+        }
+
+        $byDate = $attendanceRecords->keyBy(fn ($r) => $r->attendance_date->toDateString());
+
+        // Attendance wins where a record exists; leave fills the gaps. The stat
+        // cards count attendance statuses, so leave rows (status 'on_leave') do
+        // not inflate Present/Late/etc. — they are a separate, informational row.
+        $merged = collect();
+        foreach (array_unique(array_merge(array_keys($byDate->toArray()), array_keys($leaveDates))) as $date) {
+            if (isset($byDate[$date])) {
+                $merged->push($byDate[$date]);
+            } else {
+                $row = new \stdClass();
+                $row->attendance_date = Carbon::parse($date);
+                $row->check_in_at = null;
+                $row->check_out_at = null;
+                $row->status = 'on_leave';
+                $row->method = null;
+                $row->work_minutes = null;
+                $merged->push($row);
+            }
+        }
+        $records = $merged->sortByDesc('attendance_date')->values();
+
+        $todayRecord = $employee->attendanceRecords()
             ->whereDate('attendance_date', now()->toDateString())
             ->latest('id')
             ->first();
 
-        return view('employees.my_attendance.index', compact('employee', 'records', 'today'));
+        $onLeaveToday = isset($leaveDates[now()->toDateString()]);
+
+        if ($onLeaveToday && ! $todayRecord) {
+            $today = new \stdClass();
+            $today->status = 'on_leave';
+            $today->check_in_at = null;
+            $today->check_out_at = null;
+            $today->work_minutes = null;
+        } else {
+            $today = $todayRecord;
+        }
+
+        return view('employees.my_attendance.index', compact('employee', 'records', 'today', 'onLeaveToday'));
     }
 
     public function mark(Request $request): RedirectResponse
@@ -45,6 +105,19 @@ class MyAttendanceController extends Controller
 
         if (! $employee) {
             return back()->with('toasts', [['type' => 'error', 'message' => 'No employee profile is linked to your account.']]);
+        }
+
+        // An approved leave day is not an attendance day: refuse a manual mark so
+        // the payroll input cannot quietly contradict the approved leave.
+        $onLeaveToday = LeaveRequest::query()
+            ->where('employee_id', $employee->id)
+            ->where('status', 'approved')
+            ->whereDate('start_date', '<=', now()->toDateString())
+            ->whereDate('end_date', '>=', now()->toDateString())
+            ->exists();
+
+        if ($onLeaveToday) {
+            return back()->with('toasts', [['type' => 'error', 'message' => 'You are on approved leave today, so attendance cannot be marked.']]);
         }
 
         // Validate location and QR code text are provided

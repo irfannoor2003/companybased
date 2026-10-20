@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\SalesInvoice;
+use App\Support\DocumentData;
 use App\Support\DocumentItems;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Tests\SeedsDatabase;
@@ -87,9 +88,9 @@ class InvoicePdfSampleTest extends TestCase
             'total' => (string) round($subtotal + $tax, 2),
         ]);
 
-        $html = view('sales.invoices.partials.pdf-rail', compact('invoice'))->render();
+        $html = view('documents.pdf', DocumentData::build($invoice))->render();
 
-        file_put_contents($path, Pdf::loadHTML($html)->setPaper('a4', 'portrait')->output());
+        file_put_contents($path, Pdf::loadHTML($html)->setPaper('a4', 'portrait')->setOptions(pdf_options())->output());
 
         $this->assertFileExists($path);
     }

@@ -44,11 +44,11 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\Inventory\BillOfMaterialController;
 use App\Http\Controllers\Inventory\IncomingShipmentController;
 use App\Http\Controllers\Inventory\ItemController;
-  use App\Http\Controllers\Inventory\MaterialRequirementsController;
+use App\Http\Controllers\Inventory\MaterialRequirementsController;
 use App\Http\Controllers\Inventory\ProductionOrderController;
-use App\Http\Controllers\Inventory\WorkCentreController;
 use App\Http\Controllers\Inventory\TransferController;
 use App\Http\Controllers\Inventory\WarehouseController;
+use App\Http\Controllers\Inventory\WorkCentreController;
 use App\Http\Controllers\Inventory\WriteOffController;
 use App\Http\Controllers\InventoryReportController;
 use App\Http\Controllers\Investment\DividendController;
@@ -92,6 +92,7 @@ use App\Http\Controllers\Settings\CurrencyController;
 use App\Http\Controllers\Settings\DashboardPreferenceController;
 use App\Http\Controllers\Settings\DiscountRuleController;
 use App\Http\Controllers\Settings\MailSettingsController;
+use App\Http\Controllers\Settings\ManufacturingController;
 use App\Http\Controllers\Settings\ModuleController;
 use App\Http\Controllers\Settings\NotificationRuleController;
 use App\Http\Controllers\Settings\RoleController;
@@ -105,6 +106,12 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', HomeController::class);
 
+// The wall-mounted clock-in QR is behind `module:employees` like every other
+// attendance entry point. If the company has switched the module off, the QR
+// sign is off too — there is no point in a credential that records into a
+// feature the administrator deliberately disabled. The 403 names the module so
+// anyone scanning a stale sign is told why nothing happens instead of staring
+// at a blank page.
 Route::get('/employees/attendance/qr/{code}', [AttendanceController::class, 'qr'])
     ->middleware(['module:employees', 'throttle:20,1'])
     ->name('employees.attendance.qr');
@@ -529,7 +536,7 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:inventory.bill_of_materials.create')->name('bill_of_materials.store');
         Route::put('/bill-of-materials/{billOfMaterial}', [BillOfMaterialController::class, 'update'])
             ->middleware('permission:inventory.bill_of_materials.edit')->name('bill_of_materials.update');
-Route::delete('/bill-of-materials/{billOfMaterial}', [BillOfMaterialController::class, 'destroy'])
+        Route::delete('/bill-of-materials/{billOfMaterial}', [BillOfMaterialController::class, 'destroy'])
             ->middleware('permission:inventory.bill_of_materials.delete')->name('bill_of_materials.destroy');
 
         /**
@@ -557,8 +564,8 @@ Route::delete('/bill-of-materials/{billOfMaterial}', [BillOfMaterialController::
             ->middleware('permission:inventory.work_centres.delete')->name('work_centres.destroy');
 
         Route::get('/material-requirements', [MaterialRequirementsController::class, 'index'])
-  ->middleware('permission:inventory.material_requirements.view')->name('material-requirements.index');
-  Route::get('/production-orders', [ProductionOrderController::class, 'index'])
+            ->middleware('permission:inventory.material_requirements.view')->name('material-requirements.index');
+        Route::get('/production-orders', [ProductionOrderController::class, 'index'])
             ->middleware('permission:inventory.production_orders.view')->name('production_orders.index');
         Route::get('/production-orders/create', [ProductionOrderController::class, 'create'])
             ->middleware('permission:inventory.production_orders.create')->name('production_orders.create');
@@ -870,7 +877,7 @@ Route::delete('/bill-of-materials/{billOfMaterial}', [BillOfMaterialController::
         Route::post('/journal/{entry}/void', [JournalController::class, 'void'])
             ->middleware('permission:accounting.journal_entries.edit')->name('journal.void');
         Route::delete('/journal/{entry}', [JournalController::class, 'destroy'])
-->middleware('permission:accounting.journal_entries.delete')->name('journal.destroy');
+            ->middleware('permission:accounting.journal_entries.delete')->name('journal.destroy');
 
         Route::get('/fiscal-periods', [FiscalPeriodController::class, 'index'])
             ->middleware('permission:accounting.fiscal_periods.view')->name('fiscal_periods.index');
@@ -924,7 +931,7 @@ Route::delete('/bill-of-materials/{billOfMaterial}', [BillOfMaterialController::
             ->middleware('permission:accounting.expense_claims.create')->name('expense_claims.store');
         Route::put('/expense-claims/{claim}', [ExpenseClaimController::class, 'update'])
             ->middleware('permission:accounting.expense_claims.edit')->name('expense_claims.update');
-Route::post('/expense-claims/{claim}/submit', [ExpenseClaimController::class, 'submit'])
+        Route::post('/expense-claims/{claim}/submit', [ExpenseClaimController::class, 'submit'])
             ->middleware('permission:accounting.expense_claims.edit')->name('expense_claims.submit');
         Route::post('/expense-claims/{claim}/approve', [ExpenseClaimController::class, 'approve'])
             ->middleware('permission:accounting.expense_claims.approve')->name('expense_claims.approve');
@@ -972,10 +979,10 @@ Route::post('/expense-claims/{claim}/submit', [ExpenseClaimController::class, 's
             ->middleware('permission:accounting.tax_returns.create')->name('tax_returns.store');
         Route::put('/tax-returns/{tax}', [TaxReturnController::class, 'update'])
             ->middleware('permission:accounting.tax_returns.edit')->name('tax_returns.update');
-    Route::patch('/tax-returns/{tax}/status', [TaxReturnController::class, 'updateStatus'])
-        ->middleware('permission:accounting.tax_returns.edit')->name('tax_returns.status');
-    Route::post('/tax-returns/{tax}/recompute', [TaxReturnController::class, 'recompute'])
-        ->middleware('permission:accounting.tax_returns.edit')->name('tax_returns.recompute');
+        Route::patch('/tax-returns/{tax}/status', [TaxReturnController::class, 'updateStatus'])
+            ->middleware('permission:accounting.tax_returns.edit')->name('tax_returns.status');
+        Route::post('/tax-returns/{tax}/recompute', [TaxReturnController::class, 'recompute'])
+            ->middleware('permission:accounting.tax_returns.edit')->name('tax_returns.recompute');
         Route::delete('/tax-returns/{tax}', [TaxReturnController::class, 'destroy'])
             ->middleware('permission:accounting.tax_returns.delete')->name('tax_returns.destroy');
 
@@ -1413,6 +1420,20 @@ Route::post('/expense-claims/{claim}/submit', [ExpenseClaimController::class, 's
             ->middleware('permission:settings.currencies.view')->name('currencies');
         Route::put('/currencies', [CurrencyController::class, 'update'])
             ->middleware('permission:settings.currencies.manage')->name('currencies.update');
+
+        /**
+         * Manufacturing costing: which basis overhead is absorbed on, and the rates.
+         *
+         * Absorbed overhead was labour-hour only because there was no work centre to
+         * measure a machine hour against. Work centres exist now, so both bases are
+         * offered and the business chooses -- silently repricing live inventory is not
+         * a change an operator should have to discover in a margin report.
+         */
+        Route::get('/manufacturing', [ManufacturingController::class, 'index'])
+            ->middleware('permission:settings.manufacturing.view')->name('manufacturing');
+        Route::put('/manufacturing', [ManufacturingController::class, 'update'])
+            ->middleware('permission:settings.manufacturing.manage')->name('manufacturing.update');
+
         Route::middleware('permission:settings.users.view')->group(function () {
             Route::get('/users', [UserController::class, 'index'])->name('users.index');
             Route::get('/users/create', [UserController::class, 'create'])->name('users.create');
@@ -1469,6 +1490,7 @@ Route::post('/expense-claims/{claim}/submit', [ExpenseClaimController::class, 's
             Route::get('/templates', [TemplateController::class, 'index'])->name('templates.index');
             Route::get('/templates/create', [TemplateController::class, 'create'])->name('templates.create');
             Route::get('/templates/{template}/edit', [TemplateController::class, 'edit'])->name('templates.edit');
+        Route::get('/templates/{template}/preview', [TemplateController::class, 'preview'])->name('templates.preview');
         });
         Route::middleware('permission:settings.templates.manage')->group(function () {
             Route::post('/templates', [TemplateController::class, 'store'])->name('templates.store');

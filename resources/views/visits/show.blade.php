@@ -139,12 +139,12 @@
                                                 <x-icon name="eye" class="size-4" />
                                             </a>
                                         @endif
-                                        @if (auth()->user()->can('visits.pit_stops.edit'))
+                                        @if (auth()->user()->can('visits.pit_stops.edit') && $visit->status !== 'completed')
                                             <button type="button" class="btn-ghost btn-icon btn-sm" title="Edit" @click="editing = !editing">
                                                 <x-icon name="tag" class="size-4" />
                                             </button>
                                         @endif
-                                        @if (auth()->user()->can('visits.pit_stops.delete'))
+                                        @if (auth()->user()->can('visits.pit_stops.delete') && $visit->status !== 'completed')
                                             <form method="POST" action="{{ route('visits.pitstops.destroy', [$visit, $stop]) }}" onsubmit="return confirm('Remove this pit-stop?')">
                                                 @csrf
                                                 @method('DELETE')
@@ -156,7 +156,7 @@
                                     </div>
                                 </div>
 
-                                @if (auth()->user()->can('visits.pit_stops.edit'))
+                                @if (auth()->user()->can('visits.pit_stops.edit') && $visit->status !== 'completed')
                                     <div x-show="editing" x-cloak class="border-t border-line bg-surface-muted/40 px-5 py-4">
                                         <form method="POST" action="{{ route('visits.pitstops.update', [$visit, $stop]) }}" enctype="multipart/form-data" class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                                             @csrf
@@ -193,7 +193,7 @@
                     </ul>
                 @endif
 
-                @if (auth()->user()->can('visits.pit_stops.create'))
+                @if (auth()->user()->can('visits.pit_stops.create') && $visit->status !== 'completed')
                     <div class="border-t border-line px-5 py-4">
                         <form method="POST" action="{{ route('visits.pitstops.store', $visit) }}" enctype="multipart/form-data" class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             @csrf

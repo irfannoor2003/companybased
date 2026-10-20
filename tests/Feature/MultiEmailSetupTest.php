@@ -134,24 +134,95 @@ class MultiEmailSetupTest extends TestCase
         $this->assertSame('Nexos Sales', MailIdentity::salesFromName(null));
     }
 
-    public function test_it_rejects_incomplete_accounts_mailbox_credentials(): void
+    /**
+     * An incomplete department mailbox is DISCARDED, not refused.
+     *
+     * This used to assert the opposite: half a mailbox login rejected the whole form,
+     * before `setMany` ran — so filling in an accounts username and forgetting the
+     * password meant the PRIMARY SMTP settings were never written either. Reported
+     * live as "the primary email will not save". An optional feature was blocking the
+     * required one.
+     *
+     * A half-configured mailbox cannot send mail anyway — `MailConfigServiceProvider`
+     * only registers a transport when both halves are non-empty — so the pair is
+     * dropped, everything else saves, and the operator is told which mailbox was
+     * ignored rather than being left to wonder why it silently never worked.
+     */
+    public function test_an_incomplete_accounts_mailbox_does_not_block_the_save(): void
     {
         $this->actingAs($this->superAdmin())
             ->put('/settings/mail', $this->basePayload([
                 'accounts_username' => 'billing@example.com',
                 'accounts_password' => '',
+                'host' => 'smtp.madeit.test',
             ]))
-            ->assertSessionHasErrors('accounts_password');
+            ->assertSessionHasNoErrors();
+
+        // The primary settings saved, which is the whole point.
+        $this->assertSame('smtp.madeit.test', Setting::get('mail.host'));
+
+        // And the unusable half was dropped rather than left to look configured.
+        $this->assertSame('', (string) Setting::get('mail.accounts_username', ''));
+        $this->assertSame('', (string) Setting::get('mail.accounts_password', ''));
     }
 
-    public function test_it_rejects_incomplete_sales_mailbox_credentials(): void
+    public function test_an_ignored_mailbox_is_reported_by_name(): void
+    {
+        $this->actingAs($this->superAdmin())
+            ->put('/settings/mail', $this->basePayload([
+                'accounts_username' => 'billing@example.com',
+                'accounts_password' => '',
+            ]));
+
+        $messages = collect(session('toasts', []))->pluck('message')->implode(' | ');
+
+        $this->assertStringContainsString('accounts mailbox', $messages);
+        $this->assertStringContainsString('Everything else was saved', $messages);
+    }
+
+    public function test_an_incomplete_sales_mailbox_does_not_block_the_save(): void
     {
         $this->actingAs($this->superAdmin())
             ->put('/settings/mail', $this->basePayload([
                 'sales_username' => '',
                 'sales_password' => 'secret-without-user',
             ]))
-            ->assertSessionHasErrors('sales_username');
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('', (string) Setting::get('mail.sales_username', ''));
+        $this->assertSame('', (string) Setting::get('mail.sales_password', ''));
+    }
+
+    /**
+     * A password-only mailbox is the mirror case, and the one more likely to be typed
+     * by accident: the field is write-only, so an operator editing an unrelated setting
+     * has a password sitting in the box from last time.
+     */
+    public function test_a_stored_mailbox_password_is_kept_when_the_box_is_left_blank(): void
+    {
+        $this->actingAs($this->superAdmin())
+            ->put('/settings/mail', $this->basePayload([
+                'accounts_username' => 'billing@example.com',
+                'accounts_password' => 'the-real-secret',
+            ]))
+            ->assertSessionHasNoErrors();
+
+        $this->actingAs($this->superAdmin())
+            ->put('/settings/mail', $this->basePayload([
+                'accounts_username' => 'billing@example.com',
+                'accounts_password' => '',
+                'host' => 'smtp.changed.test',
+            ]))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('billing@example.com', (string) Setting::get('mail.accounts_username', ''));
+
+        /**
+         * The load-bearing assertion. A blank box means "keep what is stored" — an
+         * earlier version of the optional-mailbox change returned null here and wiped
+         * every stored mailbox password on the first unrelated mail edit.
+         */
+        $this->assertNotSame('', (string) Setting::get('mail.accounts_password', ''));
     }
 
     public function test_can_email_sales_invoice(): void

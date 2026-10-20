@@ -77,25 +77,30 @@
             </div>
         </div>
 
-        {{-- The sheet.
+{{-- The sheet.
 
-             Laid out to mirror resources/views/sales/invoices/partials/pdf-rail.blade.php:
+             Laid out to mirror the `rail` style of resources/views/documents/pdf.blade.php:
              the same dark rail down the left, the same letterspaced title, the same
-             hero "Total Due", the same boxed table header and boxed total row.
+             hero figure, the same boxed table header and boxed total row.
+
+             It mirrors one style, not all five. A preview that could show four other
+             designs would need four more implementations to keep in step, and the one
+             that is wrong would be the one nobody looked at. The rail is the default
+             every template is seeded with.
 
              The rail colour is computed by the *same* helper the PDF uses rather
              than by a Tailwind token. The preview and the PDF are necessarily two
              implementations — DomPDF cannot run Tailwind or Alpine — but they must
              not be two different designs, and they certainly must not be two
              different colours for the same brand.
-        --}}
+         --}}
         <div class="flex justify-center px-4 py-8 sm:px-6">
             <div class="document-preview-sheet flex w-full max-w-4xl overflow-hidden rounded-lg bg-surface text-ink shadow-2xl">
                 {{-- Rail --}}
                 <div class="hidden w-60 shrink-0 flex-col px-6 py-8 text-white md:flex"
                      style="background-color: {{ darken_hex(settings('branding.primary_color', '#4f46e5'), 62) }};">
 
-                    @if (settings('branding.logo'))
+                    @if (company_logo_path())
                         <img src="{{ Storage::url(settings('branding.logo')) }}" alt="{{ company_name() }}" class="mb-3 max-h-9 max-w-24">
                     @endif
                     <p class="text-base font-bold leading-tight">{{ company_name() }}</p>

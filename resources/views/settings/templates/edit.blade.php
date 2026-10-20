@@ -1,6 +1,7 @@
 <x-settings-layout page-title="Edit Template">
     <x-page-header title="Edit Document Template" description="Update the design of this template." icon="document">
         <x-slot name="actions">
+            <x-button href="{{ route('settings.templates.preview', $template) }}" variant="secondary" icon="eye" target="_blank">Preview</x-button>
             <x-button href="{{ route('settings.templates.index') }}" variant="secondary" icon="arrow-left">Back</x-button>
         </x-slot>
     </x-page-header>
@@ -75,6 +76,8 @@
         </x-card>
 
         <div class="flex items-center gap-3">
+            @include('settings.templates.design', ['template' => $template])
+
             <input type="checkbox" name="is_default" value="1" @checked(old('is_default', $template->is_default)) class="rounded border-line text-primary-ink focus:ring-primary">
             <label class="text-sm text-ink">Set as default template for this document type</label>
         </div>

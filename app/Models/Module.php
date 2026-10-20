@@ -47,6 +47,22 @@ class Module extends Model
         return in_array($key, static::enabledKeys(), true);
     }
 
+    /**
+     * The human-readable label for a module key.
+     *
+     * Used by CheckModule to name the module in the error it raises. A disabled
+     * module is a normal state, not a broken one, so the message has to be
+     * written for a user who is looking at it rather than for whoever turned
+     * the toggle off.
+     */
+    public static function labelFor(string $key): string
+    {
+        return static::query()
+            ->where('key', $key)
+            ->value('label')
+            ?: str($key)->headline()->toString();
+    }
+
     public static function flushCache(): void
     {
         static::$memo = null;

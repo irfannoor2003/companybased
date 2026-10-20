@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Census;
 
+use App\Support\PdfLayout;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Route as RouteFacade;
 use Illuminate\Support\Facades\View as ViewFacade;
@@ -82,7 +83,7 @@ class ViewIntegrityTest extends TestCase
         $this->assertSame(
             [],
             $failures,
-            "Blade files that do not compile (".count($failures)."):\n".implode("\n", $failures),
+            'Blade files that do not compile ('.count($failures)."):\n".implode("\n", $failures),
         );
 
         $this->assertGreaterThan(300, $compiled, 'The suite must see the full view tree.');
@@ -126,8 +127,25 @@ class ViewIntegrityTest extends TestCase
             $source = file_get_contents($path);
             $relative = str_replace(resource_path('views').DIRECTORY_SEPARATOR, '', $path);
 
-            // Dynamic includes (variable names) cannot be checked statically.
-            preg_match_all("/@include(?:If|When|Unless)?\(\s*'([^']+)'/", $source, $matches);
+            /**
+             * Static include names only.
+             *
+             * A concatenated name -- `@include('documents.blocks.'.$block)` -- cannot be
+             * resolved without running the loop, and reporting it as a missing view
+             * would train whoever reads the failure to ignore the message. So the
+             * closing quote must be followed by the end of the argument rather than by
+             * a `.`, which is exactly what distinguishes the two forms.
+             *
+             * The cost is real and worth stating: a dynamic include is unchecked, and
+             * a typo in its prefix surfaces as a runtime 500 on whichever document
+             * type reaches it. `PdfLayoutTest` covers the document blocks; the
+             * `ViewIntegrityTest` below still proves every block partial exists.
+             */
+            preg_match_all(
+                "/@include(?:If|When|Unless)?\(\s*'([^']+)'\s*(?=[,)])/",
+                $source,
+                $matches,
+            );
 
             foreach ($matches[1] as $viewName) {
                 $checked++;
@@ -145,6 +163,57 @@ class ViewIntegrityTest extends TestCase
         );
 
         $this->assertGreaterThan(20, $checked);
+    }
+
+    /**
+     * Every document block partial exists.
+     *
+     * The check above skips concatenated names because it cannot resolve them
+     * statically. That leaves the block partials -- files reached only by a loop over
+     * `PdfLayout::BLOCKS` -- unverified by anything structural, and a renamed or
+     * deleted one is a 500 on the first document that reaches it.
+     *
+     * Every block needs its canvas copy, because every style puts every block in the
+     * canvas. The three the rail design prints in the coloured band need a second copy
+     * too, which is why they are rendered twice rather than relocated.
+     */
+    public function test_every_document_block_partial_exists(): void
+    {
+        $missing = [];
+        $checked = 0;
+
+        foreach (array_keys(PdfLayout::BLOCKS) as $block) {
+            foreach ([
+                'documents.blocks.canvas.'.$block,
+                'documents.blocks.'.$block,
+            ] as $viewName) {
+                $isRailOnly = str_ends_with($viewName, '.'.$block) && ! str_contains($viewName, 'canvas.');
+
+                if (! ViewFacade::exists($viewName)) {
+                    if ($isRailOnly && ! in_array($block, PdfLayout::RAIL_BLOCKS, true)) {
+                        continue;
+                    }
+
+                    $missing[] = $viewName;
+
+                    continue;
+                }
+
+                $checked++;
+            }
+        }
+
+        $this->assertSame(
+            [],
+            $missing,
+            'Document block partials missing ('.count($missing)."):\n".implode("\n", $missing),
+        );
+
+        // One canvas copy per block, plus a rail copy for each of the three.
+        $this->assertSame(
+            count(PdfLayout::BLOCKS) + count(PdfLayout::RAIL_BLOCKS),
+            $checked,
+        );
     }
 
     public function test_every_route_name_used_in_a_blade_is_registered(): void
@@ -194,7 +263,7 @@ class ViewIntegrityTest extends TestCase
         $this->assertSame(
             [],
             $failures,
-            "Blades referencing unknown routes (".count($failures)."):\n".implode("\n", $failures)
+            'Blades referencing unknown routes ('.count($failures)."):\n".implode("\n", $failures)
             .($known === [] ? '' : "\nKnown dead links pending README PROD-2:\n".implode("\n", $known)),
         );
 
@@ -236,7 +305,7 @@ class ViewIntegrityTest extends TestCase
         $this->assertSame(
             [],
             $missing,
-            "Unresolvable <x-> components (".count($missing)."):\n".implode("\n", $missing),
+            'Unresolvable <x-> components ('.count($missing)."):\n".implode("\n", $missing),
         );
 
         $this->assertGreaterThan(50, $checked);
@@ -282,9 +351,9 @@ class ViewIntegrityTest extends TestCase
             }
 
             // `@php` has three shapes, only one of which needs an @endphp:
-//   @php($expr)          expression form, self-contained
-//   @php $x = 1; @endphp one-liner, self-contained
-//   @php ... @endphp     block form
+            //   @php($expr)          expression form, self-contained
+            //   @php $x = 1; @endphp one-liner, self-contained
+            //   @php ... @endphp     block form
             $expressions = preg_replace('/@php[ \t]*\([^)]*\)/', '', $source);
 
             $oneLiners = preg_replace(
@@ -329,4 +398,3 @@ class ViewIntegrityTest extends TestCase
         ];
     }
 }
-

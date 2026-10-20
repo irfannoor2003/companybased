@@ -107,10 +107,14 @@ class MailConfigServiceProvider extends ServiceProvider
             return;
         }
 
+        $host = Setting::get('mail.team_host') ?: config('mail.mailers.smtp.host');
+        $port = Setting::get('mail.team_port') ?: config('mail.mailers.smtp.port');
+        $encryption = Setting::get('mail.team_encryption') ?: Setting::get('mail.encryption');
+
         config([
-            'mail.mailers.smtp_team.host' => config('mail.mailers.smtp.host'),
-            'mail.mailers.smtp_team.port' => config('mail.mailers.smtp.port'),
-            'mail.mailers.smtp_team.scheme' => config('mail.mailers.smtp.scheme'),
+            'mail.mailers.smtp_team.host' => $host,
+            'mail.mailers.smtp_team.port' => (int) $port,
+            'mail.mailers.smtp_team.scheme' => $this->smtpScheme($encryption),
             'mail.mailers.smtp_team.username' => $username,
             'mail.mailers.smtp_team.password' => $password,
         ]);
@@ -125,10 +129,14 @@ class MailConfigServiceProvider extends ServiceProvider
             return;
         }
 
+        $host = Setting::get('mail.accounts_host') ?: config('mail.mailers.smtp.host');
+        $port = Setting::get('mail.accounts_port') ?: config('mail.mailers.smtp.port');
+        $encryption = Setting::get('mail.accounts_encryption') ?: Setting::get('mail.encryption');
+
         config([
-            'mail.mailers.smtp_accounts.host' => config('mail.mailers.smtp.host'),
-            'mail.mailers.smtp_accounts.port' => config('mail.mailers.smtp.port'),
-            'mail.mailers.smtp_accounts.scheme' => config('mail.mailers.smtp.scheme'),
+            'mail.mailers.smtp_accounts.host' => $host,
+            'mail.mailers.smtp_accounts.port' => (int) $port,
+            'mail.mailers.smtp_accounts.scheme' => $this->smtpScheme($encryption),
             'mail.mailers.smtp_accounts.username' => $username,
             'mail.mailers.smtp_accounts.password' => $password,
         ]);
@@ -143,10 +151,14 @@ class MailConfigServiceProvider extends ServiceProvider
             return;
         }
 
+        $host = Setting::get('mail.sales_host') ?: config('mail.mailers.smtp.host');
+        $port = Setting::get('mail.sales_port') ?: config('mail.mailers.smtp.port');
+        $encryption = Setting::get('mail.sales_encryption') ?: Setting::get('mail.encryption');
+
         config([
-            'mail.mailers.smtp_sales.host' => config('mail.mailers.smtp.host'),
-            'mail.mailers.smtp_sales.port' => config('mail.mailers.smtp.port'),
-            'mail.mailers.smtp_sales.scheme' => config('mail.mailers.smtp.scheme'),
+            'mail.mailers.smtp_sales.host' => $host,
+            'mail.mailers.smtp_sales.port' => (int) $port,
+            'mail.mailers.smtp_sales.scheme' => $this->smtpScheme($encryption),
             'mail.mailers.smtp_sales.username' => $username,
             'mail.mailers.smtp_sales.password' => $password,
         ]);

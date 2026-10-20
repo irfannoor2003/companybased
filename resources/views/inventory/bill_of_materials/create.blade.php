@@ -31,6 +31,10 @@
 
                 <x-inventory.bom-items-editor :items="$items" />
 
+                <div class="border-t border-line pt-5">
+                    <x-inventory.bom-routing-editor :work-centres="$workCentres" />
+                </div>
+
                 <x-textarea name="note" label="Note" rows="3">{{ old('note') }}</x-textarea>
 
                 <div class="flex justify-end gap-3 border-t border-line pt-4">

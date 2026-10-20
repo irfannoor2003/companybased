@@ -2,6 +2,9 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Http\Controllers\Auth\NewPasswordController;
+use App\Http\Controllers\Auth\PasswordResetLinkController;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
@@ -174,40 +177,68 @@ class AuthFlowTest extends TestCase
         $this->assertGuest();
     }
 
-/**
- * Self-registration is gone, not merely switched off.
- *
- * README PROD-2. This previously asserted that `enable_registration` was false
- * and that `/register` 404'd -- which is true but weaker than it looks: the route
- * still existed and one env var away from being live. The flag, the route, the
- * controller and the blade have all been deleted, so the meaningful assertion now
- * is that the route does not exist at all.
- */
-public function test_registration_is_not_reachable_by_default(): void
-{
-    $this->assertNull(
-        config('app.enable_registration'),
-        'the enable_registration flag is gone; nothing should reintroduce it',
-    );
-
-    $this->get('/register')->assertNotFound();
-
-    $this->assertNull(
-        Route::getRoutes()->getByName('register'),
-        'a named register route exists; self-registration was meant to be removed',
-    );
-}
-
-    public function test_forgot_password_page_is_reachable_but_sends_no_reset_link(): void
+    /**
+     * Self-registration is gone, not merely switched off.
+     *
+     * README PROD-2. This previously asserted that `enable_registration` was false
+     * and that `/register` 404'd -- which is true but weaker than it looks: the route
+     * still existed and one env var away from being live. The flag, the route, the
+     * controller and the blade have all been deleted, so the meaningful assertion now
+     * is that the route does not exist at all.
+     */
+    public function test_registration_is_not_reachable_by_default(): void
     {
-        // Known product decision (README AUTH-1): the e-mail password reset
-        // flow still exists as routes/controllers/views, but the login page
-        // does not link to it and the intended model is admin-driven resets.
-        // This test pins the CURRENT behaviour so the eventual removal is a
-        // conscious change, not an accident.
-        $response = $this->get('/forgot-password');
+        $this->assertNull(
+            config('app.enable_registration'),
+            'the enable_registration flag is gone; nothing should reintroduce it',
+        );
 
-        $this->assertContains($response->getStatusCode(), [200, 404]);
+        $this->get('/register')->assertNotFound();
+
+        $this->assertNull(
+            Route::getRoutes()->getByName('register'),
+            'a named register route exists; self-registration was meant to be removed',
+        );
+    }
+
+    public function test_self_service_password_reset_is_not_reachable(): void
+    {
+        /**
+         * Deleted, not disabled -- README AUTH-3.
+         *
+         * The flow used to ship as routes, controllers and views with nothing linking
+         * to them, because accounts are made and reset by an administrator under
+         * Settings > Users. Present but unlinked it was live attack surface an
+         * unauthenticated caller could reach by typing the URL: a mail-sending endpoint
+         * that also probes which addresses are registered, and a token endpoint with no
+         * reason to exist.
+         *
+         * Asserting the ROUTES are absent rather than the pages 404 is the stronger
+         * property: it fails the build if the flow is ever reintroduced alongside a new
+         * link, instead of quietly returning.
+         */
+        foreach (['password.request', 'password.email', 'password.reset', 'password.store'] as $name) {
+            $this->assertNull(
+                Route::getRoutes()->getByName($name),
+                "a named {$name} route exists; self-service password reset was meant to be removed",
+            );
+        }
+
+        $this->get('/forgot-password')->assertNotFound();
+        $this->get('/reset-password/some-token')->assertNotFound();
+
+        $this->assertFileDoesNotExist(resource_path('views/auth/forgot-password.blade.php'));
+        $this->assertFileDoesNotExist(resource_path('views/auth/reset-password.blade.php'));
+
+        // And the controllers that served them.
+        $this->assertFalse(
+            class_exists(PasswordResetLinkController::class),
+            'PasswordResetLinkController still exists; the reset flow was meant to be removed',
+        );
+        $this->assertFalse(
+            class_exists(NewPasswordController::class),
+            'NewPasswordController still exists; the reset flow was meant to be removed',
+        );
     }
 
     public function test_profile_password_change_requires_the_current_password(): void
@@ -251,7 +282,7 @@ public function test_registration_is_not_reachable_by_default(): void
                 'email' => 'new-hire@example.test',
                 'password' => 'Temp-Pass-123',
                 'password_confirmation' => 'Temp-Pass-123',
-                'roles' => [\App\Models\Role::where('name', 'Accountant')->value('id')],
+                'roles' => [Role::where('name', 'Accountant')->value('id')],
                 'is_active' => '1',
             ])
             // Assert the status, not just the absence of validation errors: a 403

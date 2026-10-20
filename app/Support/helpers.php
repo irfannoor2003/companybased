@@ -34,6 +34,79 @@ if (! function_exists('company_name')) {
     }
 }
 
+if (! function_exists('company_logo_path')) {
+    /**
+     * The absolute path to the company logo, or null when there isn't one to print.
+     *
+     * `branding.logo` is a stored path that says which file to use, not a promise
+     * that the file is there. SettingsSeeder ships `branding/logo.png` as the
+     * default, and that file is not in the repository -- so on a fresh deployment
+     * every printed document carried an empty grey box where the logo belonged,
+     * in the rail and in the masthead alike.
+     *
+     * The same thing happens to any deployment whose administrator deletes the
+     * uploaded file but not the setting pointing at it.
+     *
+     * Returns null in both cases, and every template tests for null. Printing a
+     * broken-image placeholder is worse than printing no logo: the customer reads
+     * the box as a fault in the document rather than as a company with no logo.
+     */
+    function company_logo_path(): ?string
+    {
+        $logo = settings('branding.logo');
+
+        if (blank($logo)) {
+            return null;
+        }
+
+        $path = storage_path('app/public/'.ltrim((string) $logo, '/'));
+
+        return is_file($path) ? $path : null;
+    }
+}
+
+if (! function_exists('pdf_options')) {
+    /**
+     * The DomPDF options every render in this application should use.
+     *
+     * WHY THIS EXISTS
+     *
+     * `Barryvdh\DomPDF\Pdf::setOptions()` rebuilds DomPDF's whole options object.
+     * Call it and the `chroot` stops applying, DomPDF stops being allowed to read
+     * local files, and every `<img>` pointing at a real path on the server silently
+     * becomes a broken-image placeholder. No exception, no warning, no failed
+     * request -- the document just prints without its logo.
+     *
+     * It was found by rendering a document to PNG and looking at it, which is the
+     * only check that can see this class of fault: the PDF is valid, the text is all
+     * there, every assertion passes.
+     *
+     * `chroot` is therefore named explicitly here rather than left to the config
+     * file, so a caller cannot forget it. It is the setting that decides whether
+     * DomPDF may read from disk at all, which makes it the one thing a render call
+     * should never leave to a merge.
+     *
+     * PHP and remote access stay off. Every document is built from our own Blade
+     * templates, so neither has anything to fetch.
+     *
+     * @return array<string, mixed>
+     */
+    function pdf_options(): array
+    {
+        return [
+            'chroot' => [
+                public_path(),
+                storage_path('app/public'),
+                base_path(),
+            ],
+            'isRemoteEnabled' => false,
+            'isPhpEnabled' => false,
+            'isJavascriptEnabled' => false,
+            'defaultFont' => 'DejaVu Sans',
+        ];
+    }
+}
+
 if (! function_exists('money')) {
     /**
      * Format a money value for display using the configured company currency.

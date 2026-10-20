@@ -16,7 +16,7 @@ use Tests\TestCase;
  * these tests its blocking branch had never been executed by the suite, because
  * SeedsDatabase always creates a live subscription.
  *
- * CheckModule is a feature-toggle gate that 404s a whole module when it is
+ * CheckModule is a feature-toggle gate that 403s a whole module when it is
  * switched off. The sidebar re-implements the same rule in Blade, so the two
  * can disagree and the navigation would lie.
  */
@@ -109,14 +109,83 @@ class MiddlewareAccessTest extends TestCase
         $this->get('/login')->assertOk();
     }
 
-    public function test_a_disabled_module_returns_404(): void
+    public function test_a_disabled_module_returns_403_naming_the_module(): void
     {
+        // 404, not 403: a disabled module is a supported configuration state,
+        // not a missing page. 404 sent people hunting a typo or a permission
+        // they thought they had been granted, when the fix is one toggle.
         Module::query()->where('key', 'pos')->update(['enabled' => false]);
         Module::flushCache();
 
         $this->actingAs($this->userForRole('Admin'))
             ->get('/pos')
-            ->assertNotFound();
+            ->assertForbidden()
+            // escape=false: the message renders a literal " in the page source
+            // as &quot;, and assertSee would otherwise escape our needle again.
+            ->assertSee('The &quot;POS&quot; module is currently disabled', false);
+    }
+
+    /**
+     * The label comes from the modules table, so it is the admin-facing one the
+     * administrator recognises from the toggle they just clicked.
+     */
+    public function test_the_disabled_module_message_uses_the_stored_label(): void
+    {
+        Module::query()->where('key', 'capital_accounts')->update(['enabled' => false]);
+        Module::flushCache();
+
+        $this->actingAs($this->userForRole('Admin'))
+            ->get('/capital-accounts/contributions')
+            ->assertForbidden()
+            ->assertSee('The &quot;Capital Accounts&quot; module is currently disabled', false);
+    }
+
+    /**
+     * The wall QR follows the same rule as every other attendance entry point:
+     * if the company switched the Employees module off, the QR sign is off too.
+     * A credential that records into a feature the administrator deliberately
+     * disabled makes no sense, and the 403 names the module so anyone scanning a
+     * stale sign is told why nothing happens instead of staring at a blank page.
+     */
+    public function test_the_wall_qr_kiosk_is_gated_by_the_employees_module(): void
+    {
+        $employee = $this->employeeUserForRole('Employee')->employeeProfile();
+
+        $this->assertNotNull($employee, 'precondition: the employee has a profile');
+
+        Module::query()->where('key', 'employees')->update(['enabled' => false]);
+        Module::flushCache();
+
+        $timestamp = now()->timestamp;
+        $signature = hash_hmac('sha256', $employee->employee_code.'|'.$timestamp, (string) config('app.key'));
+
+        $this->get("/employees/attendance/qr/{$employee->employee_code}?s={$signature}&t={$timestamp}")
+            ->assertForbidden()
+            ->assertSee('The &quot;Employees&quot; module is currently disabled', false);
+
+        $this->assertNull(
+            $employee->attendanceRecords()->latest('id')->first(),
+            'no scan may be recorded while the module is off',
+        );
+    }
+
+    /**
+     * With the module on, an unsigned scan is still rejected by the signed,
+     * short-lived URL — the signature, not the module, is the credential.
+     */
+    public function test_the_wall_qr_kiosk_still_rejects_an_unsigned_scan(): void
+    {
+        $employee = $this->employeeUserForRole('Employee')->employeeProfile();
+
+        $timestamp = now()->timestamp;
+
+        $this->get("/employees/attendance/qr/{$employee->employee_code}?s=forged&t={$timestamp}")
+            ->assertRedirect(route('login'));
+
+        $this->assertNull(
+            $employee->attendanceRecords()->latest('id')->first(),
+            'a forged scan must not record attendance',
+        );
     }
 
     public function test_an_enabled_module_is_reachable(): void

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Sales;
 
 use App\Http\Controllers\Controller;
+use App\Mail\SalesInvoiceMailable;
 use App\Models\BankAccount;
 use App\Models\Product;
 use App\Models\SalesCustomer;
@@ -13,14 +14,13 @@ use App\Models\SalesStatusEvent;
 use App\Services\Accounting\LedgerPosting;
 use App\Services\InvoicePaymentService;
 use App\Services\NotificationService;
-use App\Mail\SalesInvoiceMailable;
 use App\Support\BankLedger;
-use App\Support\DiscountLimit;
 use App\Support\CustomerCredit;
+use App\Support\DiscountLimit;
+use App\Support\DocumentData;
 use App\Support\DocumentItems;
 use App\Support\DocumentReference;
 use App\Support\ExportsCsv;
-use App\Support\InvoiceTemplate;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -85,7 +85,7 @@ class InvoiceController extends Controller
 
         return view('sales.invoices.create', compact(
             'customers', 'products', 'fromOrder', 'fromOrderLines',
-'orderFullyInvoiced', 'maxDiscount', 'taxHint',
+            'orderFullyInvoiced', 'maxDiscount', 'taxHint',
         ));
     }
 
@@ -182,11 +182,15 @@ class InvoiceController extends Controller
     public function pdf(SalesInvoice $invoice): Response
     {
         $this->preparePdf();
-        $invoice->load(['customer', 'items.product', 'payments', 'creditNotes']);
 
-        $html = view(InvoiceTemplate::view((string) $invoice->template), compact('invoice'))->render();
+        // `order.salesman`, not `salesman`: sales_invoices carries no salesman_id.
+        // The rep is recorded on the order the invoice was raised against, and
+        // DocumentData reads it from there.
+        $invoice->load(['customer', 'items.product', 'payments', 'creditNotes', 'order.salesman']);
 
-        $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
+        $html = view('documents.pdf', DocumentData::build($invoice))->render();
+
+        $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait')->setOptions(pdf_options());
 
         return $pdf->stream('invoice-'.$invoice->number.'.pdf');
     }

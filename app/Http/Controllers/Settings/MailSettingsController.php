@@ -25,8 +25,8 @@ class MailSettingsController extends Controller
         $data = $request->validate([
             // Transport
             'mailer' => ['required', 'string', 'in:smtp,sendmail,ses,postmark,log'],
-            'host' => ['required_with:mailer:smtp', 'nullable', 'string', 'max:255'],
-            'port' => ['required_with:mailer:smtp', 'nullable', 'integer', 'min:1', 'max:65535'],
+            'host' => ['required_if:mailer,smtp', 'nullable', 'string', 'max:255'],
+            'port' => ['required_if:mailer,smtp', 'nullable', 'integer', 'min:1', 'max:65535'],
             'username' => ['nullable', 'string', 'max:255'],
             'password' => ['nullable', 'string', 'min:4', 'max:255'],
             'encryption' => ['nullable', 'string', 'in:tls,ssl'],
@@ -45,18 +45,27 @@ class MailSettingsController extends Controller
             'personal_use_shared_address' => ['nullable', 'boolean'],
 
             // Second mailbox login on the same SMTP host (info@)
+            'team_host' => ['nullable', 'string', 'max:255'],
+            'team_port' => ['nullable', 'integer', 'min:1', 'max:65535'],
+            'team_encryption' => ['nullable', 'string', 'in:tls,ssl'],
             'team_username' => ['nullable', 'string', 'max:255'],
             'team_password' => ['nullable', 'string', 'min:4', 'max:255'],
 
             // Accounts & Billing mail identity (invoices, receipts)
             'accounts_from_address' => ['nullable', 'email', 'max:255'],
             'accounts_from_name' => ['nullable', 'string', 'max:255'],
+            'accounts_host' => ['nullable', 'string', 'max:255'],
+            'accounts_port' => ['nullable', 'integer', 'min:1', 'max:65535'],
+            'accounts_encryption' => ['nullable', 'string', 'in:tls,ssl'],
             'accounts_username' => ['nullable', 'string', 'max:255'],
             'accounts_password' => ['nullable', 'string', 'min:4', 'max:255'],
 
             // Sales & Quotes mail identity
             'sales_from_address' => ['nullable', 'email', 'max:255'],
             'sales_from_name' => ['nullable', 'string', 'max:255'],
+            'sales_host' => ['nullable', 'string', 'max:255'],
+            'sales_port' => ['nullable', 'integer', 'min:1', 'max:65535'],
+            'sales_encryption' => ['nullable', 'string', 'in:tls,ssl'],
             'sales_use_salesman_address' => ['nullable', 'boolean'],
             'sales_username' => ['nullable', 'string', 'max:255'],
             'sales_password' => ['nullable', 'string', 'min:4', 'max:255'],
@@ -117,36 +126,56 @@ class MailSettingsController extends Controller
             }
         }
 
-        // The mailbox logins are pairs: half of it would fail authentication.
-        $multiValidator = Validator::make([], []);
+        /**
+         * A department mailbox is only usable when BOTH halves are present.
+         *
+         * It used to REJECT the whole form instead, before `setMany` ran — so filling
+         * in a team mailbox username and forgetting its password meant the PRIMARY SMTP
+         * settings were never written either. Reported live as "the primary email will
+         * not save". An optional feature was blocking the required one.
+         *
+         * So an incomplete pair is now DISCARDED rather than refused: the pair resolves
+         * to "not configured", the primary settings save, and the operator is told which
+         * mailbox was ignored.
+         *
+         * Nothing is lost by discarding. A half-configured mailbox could not send mail
+         * anyway: `MailConfigServiceProvider` only registers a transport when both
+         * `_username` and `_password` are non-empty. Writing the half we were given
+         * would instead register nothing AND leave a stale username on screen looking
+         * like it worked.
+         */
+        $ignoredPairs = [];
 
-        if (blank($teamUsername) !== blank($teamPassword)) {
-            $multiValidator->errors()->add(
-                blank($teamUsername) ? 'team_username' : 'team_password',
-                'Provide both the team mailbox username and its password, or leave both blank to use a single mailbox login.',
-            );
-        }
+        /**
+         * Returns the pair to STORE, and records a mailbox it had to drop.
+         *
+         * Both-blank is NOT a half-filled pair. The password boxes are write-only, so a
+         * blank one means "keep what is stored" and must be passed through untouched —
+         * an earlier version of this returned null here and silently wiped every stored
+         * mailbox password on the first unrelated mail edit.
+         */
+        $usablePair = function (?string $username, ?string $password, string $label) use (&$ignoredPairs): array {
+            $usernameBlank = blank($username);
+            $passwordBlank = blank($password);
 
-        if (blank($accountsUsername) !== blank($accountsPassword)) {
-            $multiValidator->errors()->add(
-                blank($accountsUsername) ? 'accounts_username' : 'accounts_password',
-                'Provide both the accounts mailbox username and password, or leave both blank to reuse primary SMTP.',
-            );
-        }
+            if ($usernameBlank && $passwordBlank) {
+                return [$username, $password];
+            }
 
-        if (blank($salesUsername) !== blank($salesPassword)) {
-            $multiValidator->errors()->add(
-                blank($salesUsername) ? 'sales_username' : 'sales_password',
-                'Provide both the sales mailbox username and password, or leave both blank to reuse primary SMTP.',
-            );
-        }
+            if ($usernameBlank || $passwordBlank) {
+                $ignoredPairs[] = $label;
 
-        if ($multiValidator->errors()->isNotEmpty()) {
-            return back()
-                ->withInput($request->except(['password', 'team_password', 'accounts_password', 'sales_password']))
-                ->withErrors($multiValidator)
-                ->with('toasts', [['type' => 'error', 'message' => 'Department mailbox credentials are incomplete.']]);
-        }
+                return [null, null];
+            }
+
+            return [$username, $password];
+        };
+
+        [$teamUsername, $teamPassword] = $usablePair($teamUsername, $teamPassword, 'the team mailbox (info@)');
+
+        [$accountsUsername, $accountsPassword] = $usablePair($accountsUsername, $accountsPassword, 'the accounts mailbox');
+
+        [$salesUsername, $salesPassword] = $usablePair($salesUsername, $salesPassword, 'the sales mailbox');
 
         Setting::setMany([
             'mail.mailer' => $data['mailer'],
@@ -169,16 +198,25 @@ class MailSettingsController extends Controller
             // Stored as an empty string, never null: Setting::setMany json-encodes
             // a null into the literal text "null", which reads back as a filled
             // value and would leave the team transport permanently enabled.
+            'mail.team_host' => $data['team_host'] ?? '',
+            'mail.team_port' => $data['team_port'] ?? '',
+            'mail.team_encryption' => $data['team_encryption'] ?? '',
             'mail.team_username' => $teamUsername ?: '',
             'mail.team_password' => $teamPassword ?: '',
 
             'mail.accounts_from_address' => $data['accounts_from_address'] ?? '',
             'mail.accounts_from_name' => ($data['accounts_from_name'] ?? null) ?: (company_name().' Accounts'),
+            'mail.accounts_host' => $data['accounts_host'] ?? '',
+            'mail.accounts_port' => $data['accounts_port'] ?? '',
+            'mail.accounts_encryption' => $data['accounts_encryption'] ?? '',
             'mail.accounts_username' => $accountsUsername ?: '',
             'mail.accounts_password' => $accountsPassword ?: '',
 
             'mail.sales_from_address' => $data['sales_from_address'] ?? '',
             'mail.sales_from_name' => ($data['sales_from_name'] ?? null) ?: (company_name().' Sales'),
+            'mail.sales_host' => $data['sales_host'] ?? '',
+            'mail.sales_port' => $data['sales_port'] ?? '',
+            'mail.sales_encryption' => $data['sales_encryption'] ?? '',
             'mail.sales_use_salesman_address' => $request->boolean('sales_use_salesman_address') ? '1' : '0',
             'mail.sales_username' => $salesUsername ?: '',
             'mail.sales_password' => $salesPassword ?: '',
@@ -187,7 +225,29 @@ class MailSettingsController extends Controller
         // No .env rewrite and no `config:clear` here: MailConfigServiceProvider
         // overlays these settings on top of the environment at runtime, so the
         // change takes effect immediately and survives a config cache.
-        return back()->with('toasts', [['type' => 'success', 'message' => 'Mail server settings updated.']]);
+        $toasts = [[
+            'type' => 'success',
+            'message' => 'Mail server settings updated.',
+        ]];
+
+        /**
+         * A discarded mailbox is reported, not swallowed.
+         *
+         * Silently dropping it would be the original bug wearing a different hat: the
+         * operator fills in a mailbox login, saves, sees success, and that mailbox is
+         * simply never used — with nothing anywhere saying why.
+         */
+        if ($ignoredPairs !== []) {
+            $toasts[] = [
+                'type' => 'error',
+                'message' => sprintf(
+                    'Saved, but %s ignored: a mailbox login needs both a username and a password. Everything else was saved.',
+                    implode(' and ', $ignoredPairs),
+                ),
+            ];
+        }
+
+        return back()->with('toasts', $toasts);
     }
 
     public function test(Request $request): RedirectResponse
@@ -278,17 +338,26 @@ class MailSettingsController extends Controller
             'password_is_set' => filled(settings('mail.password', env('MAIL_PASSWORD', ''))),
             'encryption' => settings('mail.encryption', env('MAIL_ENCRYPTION', 'tls')),
 
+            'team_host' => settings('mail.team_host', ''),
+            'team_port' => settings('mail.team_port', ''),
+            'team_encryption' => settings('mail.team_encryption', ''),
             'team_username' => settings('mail.team_username', env('MAIL_TEAM_USERNAME', '')),
             // Never send the stored team password back to the browser either.
             'team_password_is_set' => filled(settings('mail.team_password', env('MAIL_TEAM_PASSWORD', ''))),
 
             'accounts_from_address' => settings('mail.accounts_from_address', ''),
             'accounts_from_name' => settings('mail.accounts_from_name', ''),
+            'accounts_host' => settings('mail.accounts_host', ''),
+            'accounts_port' => settings('mail.accounts_port', ''),
+            'accounts_encryption' => settings('mail.accounts_encryption', ''),
             'accounts_username' => settings('mail.accounts_username', env('MAIL_ACCOUNTS_USERNAME', '')),
             'accounts_password_is_set' => filled(settings('mail.accounts_password', env('MAIL_ACCOUNTS_PASSWORD', ''))),
 
             'sales_from_address' => settings('mail.sales_from_address', ''),
             'sales_from_name' => settings('mail.sales_from_name', ''),
+            'sales_host' => settings('mail.sales_host', ''),
+            'sales_port' => settings('mail.sales_port', ''),
+            'sales_encryption' => settings('mail.sales_encryption', ''),
             'sales_use_salesman_address' => MailIdentity::usesSalesmanAddress(),
             'sales_username' => settings('mail.sales_username', env('MAIL_SALES_USERNAME', '')),
             'sales_password_is_set' => filled(settings('mail.sales_password', env('MAIL_SALES_PASSWORD', ''))),

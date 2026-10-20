@@ -38,6 +38,7 @@
                                     <span class="rounded bg-surface-muted px-1.5 py-0.5 text-[10px] text-ink-soft">Header: {{ $template->layout['header'] ?? 'left' }}</span>
                                 </div>
                                 <div class="mt-3 flex gap-2 border-t border-line pt-3">
+                                    <x-button href="{{ route('settings.templates.preview', $template) }}" size="sm" variant="ghost" icon="eye" target="_blank">Preview</x-button>
                                     <x-button href="{{ route('settings.templates.edit', $template) }}" size="sm" variant="ghost" icon="edit">Edit</x-button>
                                     @unless ($template->is_system)
                                         <form method="POST" action="{{ route('settings.templates.destroy', $template) }}" onsubmit="return confirm('Delete this template?')">

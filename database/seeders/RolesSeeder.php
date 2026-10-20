@@ -22,7 +22,7 @@ class RolesSeeder extends Seeder
             [
                 'name' => config('roles.super_admin'),
                 'label' => 'Super Admin',
-                'description' => 'Company configuration only — profile, branding, modules, base currency, backups and audit. No business data access.',
+                'description' => 'Installation owner only: plan expiry, activation and deactivation, and backups. Cannot manage users, roles or any business data — use Admin to run the company.',
                 'is_system' => true,
                 'permissions' => 'super_admin',
             ],

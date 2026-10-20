@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\User;
 use Illuminate\Support\Str;
 
 /**
@@ -12,7 +13,7 @@ use Illuminate\Support\Str;
  * sending "personal" mail from a no-reply address:
  *
  *  - SYSTEM (transactional) — welcome mails, order status updates, low stock
- *    alerts, password resets. Sent from a no-reply@ address because nobody is
+ *    alerts. Sent from a no-reply@ address because nobody is
  *    watching it during a send, but its Reply-To points at the real mailbox so
  *    a customer who does hit reply reaches a human.
  *
@@ -182,7 +183,7 @@ final class MailIdentity
     /**
      * From address for sales / quotes / proposals.
      */
-    public static function salesFromAddress(?\App\Models\User $salesman = null): string
+    public static function salesFromAddress(?User $salesman = null): string
     {
         if (self::usesSalesmanAddress() && filled($salesman?->email)) {
             return (string) $salesman->email;
@@ -191,7 +192,7 @@ final class MailIdentity
         return (string) (settings(self::SALES_PREFIX.'_from_address') ?: self::guessSalesAddress() ?: self::personalFromAddress());
     }
 
-    public static function salesFromName(?\App\Models\User $salesman = null): string
+    public static function salesFromName(?User $salesman = null): string
     {
         if (self::usesSalesmanAddress() && filled($salesman?->name)) {
             return (string) $salesman->name;

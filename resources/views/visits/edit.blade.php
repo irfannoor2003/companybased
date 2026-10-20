@@ -31,6 +31,16 @@
                     <x-input name="scheduled_at" label="Scheduled date" type="date" required value="{{ old('scheduled_at', $visit->scheduled_at?->format('Y-m-d')) }}" :error="$errors->first('scheduled_at')" />
                 </div>
 
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <x-input name="distance_km" label="Distance (km)" type="number" step="0.01" min="0" placeholder="e.g. 12.50" value="{{ old('distance_km', $visit->distance_km) }}" :error="$errors->first('distance_km')" />
+                    <div></div>
+                </div>
+
+                <div class="grid grid-cols-1 gap-4">
+                    <x-textarea name="notes" label="Notes" :error="$errors->first('notes')">{{ old('notes', $visit->notes) }}</x-textarea>
+                    <x-textarea name="outcome_notes" label="Conclusion" :error="$errors->first('outcome_notes')">{{ old('outcome_notes', $visit->outcome_notes) }}</x-textarea>
+                </div>
+
                 <div class="flex items-center gap-2 pt-1">
                     <x-button type="submit" icon="save">Save changes</x-button>
                     <x-button href="{{ route('visits.show', $visit) }}" variant="secondary">Cancel</x-button>

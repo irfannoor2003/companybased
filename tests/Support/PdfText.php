@@ -54,6 +54,24 @@ final class PdfText
             $out[] = trim(preg_replace('/\s+/', ' ', $text) ?? $text);
         }
 
+        /**
+         * No pages found, or pages that decoded to nothing.
+         *
+         * Both mean the extractor is broken rather than that the document is blank --
+         * a genuinely blank DomPDF page still carries a content stream and a /Page
+         * node. Returning an empty string here is how a whole suite of
+         * `assertStringNotContainsString()` assertions came to pass while checking
+         * nothing at all, so it is refused instead.
+         */
+        if ($out === [] || implode('', array_filter($out)) === '') {
+            throw new \RuntimeException(
+                'PDFText could not read any text out of this render. That means the '
+                .'extractor failed, not that the document is empty -- an assertion '
+                .'built on an empty string would pass without checking anything. '
+                .'Render the PDF and look at it before trusting a result from here.',
+            );
+        }
+
         return $out;
     }
 
@@ -124,35 +142,92 @@ final class PdfText
     /**
      * Object number => inflated stream body.
      *
+     * Uses the stream's declared `/Length` where there is one, because the length is
+     * authoritative and the only other way to find the end of a stream is to search
+     * for the word `endstream` -- which does not work when the compressed bytes can
+     * contain anything.
+     *
+     * The obvious regex, `stream\r?\n(?P<body>.*?)\r?\nendstream`, is wrong, and was
+     * wrong here for months without anyone noticing. `.*?` is lazy, so it stops at
+     * the EARLIEST point where a newline is followed by `endstream` -- and the byte
+     * before `endstream` is very often a newline that belongs to the DATA, not a
+     * separator. A stream whose compressed bytes happen to end in `0x0a` was
+     * captured one byte short, failed to inflate, and was skipped. The page then
+     * reported as empty text and every `assertStringNotContainsString()` built on it
+     * passed without checking anything.
+     *
+     * That is the failure mode worth designing against: a helper that returns an
+     * empty string cannot be told apart from a document that printed nothing. So a
+     * stream that cannot be inflated is thrown, not skipped.
+     *
      * @return array<int, string>
      */
     private static function streamByObject(string $pdf): array
     {
         $out = [];
 
-        if (! preg_match_all('#(?P<num>\d+)\s+0\s+obj\s*<<(?P<dict>[^<>]*(?:<<[^>]*>>[^<>]*)*)>>\s*stream\r?\n(?P<body>.*?)\r?\nendstream#s', $pdf, $streams, PREG_SET_ORDER)) {
+        $matched = preg_match_all(
+            '#(?P<num>\d+)\s+0\s+obj\s*<<(?P<dict>[^<>]*(?:<<[^>]*>>[^<>]*)*)>>\s*stream\r?\n(?P<rest>.*?)endstream#s',
+            $pdf,
+            $streams,
+            PREG_SET_ORDER,
+        );
+
+        if (! $matched) {
             return $out;
         }
 
         foreach ($streams as $stream) {
-            $body = $stream['body'];
+            $num = (int) $stream['num'];
+            $dict = $stream['dict'];
 
-            if (str_contains($stream['dict'], '/FlateDecode')) {
-                $inflated = @gzuncompress($body) ?: @gzinflate($body);
+            $body = self::bodyFor($dict, $stream['rest']);
+
+            if (str_contains($dict, '/FlateDecode')) {
+                $inflated = @gzuncompress($body);
+
+                // Raw deflate is not what DomPDF writes, but a second attempt costs
+                // nothing and a wrong-but-readable decode beats an exception.
+                $inflated ??= @gzinflate($body);
 
                 if ($inflated === false) {
-                    continue;
+                    throw new \RuntimeException(
+                        "PDF stream object {$num} is /FlateDecode but ".strlen($body)
+                        .' bytes would not inflate. The text extractor cannot read this '
+                        .'render, so any assertion built on it would be checking nothing.',
+                    );
                 }
 
                 $body = $inflated;
             }
 
-            $out[(int) $stream['num']] = $body;
+            $out[$num] = $body;
         }
 
         return $out;
     }
 
+    /**
+     * The stream's bytes, taken from its declared `/Length` where possible.
+     *
+     * @param  string  $dict  the object dictionary
+     * @param  string  $rest  everything between the EOL after `stream` and `endstream`
+     */
+    private static function bodyFor(string $dict, string $rest): string
+    {
+        // `/Length 2096` only. `/Length 12 0 R` is an indirect reference to a
+        // separate integer object, which the dict regex above cannot resolve, so it
+        // falls through to the permissive capture below.
+        if (preg_match('#/Length\s+(\d+)(?!\s+\d+\s+R)#', $dict, $m)) {
+            $declared = (int) $m[1];
+
+            if (strlen($rest) >= $declared) {
+                return substr($rest, 0, $declared);
+            }
+        }
+
+        return $rest;
+    }
 
     /**
      * Every page's text joined together.
@@ -208,9 +283,15 @@ final class PdfText
         // CMap stream bodies, by object number.
         $cmapBodies = [];
 
-        if (preg_match_all('#(?P<num>\d+)\s+0\s+obj\s*<<(?P<dict>[^<>]*(?:<<[^>]*>>[^<>]*)*)>>\s*stream\r?\n(?P<body>.*?)\r?\nendstream#s', $pdf, $streams, PREG_SET_ORDER)) {
+        /**
+         * The same lazy-match trap as streamByObject(), and the same consequence: a
+         * CMap captured one byte short does not inflate, so the font's glyph map comes
+         * out empty and every string decodes to nothing while still "succeeding".
+         * Read by declared length here too.
+         */
+        if (preg_match_all('#(?P<num>\d+)\s+0\s+obj\s*<<(?P<dict>[^<>]*(?:<<[^>]*>>[^<>]*)*)>>\s*stream\r?\n(?P<rest>.*?)endstream#s', $pdf, $streams, PREG_SET_ORDER)) {
             foreach ($streams as $stream) {
-                $body = $stream['body'];
+                $body = self::bodyFor($stream['dict'], $stream['rest']);
 
                 if (str_contains($stream['dict'], '/FlateDecode')) {
                     $inflated = @gzuncompress($body) ?: @gzinflate($body);

@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Setting;
+use App\Services\Accounting\ProductionAbsorptionService;
 use Illuminate\Database\Seeder;
 
 /**
@@ -68,6 +69,29 @@ class SettingsSeeder extends Seeder
             'branding.accent_color' => '#0ea5e9',
             'branding.dark_mode' => 'system',
         ], 'general');
+
+        /**
+         * Manufacturing costing.
+         *
+         * Seeded so they are discoverable rather than only existing as a fallback in
+         * code, but the DEFAULTS are the conservative ones on purpose.
+         *
+         * `overhead_rate_per_hour` is zero, which means overhead is not absorbed at all
+         * until somebody configures it. Absorbing a rate nobody chose would invent
+         * factory cost and capitalise it into inventory.
+         *
+         * `absorption_basis` is `labour_hour` because that is what every existing
+         * installation has been doing. Work centres now record the minutes a job took,
+         * so `work_centre_hour` is measurable and available -- but a shop must switch to
+         * it deliberately, because the two bases value the same job differently and
+         * silently repricing live inventory is not a change to discover in a margin
+         * report.
+         */
+        Setting::setMany([
+            'production.standard_monthly_hours' => '208',
+            'production.overhead_rate_per_hour' => '0',
+            'production.absorption_basis' => ProductionAbsorptionService::DEFAULT_BASIS,
+        ], 'production');
 
         Setting::flushCache();
     }
