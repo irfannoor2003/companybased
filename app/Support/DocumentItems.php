@@ -112,7 +112,20 @@ class DocumentItems
     {
         // A bill line records which expense account it is charged to.
         if ($document instanceof \App\Models\PurchaseInvoice) {
-            return ['account_id' => ! empty($item['account_id']) ? (int) $item['account_id'] : null];
+            $categoryId = ! empty($item['expense_category_id']) ? (int) $item['expense_category_id'] : null;
+            $accountId = ! empty($item['account_id']) ? (int) $item['account_id'] : null;
+
+            // An expense category is wired to a chart-of-accounts expense account,
+            // so choosing a category resolves to that account. The category is kept
+            // on the line for reporting even when the account is also stored.
+            if ($categoryId !== null && $accountId === null) {
+                $accountId = \App\Models\ExpenseCategory::query()->whereKey($categoryId)->value('account_id');
+            }
+
+            return [
+                'account_id' => $accountId,
+                'expense_category_id' => $categoryId,
+            ];
         }
 
         // A sales line snapshots the product's CURRENT weighted-average cost, so

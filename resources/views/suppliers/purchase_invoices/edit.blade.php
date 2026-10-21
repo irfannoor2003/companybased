@@ -73,7 +73,7 @@
                     @php
                         $initialItems = $invoice->items->map(fn ($item) => [
 'product_id' => (string) ($item->product_id ?? ''),
-                'account_id' => (string) ($item->account_id ?? ''),
+                'expense_category_id' => (string) ($item->expense_category_id ?? ''),
                 'description' => $item->description,
                             'qty' => (float) $item->qty,
                             'unit_price' => (float) $item->unit_price,

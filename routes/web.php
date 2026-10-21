@@ -4,6 +4,7 @@ use App\Http\Controllers\Accounting\AccountController;
 use App\Http\Controllers\Accounting\BillController;
 use App\Http\Controllers\Accounting\BudgetController;
 use App\Http\Controllers\Accounting\ExpenseClaimController;
+use App\Http\Controllers\Accounting\ExpenseCategoryController;
 use App\Http\Controllers\Accounting\FiscalPeriodController;
 use App\Http\Controllers\Accounting\JournalController;
 use App\Http\Controllers\Accounting\TaxRateController;
@@ -944,6 +945,20 @@ Route::middleware('auth')->group(function () {
         Route::delete('/expense-claims/{claim}', [ExpenseClaimController::class, 'destroy'])
             ->middleware('permission:accounting.expense_claims.delete')->name('expense_claims.destroy');
 
+        Route::get('/expense-categories', [ExpenseCategoryController::class, 'index'])
+            ->middleware('permission:accounting.expense_categories.view')->name('expense_categories.index');
+        Route::get('/expense-categories/create', [ExpenseCategoryController::class, 'create'])
+            ->middleware('permission:accounting.expense_categories.create')->name('expense_categories.create');
+        Route::get('/expense-categories/export', [ExpenseCategoryController::class, 'export'])
+            ->middleware('permission:accounting.expense_categories.export')->name('expense_categories.export');
+        Route::get('/expense-categories/{category}/edit', [ExpenseCategoryController::class, 'edit'])
+            ->middleware('permission:accounting.expense_categories.edit')->name('expense_categories.edit');
+        Route::post('/expense-categories', [ExpenseCategoryController::class, 'store'])
+            ->middleware('permission:accounting.expense_categories.create')->name('expense_categories.store');
+        Route::put('/expense-categories/{category}', [ExpenseCategoryController::class, 'update'])
+            ->middleware('permission:accounting.expense_categories.edit')->name('expense_categories.update');
+        Route::delete('/expense-categories/{category}', [ExpenseCategoryController::class, 'destroy'])
+            ->middleware('permission:accounting.expense_categories.delete')->name('expense_categories.destroy');
         Route::get('/bills', [BillController::class, 'index'])
             ->middleware('permission:accounting.bills.view')->name('bills.index');
         Route::get('/bills/create', [BillController::class, 'create'])

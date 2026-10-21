@@ -188,6 +188,7 @@ return [
                 'chart_of_accounts' => ['view', 'create', 'edit', 'delete', 'export'],
                 'journal_entries' => ['view', 'create', 'edit', 'delete', 'export'],
                 'expense_claims' => ['view', 'create', 'edit', 'delete', 'export', 'approve', 'reimburse'],
+                'expense_categories' => ['view', 'create', 'edit', 'delete', 'export'],
                 'bills' => ['view', 'create', 'edit', 'delete', 'export', 'record_payment'],
                 'tax_returns' => ['view', 'create', 'edit', 'delete', 'export'],
                 // Tax RATES are a ledger concern, not a company-setting one: they decide

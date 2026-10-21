@@ -5,6 +5,7 @@
     // Expense-type ledger accounts a bill line can be charged to. Resolved here so
     // every bill form does not have to query the chart of accounts itself.
     'expenseAccounts' => null,
+    'expenseCategories' => null,
     // What the tax engine expects on this document's date. Same contract as the
     // sales editor, so purchase forms read identically to sales forms.
     'taxHint' => null,
@@ -15,6 +16,11 @@
         ->whereIn('type', ['expense', 'asset'])
         ->where('is_active', true)
         ->orderBy('code')
+        ->get();
+
+    $expenseCategories = $expenseCategories ?? \App\Models\ExpenseCategory::query()
+        ->where('is_active', true)
+        ->orderBy('name')
         ->get();
 
     $productsMap = $products->mapWithKeys(fn ($p) => [
@@ -57,14 +63,14 @@
         <template x-for="(item, i) in items" :key="i">
             <div class="grid grid-cols-2 gap-2 rounded-lg border border-line bg-surface-muted/40 p-3 sm:grid-cols-7">
                 <div class="col-span-2 sm:col-span-2">
-                    <label class="field-label">Expense account</label>
-                    {{-- The account this line is charged to on the profit and loss.
-                         Without it every bill line landed in Cost of Goods Sold and
-                         the P&L could not say which costs went up. --}}
-                    <select :name="'items[' + i + '][account_id]'" x-model="item.account_id" class="select-input">
+                    <label class="field-label">Expense category</label>
+                    {{-- The category this line is charged to on the profit and loss.
+                         Each category is wired to a chart-of-accounts expense
+                         account, so the ledger posts to the right place. --}}
+                    <select :name="'items[' + i + '][expense_category_id]'" x-model="item.expense_category_id" class="select-input">
                         <option value="">Cost of goods sold (default)</option>
-                        @foreach ($expenseAccounts as $expenseAccount)
-                            <option value="{{ $expenseAccount->id }}">{{ $expenseAccount->code }} &mdash; {{ $expenseAccount->name }}</option>
+                        @foreach ($expenseCategories as $expenseCategory)
+                            <option value="{{ $expenseCategory->id }}">{{ $expenseCategory->name }}{{ $expenseCategory->account ? ' ('.$expenseCategory->account->code.')' : '' }}</option>
                         @endforeach
                     </select>
                 </div>

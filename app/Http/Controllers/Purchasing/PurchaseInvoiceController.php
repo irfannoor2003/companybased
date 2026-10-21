@@ -344,6 +344,7 @@ $this->recalculateStatus($invoice);
             'items.*.account_id' => ['nullable', 'integer', Rule::exists('accounts', 'id')->where(
                 fn ($q) => $q->whereIn('type', ['expense', 'asset'])->whereNull('deleted_at'),
             )],
+            'items.*.expense_category_id' => ['nullable', 'integer', Rule::exists('expense_categories', 'id')],
         ]);
     }
 }

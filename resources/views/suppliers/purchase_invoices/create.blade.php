@@ -70,7 +70,7 @@
                 @php
                     $initialItems = $fromProduction ? $fromProduction->items->map(fn ($line) => [
                         'product_id' => (string) ($line->componentItem?->product_id ?? ''),
-                'account_id' => '',
+                'expense_category_id' => '',
                         'description' => $line->componentItem?->product?->name ?? ($line->componentItem?->product?->sku ?? ''),
                         'qty' => (float) ($line->quantity_required ?? 0),
                         'unit_price' => (float) ($line->componentItem?->product?->cost_price ?? 0),

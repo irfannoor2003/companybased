@@ -3,6 +3,7 @@
         ['label' => 'Chart of accounts', 'route' => 'accounting.accounts.index', 'icon' => 'database'],
         ['label' => 'Journal', 'route' => 'accounting.journal.index', 'icon' => 'document'],
         ['label' => 'Expense claims', 'route' => 'accounting.expense_claims.index', 'icon' => 'money'],
+        ['label' => 'Expense categories', 'route' => 'accounting.expense_categories.index', 'icon' => 'document'],
         ['label' => 'Bills', 'route' => 'accounting.bills.index', 'icon' => 'invoice'],
         ['label' => 'Tax returns', 'route' => 'accounting.tax_returns.index', 'icon' => 'tax'],
         ['label' => 'Budgets', 'route' => 'accounting.budgets.index', 'icon' => 'chart'],
