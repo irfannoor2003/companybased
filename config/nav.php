@@ -112,6 +112,7 @@ return [
                 ['label' => 'Journal', 'route' => 'accounting.journal.index', 'icon' => 'document', 'permission' => 'accounting.journal_entries.view'],
                 ['label' => 'Fiscal periods', 'route' => 'accounting.fiscal_periods.index', 'icon' => 'calendar', 'permission' => 'accounting.fiscal_periods.view'],
                 ['label' => 'Expense claims', 'route' => 'accounting.expense_claims.index', 'icon' => 'money', 'permission' => 'accounting.expense_claims.view'],
+                ['label' => 'Expense categories', 'route' => 'accounting.expense_categories.index', 'icon' => 'tag', 'permission' => 'accounting.expense_categories.view'],
                 ['label' => 'Bills', 'route' => 'accounting.bills.index', 'icon' => 'invoice', 'permission' => 'accounting.bills.view'],
                 ['label' => 'Tax returns', 'route' => 'accounting.tax_returns.index', 'icon' => 'tax', 'permission' => 'accounting.tax_returns.view'],
                 ['label' => 'Tax rates', 'route' => 'accounting.tax_rates.index', 'icon' => 'tax', 'permission' => 'accounting.tax_rates.view'],

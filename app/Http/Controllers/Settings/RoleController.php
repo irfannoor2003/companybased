@@ -12,6 +12,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Spatie\Permission\PermissionRegistrar;
 
 class RoleController extends Controller
 {
@@ -99,7 +100,21 @@ class RoleController extends Controller
             'description' => $data['description'] ?? null,
         ]);
 
-        $role->syncPermissions($this->enabledModulePermissions($data['permissions'] ?? []));
+        // The role matrix only exposes editable modules; settings (and other
+        // reserved) modules are intentionally hidden from it. Syncing the
+        // submitted list wholesale would wipe out the permissions a role
+        // already holds for those reserved modules (e.g. Admin losing every
+        // settings.* permission, including roles/users management, after a
+        // single save). Preserve them instead.
+        $editable = $this->enabledModulePermissions($data['permissions'] ?? []);
+        $reserved = $role->permissions()->pluck('name')->filter(function (string $name): bool {
+            $module = explode('.', $name)[0];
+
+            return in_array($module, static::SUPER_ADMIN_MODULES, true);
+        })->values()->all();
+        $role->syncPermissions(array_values(array_unique(array_merge($editable, $reserved))));
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
 
         $after = $role->permissions()->pluck('name')->all();
         $this->auditPermissionChange($role, $before, $after);
