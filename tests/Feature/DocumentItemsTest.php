@@ -152,6 +152,69 @@ class DocumentItemsTest extends TestCase
         DocumentItems::sync($this->invoice(), [$this->line('Over-discounted', '1', '100.00', '150')]);
     }
 
+    public function test_a_fixed_amount_discount_reduces_the_net_and_charges_tax_on_it(): void
+    {
+        $invoice = $this->invoice();
+
+        // A specific amount off the line: 100.00 less a fixed 25.00 = 75.00 net,
+        // then 10% tax on that net = 7.50.
+        $totals = DocumentItems::sync($invoice, [
+            [
+                'description' => 'Fixed discount',
+                'qty' => '1',
+                'unit_price' => '100.00',
+                'discount_amount' => '25',
+                'tax_percent' => '10',
+            ],
+        ]);
+
+        $this->assertEqualsWithDelta(75.0, $totals['subtotal'], 0.0005);
+        $this->assertEqualsWithDelta(7.5, $totals['tax'], 0.0005);
+        $this->assertEqualsWithDelta(82.5, $totals['total'], 0.0005);
+    }
+
+    public function test_a_fixed_amount_discount_above_the_line_total_is_rejected(): void
+    {
+        $this->expectException(ValidationException::class);
+
+        DocumentItems::sync($this->invoice(), [
+            ['description' => 'Too big', 'qty' => '1', 'unit_price' => '50.00', 'discount_amount' => '60'],
+        ]);
+    }
+
+    public function test_a_fixed_amount_discount_is_the_only_discount_applied(): void
+    {
+        $invoice = $this->invoice();
+
+        $totals = DocumentItems::sync($invoice, [
+            [
+                'description' => 'Both styles',
+                'qty' => '1',
+                'unit_price' => '100.00',
+                'discount_percent' => '10',
+                'discount_amount' => '30',
+                'tax_percent' => '0',
+            ],
+        ]);
+
+        // The amount is the single discount applied; the percentage is not stacked.
+        $this->assertEqualsWithDelta(70.0, $totals['subtotal'], 0.0005);
+
+        $stored = $invoice->fresh()->items->first();
+
+        $this->assertEqualsWithDelta(30.0, (float) $stored->discount_amount, 0.0005);
+        $this->assertEqualsWithDelta(0.0, (float) $stored->discount_percent, 0.0005);
+    }
+
+    public function test_a_negative_discount_is_rejected(): void
+    {
+        $this->expectException(ValidationException::class);
+
+        DocumentItems::sync($this->invoice(), [
+            ['description' => 'Backwards', 'qty' => '1', 'unit_price' => '100.00', 'discount_amount' => '-10'],
+        ]);
+    }
+
     public function test_a_tax_above_one_hundred_percent_is_rejected(): void
     {
         $this->expectException(ValidationException::class);

@@ -32,7 +32,12 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('approval_requests', function (Blueprint $table) {
+        // The approval engine is old on some deployments that lack the ledger
+        // row for it. The create AND the generated-column step below are both
+        // guarded: a partial application (table yes, live_step no) survives a
+        // re-run instead of dying on the first existing artefact.
+        if (! Schema::hasTable('approval_requests')) {
+            Schema::create('approval_requests', function (Blueprint $table) {
             $table->id();
 
             // Polymorphic: any document in any module can be submitted.
@@ -58,6 +63,7 @@ return new class extends Migration
 
             $table->index(['approvable_type', 'approvable_id', 'status'], 'approval_requests_approvable_status_index');
         });
+        }
 
         /**
          * One live request per document per step.
@@ -68,16 +74,18 @@ return new class extends Migration
          * permits unlimited NULLs in a unique index -- which is exactly the
          * behaviour wanted: unlimited history, one live request.
          */
-        Schema::table('approval_requests', function (Blueprint $table) {
-            $table->unsignedInteger('live_step')
-                ->nullable()
-                ->storedAs("CASE WHEN `status` = 'pending' THEN `step` ELSE NULL END");
+        if (! Schema::hasColumn('approval_requests', 'live_step')) {
+            Schema::table('approval_requests', function (Blueprint $table) {
+                $table->unsignedInteger('live_step')
+                    ->nullable()
+                    ->storedAs("CASE WHEN `status` = 'pending' THEN `step` ELSE NULL END");
 
-            $table->unique(
-                ['approvable_type', 'approvable_id', 'live_step'],
-                'approval_requests_one_live_per_step'
-            );
-        });
+                $table->unique(
+                    ['approvable_type', 'approvable_id', 'live_step'],
+                    'approval_requests_one_live_per_step'
+                );
+            });
+        }
     }
 
     public function down(): void

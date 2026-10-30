@@ -4,6 +4,7 @@ namespace App\Services\Accounting;
 
 use App\Models\Account;
 use App\Models\DebitNote;
+use App\Models\ExpenseClaim;
 use App\Models\JournalEntry;
 use App\Models\Product;
 use App\Models\PurchaseInvoice;
@@ -108,6 +109,16 @@ class LedgerPosting
 
     public const COST_OF_GOODS_SOLD = '5000';
     public const INVENTORY_ADJUSTMENT = '6400';
+
+    /**
+     * The fallback operating-expense account, posted when the source names no
+     * specific cost account. An unmapped expense claim (or a category built
+     * without a ledger mapping) lands here rather than being posted nowhere or
+     * forcing the approval to fail — the figure still reaches the P&L as a
+     * genuine operating cost, and the P&L by cost line stays honest because the
+     * "unattributed" bucket is visible rather than spread.
+     */
+    public const OPERATING_EXPENSES = '6000';
 
     public const SALES_DISCOUNTS = '4200';
 
@@ -1027,6 +1038,70 @@ private function ledgerCodeFor(mixed $bankAccount): ?string
             ],
             'Employee tax remitted',
             $date,
+        );
+    }
+
+    // ── Operating expenses ──────────────────────────────────────────────────
+
+    /**
+     * An approved expense claim charges its cost and drains the payer.
+     *
+     *   Dr <the category's expense account>   amount
+     *       Cr <the bank / cash account>           amount
+     *
+     * Posted at approval, keyed at stage 'approved' for the same reason a payroll
+     * run is: approval is when the cost becomes real. There is deliberately no
+     * second posting at reimbursement — the withdrawal at approval IS the money
+     * leaving, so a second journal at reimbursement would subtract it twice.
+     *
+     * The debit follows the account the category maps to, else Operating
+     * Expenses; the credit follows the ledger account behind the claim's bank
+     * account, including the Cash-on-Hand fallback for a petty-cash account
+     * typed 'cash'. A claim paid "outside the tracked accounts" posts nothing.
+     */
+    public function expenseClaimApproved(ExpenseClaim $claim, ?string $date = null): ?JournalEntry
+    {
+        // The debit/credit follow the EFFECTIVE figure — the billed amount less
+        // the discount off the bill — not the raw billed amount, so a claim
+        // discounted before approval is expensed and deducted at the discounted
+        // figure on both sides of the journal.
+        $amount = Money::of($claim->effectiveAmount());
+
+        if (Money::equals($amount, '0')) {
+            return null;
+        }
+
+        $expenseCode = $claim->expenseCategory?->account?->code ?? self::OPERATING_EXPENSES;
+
+        $payerCode = $this->ledgerCodeFor($claim->paidFrom);
+
+        if ($payerCode === null) {
+            Log::warning(
+                'Expense claim '.$claim->number.' approved without a posting: the account it is paid '
+                .'from ("'.($claim->paidFrom?->name ?? '-').'") is neither a cash account nor mapped to '
+                .'a ledger account. Set the mapping on the bank account to post the deduction.',
+            );
+
+            return null;
+        }
+
+        return $this->post(
+            $claim,
+            [
+                [
+                    'code' => $expenseCode,
+                    'debit' => $amount,
+                    'memo' => 'Expense claim '.$claim->number.($claim->expense_type ? ' ('.$claim->expense_type.')' : ''),
+                ],
+                [
+                    'code' => $payerCode,
+                    'credit' => $amount,
+                    'memo' => 'Paid from '.($claim->paidFrom?->name ?? 'account'),
+                ],
+            ],
+            "Expense claim {$claim->number} approved",
+            $date ?? today()->toDateString(),
+            stage: 'approved',
         );
     }
 

@@ -7,9 +7,14 @@ use App\Models\SalesCreditNote;
 use App\Models\SalesCustomer;
 use App\Models\SalesInvoice;
 use App\Models\SalesPayment;
+use App\Support\DocumentData;
 use App\Support\ExportsCsv;
+use App\Support\PdfLayout;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class StatementController extends Controller
@@ -89,6 +94,22 @@ class StatementController extends Controller
     }
 
     public function show(SalesCustomer $customer): View
+    {
+        return view('sales.statements.show', [
+            'customer' => $customer,
+            'ledger' => $this->ledgerFor($customer),
+        ]);
+    }
+
+    /**
+     * The account statement as rows, so the screen, the CSV export and the
+     * printed PDF can never disagree.
+     *
+     * This used to live inside show() alone, which is why the printed statement
+     * did not exist yet and the two figures risked drifting apart the moment
+     * anyone added a PDF.
+     */
+    private function ledgerFor(SalesCustomer $customer): Collection
     {
         $customer->load([
             'invoices' => fn ($q) => $q->with(['payments'])->orderBy('issue_date'),
@@ -174,7 +195,72 @@ class StatementController extends Controller
             return $row + ['balance' => round($running, 2)];
         });
 
-        return view('sales.statements.show', compact('customer', 'ledger'));
+        return $ledger;
+    }
+
+    /**
+     * The printed statement, laid out in the company's invoice template.
+     *
+     * `PdfLayout::forDocumentType('invoice')` resolves the SAME default template
+     * the operators manage for invoices, so a statement follows the brand,
+     * colours and frame the company configured there. A separate template type
+     * for statements would have meant a second settings screen nobody asked for,
+     * and a statement that could silently disagree with the invoice design.
+     */
+    public function pdf(SalesCustomer $customer): Response
+    {
+        $this->preparePdf();
+
+        $ledger = $this->ledgerFor($customer);
+
+        $totals = [
+            'opening' => round((float) $customer->openingBalance(), 2),
+            'debited' => round((float) $ledger->sum('debit'), 2),
+            'credited' => round((float) $ledger->sum('credit'), 2),
+            'closing' => round((float) ($ledger->last()['balance'] ?? $customer->openingBalance()), 2),
+        ];
+
+        $payload = [
+            'doc' => $customer,
+            'title' => 'Account Statement',
+            'number' => 'STMT-'.str_pad((string) $customer->id, 5, '0', STR_PAD_LEFT).'-'.now()->format('Ymd'),
+            'customerName' => $customer->company_name,
+            'billTo' => $this->billToFor($customer),
+            'ledger' => $ledger
+                ->map(fn (array $row) => collect($row)->except('url')->all())
+                ->values(),
+            'totals' => $totals,
+            'currency' => $customer->currency,
+            'asOf' => now(),
+            'layout' => PdfLayout::forDocumentType('invoice'),
+            'notes' => null,
+        ];
+
+        $html = view('documents.statement', DocumentData::printable($payload))->render();
+
+        return Pdf::loadHTML($html)
+            ->setPaper('a4', 'portrait')
+            ->setOptions(pdf_options())
+            ->stream('statement-'.$customer->id.'-'.now()->format('Y-m-d').'.pdf');
+    }
+
+    /**
+     * The statement's party block, in the shape the shared template's
+     * `documents.blocks.party` partial reads.
+     */
+    private function billToFor(SalesCustomer $customer): array
+    {
+        return [
+            'heading' => 'Customer',
+            'name' => (string) $customer->company_name,
+            'contact' => (string) ($customer->contact_name ?? ''),
+            'address' => trim(implode("\n", array_filter([
+                (string) ($customer->address ?? ''),
+                trim(((string) ($customer->city ?? '')).' '.((string) ($customer->country ?? ''))),
+            ]))),
+            'code' => (string) ($customer->short_code ?? ''),
+            'tax' => (string) ($customer->tax_number ?? ''),
+        ];
     }
 
     public function export(SalesCustomer $customer): StreamedResponse

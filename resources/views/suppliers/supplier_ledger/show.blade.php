@@ -3,6 +3,7 @@
         <x-page-header title="{{ $supplier->company_name }}" description="Supplier ledger" icon="report">
             <x-slot name="actions">
                 @if (auth()->user()->can('suppliers.supplier_ledger.export'))
+                    <x-button href="{{ route('suppliers.supplier_ledger.pdf', $supplier) }}" variant="secondary" icon="printer">PDF</x-button>
                     <x-button href="{{ route('suppliers.supplier_ledger.export', $supplier) }}" variant="secondary" icon="export">Export CSV</x-button>
                 @endif
                 <x-button href="{{ route('suppliers.suppliers.show', $supplier) }}" variant="secondary" icon="arrow-left">Supplier</x-button>

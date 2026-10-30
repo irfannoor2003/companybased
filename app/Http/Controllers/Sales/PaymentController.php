@@ -186,7 +186,7 @@ class PaymentController extends Controller
                 $query->where('status', '!=', 'paid');
 
                 if ($alsoInclude) {
-                    $query->orWhereKey($alsoInclude);
+                    $query->orWhere('id', $alsoInclude);
                 }
             })
             ->orderBy('issue_date')

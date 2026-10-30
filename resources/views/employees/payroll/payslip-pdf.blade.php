@@ -114,6 +114,16 @@
             margin-top: 5px;
         }
     </style>
+
+    @if (filled($customCss))
+        {{--
+                The invoice template's custom stylesheet, printed LAST so it wins
+                the cascade: one operator-written stylesheet styles the whole
+                print suite consistently. Payslips have no template of their own,
+                so they follow the invoice design's.
+            --}}
+        <style>{!! $customCss !!}</style>
+    @endif
 </head>
 <body>
     <div class="page">

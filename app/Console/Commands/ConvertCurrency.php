@@ -159,6 +159,7 @@ class ConvertCurrency extends Command
                 $this->convertAmount((string) $item->unit_price, $rate),
                 (float) ($item->discount_percent ?? 0),
                 (float) ($item->tax_percent ?? 0),
+                $this->convertAmount((string) ($item->discount_amount ?? 0), $rate),
             );
 
             $subtotal += $totals['line_net'];
@@ -186,10 +187,12 @@ class ConvertCurrency extends Command
                 $convertedUnitPrice,
                 (float) ($item->discount_percent ?? 0),
                 (float) ($item->tax_percent ?? 0),
+                $this->convertAmount((string) ($item->discount_amount ?? 0), $rate),
             );
 
             $item->update([
                 'unit_price' => $convertedUnitPrice,
+                'discount_amount' => $this->convertAmount((string) ($item->discount_amount ?? 0), $rate),
                 'line_total' => $totals['line_net'],
             ]);
         }

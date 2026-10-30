@@ -187,9 +187,9 @@ return [
             'permissions' => [
                 'chart_of_accounts' => ['view', 'create', 'edit', 'delete', 'export'],
                 'journal_entries' => ['view', 'create', 'edit', 'delete', 'export'],
-                'expense_claims' => ['view', 'create', 'edit', 'delete', 'export', 'approve', 'reimburse'],
+                'expense_claims' => ['view', 'create', 'edit', 'delete', 'export', 'approve', 'reimburse', 'self_approve'],
                 'expense_categories' => ['view', 'create', 'edit', 'delete', 'export'],
-                'bills' => ['view', 'create', 'edit', 'delete', 'export', 'record_payment'],
+                'bills' => ['view', 'create', 'edit', 'delete', 'export', 'record_payment', 'approve', 'self_approve'],
                 'tax_returns' => ['view', 'create', 'edit', 'delete', 'export'],
                 // Tax RATES are a ledger concern, not a company-setting one: they decide
                 // what gets posted to Output Tax Payable. They live under accounting so the

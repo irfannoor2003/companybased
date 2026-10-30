@@ -9,7 +9,7 @@ class PurchaseQuoteItem extends Model
 {
     protected $fillable = [
         'quote_id', 'product_id', 'description', 'qty', 'unit_price',
-        'discount_percent', 'tax_percent', 'line_total',
+        'discount_percent', 'discount_amount', 'tax_percent', 'line_total',
     ];
 
     protected function casts(): array
@@ -18,6 +18,7 @@ class PurchaseQuoteItem extends Model
             'qty' => 'decimal:3',
             'unit_price' => 'decimal:2',
             'discount_percent' => 'decimal:2',
+            'discount_amount' => 'decimal:2',
             'tax_percent' => 'decimal:2',
             'line_total' => 'decimal:2',
         ];

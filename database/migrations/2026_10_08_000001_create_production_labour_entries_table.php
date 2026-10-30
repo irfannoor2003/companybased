@@ -23,6 +23,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('production_labour_entries')) {
+            return;
+        }
+
         Schema::create('production_labour_entries', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('production_order_id')->constrained('inventory_production_orders')->cascadeOnDelete();

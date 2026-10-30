@@ -38,7 +38,25 @@
         .footer span:first-child { float: left; }
         .footer span:last-child { float: right; }
         @page { margin: 0; }
+
+        @if (filled($footerHtml))
+        {{-- The operator's custom footer hook. The rules skip out entirely
+             when the template carries no footer HTML, so a receipt printed
+             from a plain template carries no trace of the hook at all. --}}
+        .custom-html-footer { margin-top: 6px; font-size: 9px; color: #9ca3af; }
+        .custom-html-footer p { margin: 0; }
+        @endif
     </style>
+
+    @if (filled($customCss))
+        {{--
+                The template's custom stylesheet, printed LAST so it wins the
+                cascade over the rules above without needing !important. Stored
+                on the receipt template for a long time and never spoken; the
+                settings form lied until this wire reached the printing.
+            --}}
+        <style>{!! $customCss !!}</style>
+    @endif
 </head>
 <body>
     <div class="page">
@@ -90,6 +108,12 @@
             <span>{{ company_name() }}</span>
             <span>Generated {{ now()->format('Y-m-d H:i') }}</span>
         </div>
+
+        @if (filled($footerHtml))
+            {{-- The operator's custom footer, after the built-in one: theirs is
+                 whatever the business wants to say last, ours is who we are. --}}
+            <div class="custom-html-footer">{!! $footerHtml !!}</div>
+        @endif
     </div>
 </body>
 </html>

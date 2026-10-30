@@ -82,16 +82,25 @@ class PdfLayout
      *
      * `label` is what the settings screen shows.
      *
-     * `removable` marks the blocks a document cannot be without. They are always
-     * printed: unticking one on the form is refused, and a crafted POST that drops
-     * one anyway has it put back. Two, not more -- the letterhead and the line
-     * items. Everything else is genuinely the operator's to leave out.
+     * Every block is removable. The two that used to be forced -- the letterhead
+     * and the line items -- are now operator decisions like the rest, because a
+     * business legitimately prints documents without them: a pro-forma with no
+     * totals, a delivery copy the customer's warehouse does not need a finance
+     * letterhead on. The renderer still cannot break, because removability is
+     * about CONTENT, not about pagination -- the page flow stays the tested one
+     * whatever the operator unticks.
+     *
+     * `title` (the "INVOICE" heading and the document number) is consulted by
+     * each style's own placement -- inside the classic box, the masthead band,
+     * the minimal topline or the rail canvas -- rather than printing from its
+     * own partial, which is why it is skipped by the canvas loop.
      */
     public const BLOCKS = [
-        'header' => ['label' => 'Letterhead and document title', 'removable' => false],
+        'header' => ['label' => 'Letterhead and document title', 'removable' => true],
+        'title' => ['label' => 'Document kind and number', 'removable' => true],
         'party' => ['label' => 'Bill to / Supplier block', 'removable' => true],
         'meta' => ['label' => 'Dates and document details', 'removable' => true],
-        'items' => ['label' => 'Line items table', 'removable' => false],
+        'items' => ['label' => 'Line items table', 'removable' => true],
         'totals' => ['label' => 'Totals and settlement', 'removable' => true],
         'bank' => ['label' => 'Bank details', 'removable' => true],
         'terms' => ['label' => 'Payment terms', 'removable' => true],
@@ -113,12 +122,14 @@ class PdfLayout
     /**
      * The order used when a template expresses no preference.
      *
-     * `bank` and `terms` sit before `notes` because on a real invoice they are read as
-     * part of the settlement story -- where to pay, and by when -- and reading them
-     * after the notes buries the only two fields the customer acts on.
+     * `title` sits beside the letterhead because the two are read together: the
+     * company name, then what the document is and which one it is. `bank` and
+     * `terms` sit before `notes` because on a real invoice they are read as
+     * part of the settlement story -- where to pay, and by when -- and reading
+     * them after the notes buries the only two fields the customer acts on.
      */
     public const DEFAULT_BLOCK_ORDER = [
-        'header', 'party', 'meta', 'items', 'totals', 'bank', 'terms', 'notes', 'signature', 'footer',
+        'header', 'title', 'party', 'meta', 'items', 'totals', 'bank', 'terms', 'notes', 'signature', 'footer',
     ];
 
     private string $style;
@@ -130,11 +141,20 @@ class PdfLayout
 
     private ?string $templateName;
 
+    private ?string $headerHtml;
+
+    private ?string $footerHtml;
+
+    private ?string $customCss;
+
     public function __construct(
         string $style = self::STYLE_RAIL,
         array $blocks = [],
         array $colors = [],
         ?string $templateName = null,
+        ?string $headerHtml = null,
+        ?string $footerHtml = null,
+        ?string $customCss = null,
     ) {
         /**
          * `array_key_exists`, not `in_array`.
@@ -156,6 +176,12 @@ class PdfLayout
         ], array_filter($colors));
 
         $this->templateName = $templateName;
+
+        $this->headerHtml = $this->trimToNull($headerHtml);
+
+        $this->footerHtml = $this->trimToNull($footerHtml);
+
+        $this->customCss = $this->trimToNull($customCss);
     }
 
     /**
@@ -207,6 +233,9 @@ class PdfLayout
             (array) ($template->layout['blocks'] ?? []),
             (array) ($template->colors ?? []),
             $template->name,
+            (string) ($template->header_html ?? '') ?: null,
+            (string) ($template->footer_html ?? '') ?: null,
+            (string) ($template->css ?? '') ?: null,
         );
     }
 
@@ -232,6 +261,9 @@ class PdfLayout
             (array) ($template->layout['blocks'] ?? []),
             (array) ($template->colors ?? []),
             $template->name,
+            (string) ($template->header_html ?? '') ?: null,
+            (string) ($template->footer_html ?? '') ?: null,
+            (string) ($template->css ?? '') ?: null,
         );
     }
 
@@ -243,6 +275,50 @@ class PdfLayout
     public function templateName(): ?string
     {
         return $this->templateName;
+    }
+
+    /**
+     * The operator's custom header HTML, or null for a template without one.
+     *
+     * Rendered RAW, not escaped -- it is the operator's own markup, the exact
+     * field the settings screen asks them to fill, and escaping it would make
+     * the form a lie again. DomPDF does not execute scripts, so the harm these
+     * bytes can do inside the print is whitespace, not code.
+     */
+    public function headerHtml(): ?string
+    {
+        return $this->headerHtml;
+    }
+
+    /**
+     * The operator's custom footer HTML, or null. Same raw-render rule as the header.
+     */
+    public function footerHtml(): ?string
+    {
+        return $this->footerHtml;
+    }
+
+    /**
+     * The operator's custom stylesheet, or null.
+     *
+     * The renderer injects it AFTER its own style block, so it sits last in the
+     * cascade: a rule here overrides the built-in design without the operator
+     * needing `!important` to beat their own template engine.
+     */
+    public function templateCss(): ?string
+    {
+        return $this->customCss;
+    }
+
+    /**
+     * A blank string is not a blank page: whitespace-only template fields are
+     * dropped so the renderer never prints an empty box for them.
+     */
+    private function trimToNull(?string $value): ?string
+    {
+        $trimmed = trim((string) $value);
+
+        return $trimmed === '' ? null : $value;
     }
 
     public function color(string $key, string $fallback): string
@@ -321,9 +397,11 @@ class PdfLayout
     /**
      * Whether the operator is allowed to switch this block off.
      *
-     * `header` and `items` are not: they are the two a document cannot be a
-     * document without. The settings screen disables their checkbox, and
-     * `normaliseBlocks()` puts them back if a crafted POST drops them anyway.
+     * Every block is now switchable. The letterhead and the line items used to
+     * be forced here and on the form, because "a document with no line items is
+     * not a document"; businesses print copies without them often enough (a
+     * sheet the warehouse signs, a design proof, a pro-forma without totals)
+     * that forcing them was policy rather than physics. The checkbox is theirs.
      */
     public static function isRemovable(string $block): bool
     {
@@ -337,11 +415,14 @@ class PdfLayout
      *
      *   1. Unknown keys are dropped. A stale or hand-edited row must not be able to
      *      inject an arbitrary block name into the renderer.
-     *   2. The letterhead is forced first. A company name printed halfway down the
-     *      page under a table of items is a mistake no template author would ship
-     *      and no drag gesture could produce deliberately.
-     *   3. Non-removable blocks are put back if they were dropped, because a
-     *      document with no line items, or no letterhead, is not a document.
+     *   2. The letterhead prints first WHEN IT IS PRESENT. A company name printed
+     *      halfway down the page under a table of items is a mistake no template
+     *      author would ship and no drag gesture could produce deliberately. An
+     *      operator who switched it off gets a document without it -- that is what
+     *      the switch means -- and no ordering rule applies to nothing.
+     *   3. Service blocks with nothing to say print nothing (the partials and the
+     *      `$blockReady` gate handle that), so an enabled-but-empty block cannot
+     *      put a heading over nothing.
      *
      * What is NOT done is re-adding the blocks the operator switched off.
      *
@@ -371,6 +452,8 @@ class PdfLayout
             $blocks = self::DEFAULT_BLOCK_ORDER;
         }
 
+        $hadHeader = in_array('header', $blocks, true);
+
         $clean = [];
 
         foreach ($blocks as $block) {
@@ -379,20 +462,13 @@ class PdfLayout
             }
         }
 
-        // The letterhead goes first. Both branches end up the same way, which is the
-        // point: whether the template put it first, somewhere else, or nowhere at
-        // all, it prints first.
+        // The letterhead goes first whenever it is printed at all. Both branches
+        // end up the same way, which is the point: whether the template put it
+        // first or somewhere else, it prints first.
         $clean = array_values(array_diff($clean, ['header']));
-        array_unshift($clean, 'header');
 
-        foreach (self::BLOCKS as $key => $definition) {
-            if ($definition['removable']) {
-                continue;
-            }
-
-            if (! in_array($key, $clean, true)) {
-                $clean[] = $key;
-            }
+        if ($hadHeader) {
+            array_unshift($clean, 'header');
         }
 
         return $clean;

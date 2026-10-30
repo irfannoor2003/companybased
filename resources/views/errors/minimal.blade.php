@@ -51,7 +51,7 @@
             <x-button variant="secondary" icon="arrow-left" onclick="history.back()">Go back</x-button>
         </div>
 
-        @isset($exception) && app()->isLocal()
+        @if (isset($exception) && app()->isLocal())
             {{-- Stack traces are only ever shown with debug on, and only on local. --}}
             @if (config('app.debug'))
                 <details class="mt-8 text-left">
@@ -61,6 +61,6 @@
                     <pre class="mt-3 max-h-64 overflow-auto rounded-lg border border-line bg-surface-muted p-4 text-[11px] leading-5 text-ink-soft whitespace-pre-wrap">{{ $exception->getTraceAsString() }}</pre>
                 </details>
             @endif
-        @endisset
+        @endif
     </div>
 </x-guest-layout>

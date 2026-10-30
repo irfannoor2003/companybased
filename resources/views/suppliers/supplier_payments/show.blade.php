@@ -14,64 +14,82 @@
         </x-page-header>
     </x-slot>
 
-    <div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div class="lg:col-span-2">
-            <x-card :padding="false">
-                <div class="border-b border-line px-5 py-4">
-                    <h2 class="text-sm font-semibold text-ink">Payment voucher</h2>
-                    <p class="mt-1 text-xs text-ink-faint">#{{ $payment->number }}</p>
+    {{--
+        The voucher preview, laid out like the sales payment screen
+        (sales/payments/show.blade.php) and the invoice screen it was modelled
+        on: one letterhead row, one right-aligned document block, a hero amount
+        box and a meta list. Money leaving the company reads "Payment Voucher"
+        and "Paid to", mirroring the printed receipt's own wording ("Against
+        bill" comes from ReceiptDocument::supplierPayment).
+    --}}
+    <div class="mt-6 max-w-4xl">
+        <div class="invoice-document">
+            <div class="flex justify-between border-b border-line pb-4 mb-6">
+                <div>
+                    @if (settings('branding.logo'))
+                        <img src="{{ Storage::url(settings('branding.logo')) }}" alt="{{ company_name() }}" class="h-20">
+                    @else
+                        <span class="text-xl font-bold text-ink">{{ company_name() }}</span>
+                    @endif
+                    <p class="text-sm text-ink-faint mt-1">{{ settings('company.address') ?: '' }}</p>
+                    <p class="text-sm text-ink-faint">{{ settings('company.email') ?: '' }}</p>
                 </div>
-                <dl class="divide-y divide-line px-5 py-2 text-sm">
-                    <div class="flex justify-between py-3">
-                        <dt class="text-ink-faint">Payee</dt>
-                        <dd class="font-medium text-ink">{{ $payment->supplier?->company_name ?: '—' }}</dd>
-                    </div>
-                    @if ($payment->supplier?->short_code)
-                        <div class="flex justify-between py-3">
-                            <dt class="text-ink-faint">Supplier code</dt>
-                            <dd class="font-medium text-ink">{{ $payment->supplier->short_code }}</dd>
-                        </div>
+                <div class="text-right">
+                    <h2 class="text-2xl font-bold text-ink">Payment Voucher</h2>
+                    <p class="text-sm text-ink-soft mt-1">{{ $payment->number }}</p>
+                    <p class="text-sm text-ink-faint">Payment date: {{ $payment->payment_date?->format('Y-m-d') ?: '—' }}</p>
+                    @if ($payment->invoice)
+                        <p class="text-sm text-ink-faint">Against bill: {{ $payment->invoice->number }}</p>
                     @endif
-                    <div class="flex justify-between py-3">
-                        <dt class="text-ink-faint">Payment date</dt>
-                        <dd class="font-medium text-ink">{{ $payment->payment_date?->format('Y-m-d') ?: '—' }}</dd>
-                    </div>
-                    <div class="flex justify-between py-3">
-                        <dt class="text-ink-faint">Method</dt>
-                        <dd class="font-medium text-ink">{{ ucfirst(str_replace('_', ' ', $payment->method)) }}</dd>
-                    </div>
-                    @if ($payment->reference)
-                        <div class="flex justify-between py-3">
-                            <dt class="text-ink-faint">Reference</dt>
-                            <dd class="font-medium text-ink">{{ $payment->reference }}</dd>
-                        </div>
-                    @endif
-                    <div class="flex justify-between py-3">
-                        <dt class="text-ink-faint">Paid from account</dt>
-                        <dd class="font-medium text-ink">{{ $payment->bankAccount?->name ?: '—' }}@if($payment->bankAccount?->bank_name) · {{ $payment->bankAccount->bank_name }}@endif</dd>
-                    </div>
-                    <div class="flex justify-between py-3">
-                        <dt class="text-ink-faint">Against invoice</dt>
-                        <dd class="font-medium text-ink">{{ $payment->invoice?->number ?: '—' }}</dd>
-                    </div>
-                    <div class="flex justify-between py-3">
-                        <dt class="text-ink-faint">Currency</dt>
-                        <dd class="font-medium text-ink">{{ $payment->currency ?: '—' }}</dd>
-                    </div>
-                </dl>
-            </x-card>
-        </div>
+                </div>
+            </div>
 
-        <div class="space-y-6">
-            <x-card title="Amount">
-                <p class="text-2xl font-bold text-primary-ink">{{ money($payment->amount, $payment->currency) }}</p>
-            </x-card>
+            <div class="mb-6">
+                <h3 class="text-sm font-semibold text-ink-faint uppercase mb-2">Paid to</h3>
+                <p class="font-medium text-ink">{{ $payment->supplier?->company_name ?: '—' }}</p>
+                @if ($payment->supplier?->short_code)
+                    <p class="text-sm text-ink-soft">Code: {{ $payment->supplier->short_code }}</p>
+                @endif
+            </div>
+
+            {{-- The hero figure, mirroring the amount box the printed receipt
+                 carries: the number someone is paid appears first. --}}
+            <div class="mb-6 rounded-xl border border-primary/15 bg-primary/5 px-5 py-4">
+                <p class="text-xs font-semibold uppercase tracking-wide text-ink-faint">Amount paid</p>
+                <p class="mt-1 text-2xl font-bold text-primary-ink">{{ money($payment->amount, $payment->currency) }}</p>
+            </div>
+
+            <dl class="mb-6 space-y-2.5 text-sm">
+                <div class="flex justify-between">
+                    <dt class="text-ink-faint">Paid from account</dt>
+                    <dd class="font-medium text-ink">{{ $payment->bankAccount?->name ?: '—' }}@if($payment->bankAccount?->bank_name) · {{ $payment->bankAccount->bank_name }}@endif</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt class="text-ink-faint">Method</dt>
+                    <dd class="font-medium text-ink">{{ ucfirst(str_replace('_', ' ', $payment->method)) }}</dd>
+                </div>
+                @if ($payment->reference)
+                    <div class="flex justify-between">
+                        <dt class="text-ink-faint">Reference</dt>
+                        <dd class="font-medium text-ink">{{ $payment->reference }}</dd>
+                    </div>
+                @endif
+                <div class="flex justify-between">
+                    <dt class="text-ink-faint">Currency</dt>
+                    <dd class="font-medium text-ink">{{ $payment->currency ?: '—' }}</dd>
+                </div>
+            </dl>
 
             @if ($payment->notes)
-                <x-card title="Notes">
-                    <p class="text-sm text-ink-soft">{{ $payment->notes }}</p>
-                </x-card>
+                <div class="mb-6">
+                    <h3 class="text-sm font-semibold text-ink-faint uppercase mb-2">Notes</h3>
+                    <p class="text-sm text-ink">{{ $payment->notes }}</p>
+                </div>
             @endif
+
+            <div class="border-t border-line pt-4 text-center text-xs text-ink-faint">
+                <p>Payment issued by {{ company_name() }}.</p>
+            </div>
         </div>
     </div>
 </x-app-layout>

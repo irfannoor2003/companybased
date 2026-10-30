@@ -101,7 +101,23 @@ amountLabel: 'Tax deducted',
      */
     public function render(): string
     {
-        $brand = settings('branding.primary_color', '#4f46e5');
+        /**
+         * The receipt template of its own type now owns the colour and the
+         * operator's additions.
+         *
+         * Before this the receipt hard-coded the company branding colour while
+         * every other printed document followed the template the operator
+         * managed on Settings -> Templates -- so restyling a receipt meant
+         * changing company branding, which also changed every other screen in
+         * the app. The colour order is now the same rule the frame applies:
+         * template colour first, company branding as the fallback, built-in
+         * last. The custom stylesheet and the custom footer HTML ride along the
+         * same way; the LAYOUT stays the receipt's own, because a receipt is a
+         * proof of payment, not an invoice without tax.
+         */
+        $layout = PdfLayout::forType('receipt');
+
+        $brand = $layout->color('primary', settings('branding.primary_color', '#4f46e5'));
 
         return view('partials.pdf.receipt', [
             'receipt' => $this->receipt,
@@ -118,6 +134,8 @@ amountLabel: 'Tax deducted',
             'againstNumber' => $this->againstNumber(),
             'brandColor' => $brand,
             'brandTint' => $this->tint($brand),
+            'customCss' => $layout->templateCss(),
+            'footerHtml' => $layout->footerHtml(),
         ])->render();
     }
 

@@ -6,6 +6,7 @@ use App\Models\AttendanceRecord;
 use App\Models\BankTransaction;
 use App\Models\CapitalContribution;
 use App\Models\Employee;
+use App\Models\ExpenseClaim;
 use App\Models\FixedAsset;
 use App\Models\InventoryItem;
 use App\Models\InventoryMovement;
@@ -48,6 +49,18 @@ class GrandReportController extends Controller
         $leave = LeaveRequest::query()->whereBetween('start_date', [$from->toDateString(), $to->toDateString()]);
         $pos = PosSale::query()->where('status', 'completed')->whereBetween('sold_at', [$from, $to]);
 
+        /**
+         * The expense side of the period: approved and reimbursed claims only.
+         * A pending or rejected claim is not yet a cost — including them would
+         * put money on the report that is still a discussion — and these are the
+         * statuses whose amounts have actually been deducted from an account on
+         * approval.
+         */
+        $expenseClaims = ExpenseClaim::query()
+            ->whereIn('status', ['approved', 'reimbursed'])
+            ->whereDate('expense_date', '>=', $from->toDateString())
+            ->whereDate('expense_date', '<=', $to->toDateString());
+
         $lowStock = InventoryItem::query()->active()->withSum('stock as on_hand', 'quantity')->get()
             ->filter(fn (InventoryItem $item): bool => (float) $item->reorder_level > 0 && (float) $item->on_hand <= (float) $item->reorder_level)
             ->count();
@@ -65,6 +78,8 @@ class GrandReportController extends Controller
             'attendance_records' => (clone $attendance)->count(),
             'leave_requests' => (clone $leave)->count(),
             'pos_revenue' => (float) (clone $pos)->sum('total'),
+            'expense_claims' => (clone $expenseClaims)->count(),
+            'expense_claims_amount' => (float) (clone $expenseClaims)->get()->sum(fn (ExpenseClaim $claim) => $claim->effectiveAmount()),
             'stock_movements' => InventoryMovement::query()->whereBetween('created_at', [$from, $to])->count(),
             'low_stock' => $lowStock,
             'assets_added' => FixedAsset::query()->whereBetween('purchase_date', [$from->toDateString(), $to->toDateString()])->count(),
@@ -82,6 +97,7 @@ class GrandReportController extends Controller
             ['label' => 'POS', 'value' => $summary['pos_revenue'], 'tone' => 'success'],
             ['label' => 'Cash in', 'value' => $summary['cash_in'], 'tone' => 'success'],
             ['label' => 'Cash out', 'value' => $summary['cash_out'], 'tone' => 'warning'],
+            ['label' => 'Expense claims', 'value' => $summary['expense_claims_amount'], 'tone' => 'danger'],
         ];
 
         return view('reports.grand', compact('period', 'anchor', 'from', 'to', 'summary', 'chart', 'activity', 'lowStock'));

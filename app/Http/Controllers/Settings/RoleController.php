@@ -171,22 +171,45 @@ class RoleController extends Controller
     protected function enabledModulePermissions(array $permissions): array
     {
         $enabled = Module::enabledKeys();
+        $registered = [];
 
-        $allowed = array_values(array_filter($permissions, function (string $permission) use ($enabled) {
+        foreach (Permissions::grouped() as $features) {
+            foreach ($features as $actions) {
+                array_push($registered, ...array_values($actions));
+            }
+        }
+
+        $allowed = array_values(array_filter($permissions, function (string $permission) use ($enabled, $registered) {
             $module = explode('.', $permission)[0];
 
             return in_array($module, $enabled, true)
-                && ! in_array($module, static::SUPER_ADMIN_MODULES, true);
+                && ! in_array($module, static::SUPER_ADMIN_MODULES, true)
+                && in_array($permission, $registered, true);
         }));
 
         if ($allowed === []) {
             return [];
         }
 
-        return Permission::query()
+        $existing = Permission::query()
             ->where('guard_name', 'web')
             ->whereIn('name', $allowed)
             ->pluck('name')
             ->all();
+
+        $missing = array_values(array_diff($allowed, $existing));
+
+        if ($missing !== []) {
+            $now = now();
+
+            Permission::insert(array_map(fn (string $name): array => [
+                'name' => $name,
+                'guard_name' => 'web',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ], $missing));
+        }
+
+        return $allowed;
     }
 }

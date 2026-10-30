@@ -87,11 +87,11 @@ class SalesOrder extends Model
      * Matched by product rather than by line, so a partial delivery bills the
      * right goods even when the delivery note reordered or merged the lines.
      *
-     * @return array<int, array{product_id: int, description: string, qty: float, unit_price: float, discount_percent: float, tax_percent: float}>
+     * @return array<int, array{product_id: int, description: string, qty: float, unit_price: float, discount_percent: float, discount_amount: float, tax_percent: float}>
      */
     public function uninvoicedLines(): array
     {
-        /** @var array<int, array{product_id: int, description: string, qty: float, unit_price: float, discount_percent: float, tax_percent: float}> $lines */
+        /** @var array<int, array{product_id: int, description: string, qty: float, unit_price: float, discount_percent: float, discount_amount: float, tax_percent: float}> $lines */
         $lines = [];
 
         foreach ($this->items as $item) {
@@ -124,6 +124,8 @@ class SalesOrder extends Model
                 'qty' => (float) $remaining,
                 'unit_price' => (float) $item->unit_price,
                 'discount_percent' => (float) $item->discount_percent,
+                'discount_amount' => (float) ($item->discount_amount ?? 0),
+                'discount_mode' => ((float) ($item->discount_amount ?? 0)) > 0 ? 'amount' : 'percent',
                 'tax_percent' => (float) $item->tax_percent,
             ];
         }

@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Support\PdfLayout;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\View;
@@ -13,6 +14,12 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  * request asks for ?format=pdf the same headers/rows are rendered through
  * the branded PDF template instead, so every list export gains PDF support
  * without touching the controllers.
+ *
+ * The ?format=pdf branch borrows the INVOICE design's colours and custom
+ * stylesheet: a list export is not a customer document with a template of its
+ * own, but an office printing the suite expects the same brand on the sheet
+ * it files. The PDF path also inherits the operator's custom stylesheet, so
+ * the whole print suite can be restyled from the one place.
  */
 trait ExportsCsv
 {
@@ -46,6 +53,11 @@ trait ExportsCsv
     {
         set_time_limit(0);
 
+        // The invoice design owns the suite's colour and the operator's custom
+        // stylesheet. Template colour first, company branding as fallback -- the
+        // same resolution every other printed document applies.
+        $invoiceLayout = PdfLayout::forType('invoice');
+
         $rows = collect($rows)->map(fn ($row) => array_values((array) $row))->all();
 
         $html = View::make('exports.pdf', array_merge([
@@ -54,6 +66,8 @@ trait ExportsCsv
             'headers' => $headers,
             'rows' => $rows,
             'meta' => $extra['meta'] ?? [],
+            'brandColor' => $invoiceLayout->color('primary', settings('branding.primary_color', '#4f46e5')),
+            'customCss' => $invoiceLayout->templateCss(),
         ], $extra))->render();
 
         $pdf = Pdf::loadHTML($html)->setPaper('a4', $extra['orientation'] ?? 'portrait');

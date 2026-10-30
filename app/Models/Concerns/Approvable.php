@@ -241,6 +241,23 @@ trait Approvable
     }
 
     /**
+     * The maker-checker override.
+     *
+     * The default is FALSE and it stays false: maker-checker separation is the
+     * control the approval engine exists to provide, and a trait default is
+     * inherited by every adopting document, so the safe choice is the one that
+     * requires no decision. A document type that legitimately needs self-approval
+     * overrides this — ExpenseClaim does, because the Admin who raised a claim is
+     * also finance, and denying them would stall single-finance deployments
+     * forever. The override must EARN it — it receives the decider and is free to
+     * refuse.
+     */
+    protected function allowsSelfApproval(?User $decider): bool
+    {
+        return false;
+    }
+
+    /**
      * Take the live request and check the decider is allowed to decide it.
      */
     private function claimLiveApproval(?User $decider, string $action): ApprovalRequest
@@ -257,11 +274,16 @@ trait Approvable
          * Refused outright rather than warned about. A self-approval leaves a
          * request that appears to have been reviewed by someone, which is worse
          * than no review at all because the trail claims a control that did not
-         * operate.
+         * operate. A document type may override this refusal through
+         * `allowsSelfApproval()` — the decider is handed over so the override
+         * can gate on its own permission, and the trail is now the override's
+         * responsibility to make honest (the decision is still recorded, with
+         * requester and decider named even when both are the same person).
          */
         if ($decider !== null
             && $request->requested_by !== null
-            && $request->requested_by === $decider->id) {
+            && $request->requested_by === $decider->id
+            && ! $this->allowsSelfApproval($decider)) {
             throw new \RuntimeException(
                 'You cannot '.($action === 'approve' ? 'approve' : 'reject')
                 .' a request you raised yourself. Separation of duties requires a different approver.'

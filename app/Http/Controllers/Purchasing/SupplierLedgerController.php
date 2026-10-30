@@ -7,9 +7,14 @@ use App\Models\DebitNote;
 use App\Models\PurchaseInvoice;
 use App\Models\Supplier;
 use App\Models\SupplierPayment;
+use App\Support\DocumentData;
 use App\Support\ExportsCsv;
+use App\Support\PdfLayout;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class SupplierLedgerController extends Controller
@@ -82,6 +87,18 @@ class SupplierLedgerController extends Controller
 
     public function show(Supplier $supplier): View
     {
+        return view('suppliers.supplier_ledger.show', [
+            'supplier' => $supplier,
+            'ledger' => $this->ledgerFor($supplier),
+        ]);
+    }
+
+    /**
+     * The ledger as rows, shared by the screen and the printed statement so the
+     * two can never disagree.
+     */
+    private function ledgerFor(Supplier $supplier): Collection
+    {
         $supplier->load([
             'purchaseInvoices' => fn ($q) => $q->with(['payments'])->orderBy('issue_date'),
             'payments' => fn ($q) => $q->with(['invoice'])->orderBy('payment_date'),
@@ -132,7 +149,69 @@ class SupplierLedgerController extends Controller
             return $row + ['balance' => round($running, 2)];
         });
 
-        return view('suppliers.supplier_ledger.show', compact('supplier', 'ledger'));
+        return $ledger;
+    }
+
+    /**
+     * The supplier ledger printed in the company's invoice template, the same
+     * treatment the customer statement gets.
+     */
+    public function pdf(Supplier $supplier): Response
+    {
+        $this->preparePdf();
+
+        $ledger = $this->ledgerFor($supplier);
+
+        $totals = [
+            'opening' => 0.0,
+            'debited' => round((float) $ledger->sum('debit'), 2),
+            'credited' => round((float) $ledger->sum('credit'), 2),
+            'closing' => round((float) ($ledger->last()['balance'] ?? 0), 2),
+        ];
+
+        $payload = [
+            'doc' => $supplier,
+            'title' => 'Supplier Ledger Statement',
+            'number' => 'LEDG-'.str_pad((string) $supplier->id, 5, '0', STR_PAD_LEFT).'-'.now()->format('Ymd'),
+            'customerName' => $supplier->company_name,
+            'billTo' => [
+                'heading' => 'Supplier',
+                'name' => (string) $supplier->company_name,
+                'contact' => (string) ($supplier->contact_name ?? ''),
+                'address' => trim(implode("\n", array_filter([
+                    (string) ($supplier->address ?? ''),
+                    trim(((string) ($supplier->city ?? '')).' '.((string) ($supplier->country ?? ''))),
+                ]))),
+                'code' => (string) ($supplier->short_code ?? ''),
+                'tax' => (string) ($supplier->tax_number ?? ''),
+            ],
+            'ledger' => $ledger
+                ->map(fn (array $row) => collect($row)->except('url')->all())
+                ->values(),
+            'totals' => $totals,
+            'currency' => $this->ledgerCurrency($supplier),
+            'asOf' => now(),
+            'layout' => PdfLayout::forDocumentType('invoice'),
+            'notes' => null,
+        ];
+
+        $html = view('documents.statement', DocumentData::printable($payload))->render();
+
+        return Pdf::loadHTML($html)
+            ->setPaper('a4', 'portrait')
+            ->setOptions(pdf_options())
+            ->stream('supplier-ledger-'.$supplier->id.'-'.now()->format('Y-m-d').'.pdf');
+    }
+
+    /**
+     * One currency for the printed page. Documents on a supplier ledger can
+     * carry their own currency, but the on-screen ledger already reports every
+     * figure side by side and the CSV does the same, so the statement prints
+     * what the rest of the ledger prints rather than inventing a conversion.
+     */
+    private function ledgerCurrency(Supplier $supplier): string
+    {
+        return (string) ($supplier->currency ?: (settings('company.currency') ?: 'USD'));
     }
 
     public function export(Supplier $supplier): StreamedResponse

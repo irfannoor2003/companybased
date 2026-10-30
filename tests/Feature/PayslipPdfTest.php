@@ -2,9 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Models\DocumentTemplate;
 use App\Models\Employee;
 use App\Models\PayrollRun;
 use App\Models\Payslip;
+use App\Support\PdfLayout;
 use Tests\SeedsDatabase;
 use Tests\Support\PdfText;
 use Tests\TestCase;
@@ -253,5 +255,62 @@ class PayslipPdfTest extends TestCase
         $this->actingAs($this->userForRole('Employee'))
             ->get('/employees/payroll/'.$run->id.'/payslips/'.$payslip->id)
             ->assertForbidden();
+    }
+
+    /**
+     * The payslip follows the INVOICE design's colours and operator stylesheet.
+     *
+     * A payslip has no template row of its own -- the schema has no type for it
+     * and nobody would find a second settings screen for one document. What it
+     * CAN do is answer the invoice default: the brand colour the documents
+     * already print in, and the operator's stylesheet that styles the whole
+     * suite. Asserted at the view layer with the data the controller resolves,
+     * because the route returns PDF bytes and the operator's CSS is a style
+     * rule, not text a DomPDF page carries; the PdfLayout resolution itself is
+     * pinned in PdfLayoutTest and InvoicePdfTemplateTest.
+     */
+    public function test_the_payslip_takes_the_invoice_designs_colour_and_styling(): void
+    {
+        $template = DocumentTemplate::query()
+            ->where('type', 'invoice')
+            ->where('is_default', true)
+            ->firstOrFail();
+
+        $oldColors = $template->colors;
+        $oldCss = $template->css;
+
+        $template->update([
+            'colors' => ['primary' => '#0f766e', 'accent' => '#0f766e', 'text' => '#1f2937'],
+            'css' => '.payslip-operator-marker { color: #0f766e; }',
+        ]);
+
+        try {
+            $run = $this->payrollRun('approved')->loadMissing('preparer');
+            $payslip = $this->payslip($run, $this->employee());
+
+            $layout = PdfLayout::forType('invoice');
+
+            $html = view('employees.payroll.payslip-pdf', [
+                'run' => $run,
+                'payslip' => $payslip,
+                'brandColor' => $layout->color('primary', settings('branding.primary_color', '#4f46e5')),
+                'customCss' => $layout->templateCss(),
+                'stampColor' => in_array($run->status, ['paid', 'approved'], true) ? '#15803d' : '#b45309',
+            ])->render();
+
+            $this->assertStringContainsString(
+                '#0f766e',
+                $html,
+                'the invoice template colour must reach the payslip',
+            );
+
+            $this->assertStringContainsString(
+                '.payslip-operator-marker',
+                $html,
+                'the operator stylesheet must style the payslip too',
+            );
+        } finally {
+            $template->update(['colors' => $oldColors, 'css' => $oldCss]);
+        }
     }
 }

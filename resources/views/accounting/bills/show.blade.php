@@ -2,7 +2,7 @@
     <x-slot name="header">
         <x-page-header :title="$bill->number" :description="$bill->vendor_name.' · '.$bill->bill_date->format('Y-m-d')" icon="invoice">
             <x-slot name="actions">
-                @if (auth()->user()->can('accounting.bills.edit') && ! in_array($bill->status, ['paid', 'void']))
+                @if (auth()->user()->can('accounting.bills.edit') && ! in_array($bill->status, ['paid', 'void', 'pending_approval', 'approved']))
                     <x-button href="{{ route('accounting.bills.edit', $bill) }}" variant="secondary" icon="edit">Edit</x-button>
                 @endif
                 <x-button href="{{ route('accounting.bills.index') }}" variant="ghost" icon="arrow-left">Back</x-button>
@@ -68,7 +68,104 @@
                 </dl>
             </x-card>
 
-            @if (auth()->user()->can('accounting.bills.record_payment') && ! in_array($bill->status, ['paid', 'void']))
+            {{--
+                The approval card. An `open` bill is recorded but not yet payable;
+                submission hands it to whoever holds approval, and only an
+                `approved` bill accepts payments. The same maker-checker
+                presentation as the expense claims: the person who raised the
+                request is told so plainly, and self-approval is offered only to
+                someone who holds the dedicated `bills.self_approve` permission.
+            --}}
+            <x-card title="Approval">
+                <div class="space-y-4">
+                    @if ($bill->isPendingApproval())
+                        @php $live = $bill->liveApproval(); @endphp
+
+                        <div class="rounded-lg border border-line bg-surface-muted p-4">
+                            <div class="text-sm font-medium text-ink">
+                                Awaiting approval &middot; requested by {{ $live?->requester?->name ?? 'unknown' }}
+                            </div>
+                            <div class="mt-1 text-xs text-ink-faint">
+                                Submitted {{ $live?->requested_at?->diffForHumans() }} &middot;
+                                waiting {{ $bill->approvalWaitingDays() }} {{ Str::plural('day', $bill->approvalWaitingDays()) }}
+                            </div>
+                        </div>
+
+                        @if (auth()->user()->can('accounting.bills.approve'))
+                            @php($raisedByMe = $live?->requested_by === auth()->id())
+                            @php($maySelfApprove = auth()->user()->can('accounting.bills.self_approve'))
+                            @if ($raisedByMe && ! $maySelfApprove)
+                                <x-alert type="info">
+                                    You raised this request, so someone else must decide it.
+                                    Separation of duties is enforced by the system, not by policy.
+                                </x-alert>
+                            @else
+                                @if ($raisedByMe && $maySelfApprove)
+                                    <x-alert type="info" class="mb-3">
+                                        You hold self-approval for bills, so you may decide your own request. The trail records that requester and decider were the same person.
+                                    </x-alert>
+                                @endif
+                                <form method="POST" action="{{ route('accounting.bills.approve', $bill) }}" class="space-y-3">
+                                    @csrf
+                                    <x-textarea name="comment" label="Comment" rows="2" placeholder="Optional note recorded against the approval." />
+                                    <div class="flex gap-2">
+                                        <x-button type="submit" variant="success" size="sm" icon="check">Approve</x-button>
+                                    </div>
+                                </form>
+
+                                <form method="POST" action="{{ route('accounting.bills.reject', $bill) }}" class="space-y-3">
+                                    @csrf
+                                    <x-textarea name="comment" label="Reason for rejection" rows="2" required
+                                                placeholder="Required. The bill returns to open and can be corrected and resubmitted." />
+                                    <x-button type="submit" variant="danger" size="sm" icon="trash">Reject</x-button>
+                                </form>
+                            @endif
+
+                            {{--
+                                Withdrawal belongs to the requester, whoever else can
+                                approve — its own permission gate instead of the
+                                approver's, so someone who raises a bill and only
+                                holds edit can still pull their request back.
+                            --}}
+                            @if ($live?->requested_by === auth()->id() && auth()->user()->can('accounting.bills.edit'))
+                                <form method="POST" action="{{ route('accounting.bills.withdraw', $bill) }}">
+                                    @csrf
+                                    <x-button type="submit" variant="ghost" size="sm">Withdraw request</x-button>
+                                </form>
+                            @endif
+                        @endif
+                    @elseif ($bill->canBeSubmitted())
+                        <p class="text-sm text-ink-soft">
+                            This bill has not been approved yet. It cannot be paid until it has been.
+                        </p>
+                        @if (auth()->user()->can('accounting.bills.edit'))
+                            <form method="POST" action="{{ route('accounting.bills.submit', $bill) }}" class="space-y-3">
+                                @csrf
+                                <x-textarea name="comment" label="Note for the approver" rows="2" />
+                                <x-button type="submit" size="sm" icon="check">Submit for approval</x-button>
+                            </form>
+                        @endif
+                    @elseif ($bill->isApproved())
+                        <p class="text-sm text-ink-soft">
+                            Approved. Payments can now be recorded against it.
+                        </p>
+                        {{--
+                            The newest APPROVED row from the trail. Self-approval is read
+                            off the row itself — requester and decider are the same
+                            person — so the note never claims a control the trail
+                            cannot back up.
+                        --}}
+                        @php($approvedRow = $bill->approvalHistory()->where('status', 'approved')->last())
+                        @if ($approvedRow?->decider?->is(auth()->user()))
+                            <p class="mt-1 text-xs text-ink-faint">
+                                You approved this bill{{ $approvedRow->requested_by === $approvedRow->decided_by ? ', deciding your own request under your self-approval permission' : '' }} — the trail records who and when.
+                            </p>
+                        @endif
+                    @endif
+                </div>
+            </x-card>
+
+            @if (auth()->user()->can('accounting.bills.record_payment') && in_array($bill->status, ['approved', 'partially_paid']))
                 <x-card title="Record payment" description="Apply against the outstanding balance">
                     <form method="POST" action="{{ route('accounting.bills.payment', $bill) }}" class="space-y-3">
                         @csrf

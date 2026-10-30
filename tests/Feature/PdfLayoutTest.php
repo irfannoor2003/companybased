@@ -8,6 +8,7 @@ use App\Models\Setting;
 use App\Support\DocumentData;
 use App\Support\PdfLayout;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\View;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\SeedsDatabase;
 use Tests\Support\PdfText;
@@ -262,29 +263,37 @@ class PdfLayoutTest extends TestCase
     }
 
     /**
-     * A document with no line items, or no letterhead, is not a document. A crafted
-     * POST that drops them has them put back.
+     * Every block is the operator's to switch off -- including the letterhead and
+     * the line items, which used to be forced. A crafted POST dropping them must
+     * not drag them back: the settings screen must mean what it says.
      */
-    public function test_the_blocks_a_document_cannot_do_without_are_restored(): void
+    public function test_every_block_is_removable_and_nothing_is_restored_behind_the_operators_back(): void
     {
+        foreach (PdfLayout::BLOCKS as $block => $definition) {
+            $this->assertTrue(
+                $definition['removable'],
+                $block.' cannot be switched off, but the settings screen promises it can',
+            );
+        }
+
         $layout = new PdfLayout(PdfLayout::STYLE_RAIL, ['totals', 'footer']);
 
-        $this->assertTrue($layout->has('items'), 'the line items table was dropped');
-        $this->assertTrue($layout->has('header'), 'the letterhead was dropped');
-        $this->assertFalse(PdfLayout::isRemovable('items'));
-        $this->assertFalse(PdfLayout::isRemovable('header'));
+        $this->assertFalse($layout->has('items'), 'the line items table was restored behind the operator');
+        $this->assertFalse($layout->has('header'), 'the letterhead was restored behind the operator');
+        $this->assertFalse($layout->has('title'), 'the title was restored behind the operator');
     }
 
     /**
-     * The one ordering rule: a company name printed halfway down the page under a
-     * table of items is a mistake no template author would ship.
+     * The one ordering rule that survives: WHEN the letterhead prints, it prints
+     * first. An operator who switched it off gets a document without it, and no
+     * ordering rule reorders what is not there.
      */
     public function test_the_letterhead_prints_first_wherever_the_template_put_it(): void
     {
         foreach ([
             ['items', 'totals', 'header', 'footer'],
             ['header', 'footer'],
-            ['footer', 'totals'],
+            ['party', 'header'],
         ] as $stored) {
             $layout = new PdfLayout(PdfLayout::STYLE_RAIL, $stored);
 
@@ -292,11 +301,23 @@ class PdfLayoutTest extends TestCase
         }
     }
 
-    public function test_the_letterhead_is_restored_even_when_the_template_omits_it(): void
+    public function test_a_switched_off_letterhead_stays_off(): void
     {
         $layout = new PdfLayout(PdfLayout::STYLE_RAIL, ['items', 'totals']);
 
-        $this->assertSame('header', $layout->blocks()[0]);
+        $this->assertFalse($layout->has('header'), 'the switched-off letterhead came back');
+    }
+
+    /**
+     * `test_a_switched_off_letterhead_stays_off` covers the omission side; this
+     * is its mirror for the default order, which must keep carrying the
+     * letterhead so a freshly seeded (or never-saved) template prints one.
+     */
+    public function test_a_template_that_expresses_no_preference_still_prints_every_block(): void
+    {
+        $layout = new PdfLayout(PdfLayout::STYLE_RAIL, []);
+
+        $this->assertSame(PdfLayout::DEFAULT_BLOCK_ORDER, $layout->blocks());
     }
 
     /**
@@ -322,7 +343,53 @@ class PdfLayoutTest extends TestCase
 
         // Registry order, not print order: the list is what the settings screen
         // offers to switch back on, so it reads the same every time.
-        $this->assertSame(['meta', 'bank', 'terms', 'notes'], $layout->hiddenBlocks());
+        $this->assertSame(['title', 'meta', 'bank', 'terms', 'notes'], $layout->hiddenBlocks());
+    }
+
+    /**
+     * The new `title` block -- the "INVOICE" heading and the document number --
+     * prints by default from every style's own placement, and is gone from the
+     * printed page the moment the template does not list it.
+     *
+     * Read from the PDF text, not the layout object: the block is consulted by
+     * four different placements (classic box, masthead band, minimal topline,
+     * rail canvas), and only the printed bytes can prove ALL of them obey.
+     */
+    public function test_the_document_title_can_be_hidden_from_every_style(): void
+    {
+        $styles = [
+            PdfLayout::STYLE_RAIL,
+            PdfLayout::STYLE_CLASSIC,
+            PdfLayout::STYLE_MODERN,
+            PdfLayout::STYLE_MINIMAL,
+            PdfLayout::STYLE_BANDED,
+        ];
+
+        foreach ($styles as $style) {
+            $this->template('quote', $style, array_values(array_diff(
+                PdfLayout::DEFAULT_BLOCK_ORDER,
+                ['title'],
+            )));
+
+            $text = PdfText::all($this->pdf());
+
+            $this->assertStringNotContainsString(
+                'QUO-LAYOUT-0001',
+                $text,
+                $style.' printed the document number despite the title block being off',
+            );
+        }
+    }
+
+    public function test_the_document_title_prints_untouched_for_every_style_by_default(): void
+    {
+        foreach ([PdfLayout::STYLE_RAIL, PdfLayout::STYLE_CLASSIC, PdfLayout::STYLE_MODERN, PdfLayout::STYLE_MINIMAL, PdfLayout::STYLE_BANDED] as $style) {
+            $this->template('quote', $style);
+
+            $text = PdfText::all($this->pdf());
+
+            $this->assertStringContainsString('QUO-LAYOUT-0001', $text, $style.' lost the document number');
+        }
     }
 
     /**
@@ -582,5 +649,107 @@ class PdfLayoutTest extends TestCase
 
         $this->assertStringNotContainsString('Bank', $text);
         $this->assertStringNotContainsString('Terms', $text);
+    }
+
+    // ---------------------------------------------------------------------
+    // The utility print suite follows the invoice design
+    // ---------------------------------------------------------------------
+
+    /**
+     * `?format=pdf` list exports are not customer documents, so they have no
+     * template of their own -- but an office printing the suite expects the
+     * invoice's colour and the operator's stylesheet to reach these sheets
+     * as well, so the one stylesheet styles everything.
+     *
+     * The view is rendered with the exact keys `ExportsCsv::renderPdf()` passes;
+     * the invoice default here carries a marker colour the branding setting
+     * cannot produce.
+     */
+    public function test_list_export_pdfs_take_the_invoice_templates_colour_and_css(): void
+    {
+        $previous = DocumentTemplate::query()
+            ->where('type', 'invoice')
+            ->where('is_default', true)
+            ->first();
+
+        DocumentTemplate::query()
+            ->where('type', 'invoice')
+            ->update(['is_default' => false]);
+
+        DocumentTemplate::create([
+            'name' => 'Operator suite '.uniqid(),
+            'type' => 'invoice',
+            'style' => 'rail',
+            'colors' => ['primary' => '#3b0a45', 'accent' => '#654321', 'text' => '#111111'],
+            'css' => '.export-op-glyphs { letter-spacing: 0.4em; }',
+            'is_default' => true,
+        ]);
+
+        try {
+            $html = View::make('exports.pdf', [
+                'title' => 'Expense claims',
+                'headers' => ['Number', 'Amount'],
+                'rows' => [['EC-0001', '100.00']],
+                'brandColor' => PdfLayout::forType('invoice')->color('primary', settings('branding.primary_color', '#4f46e5')),
+                'customCss' => PdfLayout::forType('invoice')->templateCss(),
+            ])->render();
+
+            $this->assertStringContainsString(
+                '#3b0a45',
+                $html,
+                'the invoice template colour must reach the list export',
+            );
+
+            $this->assertStringContainsString(
+                '.export-op-glyphs',
+                $html,
+                'the operator stylesheet must style the list export too',
+            );
+        } finally {
+            DocumentTemplate::query()->where('name', 'like', 'Operator suite %')->delete();
+
+            $previous?->update(['is_default' => true]);
+        }
+    }
+
+    public function test_a_list_export_without_a_custom_stylesheet_prints_none(): void
+    {
+        $previous = DocumentTemplate::query()
+            ->where('type', 'invoice')
+            ->where('is_default', true)
+            ->first();
+
+        DocumentTemplate::query()
+            ->where('type', 'invoice')
+            ->update(['is_default' => false]);
+
+        DocumentTemplate::create([
+            'name' => 'Operator quiet '.uniqid(),
+            'type' => 'invoice',
+            'style' => 'rail',
+            'colors' => ['primary' => '#3b0a45', 'accent' => '#654321', 'text' => '#111111'],
+            'css' => null,
+            'is_default' => true,
+        ]);
+
+        try {
+            $html = View::make('exports.pdf', [
+                'title' => 'Expense claims',
+                'headers' => ['Number'],
+                'rows' => [['EC-0001']],
+                'brandColor' => PdfLayout::forType('invoice')->color('primary', settings('branding.primary_color', '#4f46e5')),
+                'customCss' => PdfLayout::forType('invoice')->templateCss(),
+            ])->render();
+
+            $this->assertStringNotContainsString(
+                'op-glyphs',
+                $html,
+                'no operator stylesheet was set, so none may appear',
+            );
+        } finally {
+            DocumentTemplate::query()->where('name', 'like', 'Operator quiet %')->delete();
+
+            $previous?->update(['is_default' => true]);
+        }
     }
 }

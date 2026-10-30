@@ -74,8 +74,21 @@
                     <input type="number" step="0.01" min="0" :name="'items[' + i + '][unit_price]'" x-model="item.unit_price" class="input">
                 </div>
                 <div>
-                    <label class="field-label">Disc. %</label>
-                    <input type="number" step="0.01" min="0" max="100" :name="'items[' + i + '][discount_percent]'" x-model="item.discount_percent" x-on:change="validateDiscount(i)" class="input">
+                    <label class="field-label">Discount</label>
+                    <select
+                        x-model="item.discount_mode"
+                        x-on:change="onDiscountModeChange(i)"
+                        class="select-input"
+                    >
+                        <option value="percent">Percent</option>
+                        <option value="amount">Fixed amount</option>
+                    </select>
+                    <div x-show="item.discount_mode === 'percent'">
+                        <input type="number" step="0.01" min="0" max="100" :name="'items[' + i + '][discount_percent]'" x-model="item.discount_percent" x-on:change="validateDiscount(i)" class="input">
+                    </div>
+                    <div x-show="item.discount_mode === 'amount'">
+                        <input type="number" step="0.01" min="0" :name="'items[' + i + '][discount_amount]'" x-model="item.discount_amount" class="input" placeholder="Fixed amount…">
+                    </div>
                 </div>
                 <div>
                     <label class="field-label">Tax %</label>

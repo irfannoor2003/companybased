@@ -23,9 +23,37 @@ use Tests\TestCase;
  */
 class DocumentRailTest extends TestCase
 {
+    /**
+     * The frame's structure, wherever it lives now.
+     *
+     * The head and the fixed frame moved into `documents/partials/frame.blade.php`
+     * when the statements started printing through the invoice template, so the
+     * regression pins read BOTH the partial and the invoice body that includes
+     * it. Reading `pdf.blade.php` alone started failing purely because the
+     * design's file changed — the design itself did not.
+     */
     private function template(): string
     {
-        return (string) file_get_contents(resource_path('views/documents/pdf.blade.php'));
+        return implode("\n", [
+            (string) file_get_contents(resource_path('views/documents/partials/frame.blade.php')),
+            (string) file_get_contents(resource_path('views/documents/pdf.blade.php')),
+        ]);
+    }
+
+    /**
+     * Every document that prints must include the shared frame. If a future
+     * body stops including it, the rail/masthead/style CSS silently stops
+     * applying to whatever it renders — the document prints bare.
+     */
+    public function test_the_document_bodies_include_the_shared_frame(): void
+    {
+        foreach (['documents/pdf.blade.php', 'documents/statement.blade.php'] as $body) {
+            $this->assertStringContainsString(
+                "@include('documents.partials.frame')",
+                (string) file_get_contents(resource_path('views/'.$body)),
+                $body.' must print through the shared frame, or its frame/styles do not apply',
+            );
+        }
     }
 
     /**

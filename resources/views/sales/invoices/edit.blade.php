@@ -54,7 +54,9 @@
                             'description' => $item->description,
                             'qty' => (float) $item->qty,
                             'unit_price' => (float) $item->unit_price,
-                            'discount_percent' => (float) $item->discount_percent,
+                            'discount_mode' => ((float) ($item->discount_amount ?? 0)) > 0 ? 'amount' : 'percent',
+                            'discount_percent' => (float) ($item->discount_percent ?? 0),
+                            'discount_amount' => (float) ($item->discount_amount ?? 0),
                             'tax_percent' => (float) $item->tax_percent,
                         ])->all();
                     @endphp

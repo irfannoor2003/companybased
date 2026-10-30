@@ -34,6 +34,13 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // Same as the fiscal-periods migration: some hosts already hold the
+        // table created outside the ledger, and DDL is not transactional, so
+        // re-run safety has to live here rather than in the runner.
+        if (Schema::hasTable('tax_rates')) {
+            return;
+        }
+
         Schema::create('tax_rates', function (Blueprint $table) {
             $table->id();
 

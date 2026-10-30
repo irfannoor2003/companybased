@@ -6,6 +6,7 @@ use App\Http\Controllers\Settings\BackupController;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Symfony\Component\Process\Process;
 use Tests\SeedsDatabase;
 use Tests\TestCase;
 
@@ -341,6 +342,47 @@ class DatabaseBackupTest extends TestCase
         $this->assertStringNotContainsString('in-flight.sql', $html, 'a scratch file must not be listed');
     }
 
+    /**
+     * Which flags the dump command may carry depends on which fork of the
+     * MySQL client is installed on the host: MariaDB's binaries refuse
+     * --set-gtid-purged and --ssl-mode outright, MySQL dropped --ssl in
+     * return. So the flavor is probed off the resolved binary rather than
+     * guessed from config or the server dialect — the client is what parses
+     * the options, and a MySQL front-end pointed at a MariaDB server must
+     * still be treated as MySQL.
+     */
+    public function test_the_client_flavor_is_probed_from_the_installed_binary(): void
+    {
+        $binary = $this->resolveMysqldump();
+
+        if ($binary === null) {
+            $this->markTestSkipped('No mysqldump binary is available on this host.');
+        }
+
+        $probe = new Process([$binary, '--version']);
+        $probe->mustRun();
+
+        $this->assertSame(
+            str_contains($probe->getOutput(), 'MariaDB'),
+            $this->controller()->isMariaFor($binary),
+            'the flavor must follow the actual binary on this host',
+        );
+    }
+
+    public function test_a_binary_that_cannot_be_probed_is_read_as_mysql(): void
+    {
+        // An unprobinable binary fails the dump on its own right after the
+        // flags are decided; this default only has to pick the spelling the
+        // command was originally written for, not invent a second failure.
+        config()->set('backups.mysqldump', '/definitely/not/a/real/mysqldump');
+        config()->set('backups.fallback', false);
+
+        $this->assertFalse(
+            $this->controller()->isMariaFor('/definitely/not/a/real/mysqldump'),
+            'an unprobinable binary must not swap the MySQL flags out for MariaDB ones',
+        );
+    }
+
     public function test_a_backup_round_trips_through_mysqldump(): void
     {
         if ($this->resolveMysqldump() === null) {
@@ -391,6 +433,11 @@ class DatabaseBackupTest extends TestCase
             public function connection(): ?array
             {
                 return parent::connection();
+            }
+
+            public function isMariaFor(string $binary): bool
+            {
+                return $this->clientIsMaria($binary);
             }
         };
     }

@@ -3,6 +3,7 @@
         <x-page-header title="{{ $customer->company_name }}" description="Account statement" icon="report">
             <x-slot name="actions">
                 @if (auth()->user()->can('sales.statements.export'))
+                    <x-button href="{{ route('sales.customers.statement.pdf', $customer) }}" variant="secondary" icon="printer">PDF</x-button>
                     <x-button href="{{ route('sales.customers.statement.export', $customer) }}" variant="secondary" icon="export">Export CSV</x-button>
                 @endif
                 <x-button href="{{ route('sales.customers.show', $customer) }}" variant="secondary" icon="arrow-left">Customer</x-button>

@@ -171,11 +171,12 @@ class TemplateController extends Controller
      * The stored layout blob.
      *
      * The block list is rebuilt through `PdfLayout` rather than saved raw, so what
-     * lands in the database is the normalised order: unknown keys dropped, required
-     * blocks restored, letterhead first. Storing the raw POST would mean a stale or
-     * tampered form could save an order the renderer then has to defend against on
-     * every single print -- and it does defend against it, but storing the clean
-     * version means the settings screen and the printer agree.
+     * lands in the database is the normalised order: unknown keys dropped,
+     * duplicates collapsed, letterhead printed first when the operator kept it.
+     * Storing the raw POST would mean a stale or tampered form could save an order
+     * the renderer then has to defend against on every single print -- which it
+     * still defends against, but storing the clean version means the settings
+     * screen and the printer agree.
      */
     private function layoutFrom(Request $request, ?DocumentTemplate $template = null): array
     {
@@ -186,8 +187,11 @@ class TemplateController extends Controller
 
         return [
             'header' => $request->input('header_position', $template?->layout['header'] ?? 'left'),
-            'show_logo' => $request->boolean('show_logo', true),
-            'show_tax' => $request->boolean('show_tax', true),
+            // An unchecked checkbox posts nothing at all, so a `true` default here
+            // made "Show logo" and "Show tax details" impossible to switch off:
+            // unticking posted no key and the default switched it straight back on.
+            'show_logo' => $request->boolean('show_logo', false),
+            'show_tax' => $request->boolean('show_tax', false),
             'style' => $style,
             'blocks' => $blocks,
         ];

@@ -36,6 +36,7 @@
             <x-stat-card label="Sales revenue" :value="money($summary['sales_revenue'])" icon="sales" tone="primary" hint="{{ $summary['sales_orders'] }} invoices" />
             <x-stat-card label="Cash collected" :value="money($summary['sales_collected'])" icon="money" tone="success" hint="From invoiced sales" />
             <x-stat-card label="Purchase value" :value="money($summary['purchase_value'])" icon="suppliers" tone="info" hint="{{ $summary['purchase_orders'] }} purchase orders" />
+            <x-stat-card label="Expense claims" :value="money($summary['expense_claims_amount'])" icon="money" tone="warning" hint="{{ $summary['expense_claims'] }} approved &middot; {{ number_format($summary['expense_claims']) }} deducted" />
             <x-stat-card label="Net cash movement" :value="money($summary['cash_in'] - $summary['cash_out'])" icon="banking" :tone="$summary['cash_in'] >= $summary['cash_out'] ? 'success' : 'danger'" hint="Cash in minus cash out" />
         </div>
 

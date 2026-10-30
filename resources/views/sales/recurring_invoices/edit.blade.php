@@ -43,6 +43,8 @@
                             'qty' => (float) $item->qty,
                             'unit_price' => (float) $item->unit_price,
                             'discount_percent' => (float) $item->discount_percent,
+                            'discount_amount' => (float) ($item->discount_amount ?? 0),
+                            'discount_mode' => ((float) ($item->discount_amount ?? 0)) > 0 ? 'amount' : 'percent',
                             'tax_percent' => (float) $item->tax_percent,
                         ])->all();
                     @endphp

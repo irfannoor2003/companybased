@@ -31,16 +31,18 @@
     from it, which is why a hidden block sitting between two printed ones cannot
     shift either of them along when it is moved.
 
-    The letterhead and the line items render their checkbox disabled: a document with
-    no line items is not a document. `PdfLayout::normaliseBlocks()` puts them back
-    even if a crafted POST drops them.
+    The sections render as checkboxes: every block, including the letterhead and
+    the line items, is the operator's to keep or drop, so the on-screen sentence
+    is "tick to print" without exceptions. `PdfLayout::normaliseBlocks()` still
+    cleans what is posted: duplicates collapse, unknown keys are dropped, and a
+    kept letterhead is forced to print first.
 --}}
 
 @php
     $currentStyle = old('style', $template?->style ?? \App\Support\PdfLayout::STYLE_RAIL);
     $currentBlocks = array_values(old('blocks', $template?->layout['blocks'] ?? $defaultOrder));
     /**
-     * The ten blocks, in the order they will print, labelled and flagged removable.
+     * The eleven blocks, in the order they will print, labelled and flagged removable.
      *
      * Rendered on the server rather than assembled in the browser so the form is
      * correct in the HTML, before any JavaScript runs.
@@ -93,8 +95,9 @@
     <div>
         <p class="mb-1 text-sm font-medium text-ink">Sections</p>
         <p class="mb-3 text-xs text-ink-soft">
-            Tick to print a section, use the arrows to set the order. The letterhead and
-            the line items always print — a document without them is not a document.
+            Tick to print a section, untick to drop it, use the arrows to set the order.
+            Every section is yours to remove -- including the letterhead, the document
+            number and the line items -- so the preview below is the page you get.
         </p>
 
         {{-- One scope for the whole list. Alpine resolves an expression up the scope
@@ -186,14 +189,19 @@
                     ])
                      x-bind:class="on('{{ $block }}') ? '' : 'opacity-50'">
 
-                    {{-- One hidden input per PRINTED block, named `blocks[]`.
+                    {{-- One hidden input per listed block, named `blocks[]`.
 
-                         A hidden input posts whether or not its checkbox is ticked,
-                         which is the whole point: unticking a section must REMOVE it
-                         from the posted array rather than send an empty value the
-                         controller would then have to guess about. --}}
+                         A hidden input posts whether or not it is VISIBLE, not whether
+                         it is ticked: `display: none` takes it off the screen but not
+                         out of the form data, which is why the old `x-show` gate made
+                         every template save the full block list no matter what was
+                         unticked. A disabled control is the one state the browser
+                         itself excludes from submission -- so "off" is expressed as
+                         `disabled`, server-rendered for the pre-Alpine render and
+                         bound for everything after. --}}
                     <input type="hidden" name="blocks[]" value="{{ $block }}"
-                           x-show="on('{{ $block }}')">
+                           @disabled(! $on)
+                           x-bind:disabled="! on('{{ $block }}')">
 
                     <label class="flex flex-1 cursor-pointer items-center gap-2">
                         <input type="checkbox" class="rounded border-line text-primary-ink focus:ring-primary"
@@ -212,14 +220,14 @@
                             class="btn-ghost btn-icon btn-sm"
                             @disabled($block === array_key_first($orderedBlocks))
                             x-on:click="up('{{ $block }}')"
-                            x-bind:disabled="! first('{{ $block }}')">
+                            x-bind:disabled="first('{{ $block }}')">
                         <x-icon name="chevron-up" class="size-4" />
                     </button>
                     <button type="button" title="Move down"
                             class="btn-ghost btn-icon btn-sm"
                             @disabled($block === array_key_last($orderedBlocks))
                             x-on:click="down('{{ $block }}')"
-                            x-bind:disabled="! last('{{ $block }}')">
+                            x-bind:disabled="last('{{ $block }}')">
                         <x-icon name="chevron-down" class="size-4" />
                     </button>
                 </div>

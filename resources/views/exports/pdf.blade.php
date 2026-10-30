@@ -3,6 +3,9 @@
 <head>
     <meta charset="utf-8">
     <title>{{ $title }} — {{ company_name() }}</title>
+
+    @php($brandColor = $brandColor ?? settings('branding.primary_color', '#4f46e5'))
+
     <style>
         * { box-sizing: border-box; }
         body {
@@ -17,7 +20,7 @@
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
-            border-bottom: 3px solid {{ settings('branding.primary_color', '#4f46e5') }};
+            border-bottom: 3px solid {{ $brandColor }};
             padding-bottom: 16px;
             margin-bottom: 20px;
         }
@@ -25,7 +28,7 @@
         .brand-name {
             font-size: 20px;
             font-weight: 700;
-            color: {{ settings('branding.primary_color', '#4f46e5') }};
+            color: {{ $brandColor }};
             letter-spacing: -0.02em;
         }
         .brand-tagline { color: #6b7280; font-size: 10px; margin-top: 2px; }
@@ -66,7 +69,7 @@
             font-size: 10px;
         }
         table.data thead th {
-            background: {{ settings('branding.primary_color', '#4f46e5') }};
+            background: {{ $brandColor }};
             color: #ffffff;
             text-align: left;
             padding: 7px 8px;
@@ -108,7 +111,7 @@
             left: 0;
             right: 0;
             text-align: center;
-            color: {{ settings('branding.primary_color', '#4f46e5') }};
+            color: {{ $brandColor }};
             opacity: 0.05;
             font-size: 64px;
             font-weight: 800;
@@ -116,6 +119,13 @@
         }
         @page { margin: 0; }
     </style>
+
+    @if (filled($customCss))
+        {{-- The invoice template's custom stylesheet, printed LAST so it wins
+             the cascade: the utility print suite follows the same operator
+             stylesheet as every other printed document. --}}
+        <style>{!! $customCss !!}</style>
+    @endif
 </head>
 <body>
     @isset($watermark)

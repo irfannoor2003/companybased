@@ -489,8 +489,10 @@ document.addEventListener('alpine:init', () => {
                 .map((row) => {
                     const qty = row.qty || 0;
                     const price = row.unit_price || 0;
-                    const disc = row.discount_percent || 0;
                     const tax = row.tax_percent || 0;
+                    const mode = (row.discount_mode === 'amount' || (Number(row.discount_amount) || 0) > 0) ? 'amount' : 'percent';
+                    const disc = mode === 'amount' ? 0 : (row.discount_percent || 0);
+                    const amount = mode === 'amount' ? (Number(row.discount_amount) || 0) : 0;
 
                     // A row the user has not touched yet is still in the DOM;
                     // listing it as a zero line reads as a phantom invoice row.
@@ -502,12 +504,14 @@ document.addEventListener('alpine:init', () => {
                     }
 
                     const gross = round(qty * price);
-                    const net = round(gross * (1 - disc / 100));
+                    const net = mode === 'amount'
+                        ? round(gross - Math.min(amount, gross))
+                        : round(gross * (1 - disc / 100));
                     const taxAmt = round(net * (tax / 100));
 
                     return {
                         description: desc,
-                        qty, unit_price: price, discount_percent: disc, tax_percent: tax,
+                        qty, unit_price: price, discount_mode: mode, discount_percent: disc, discount_amount: amount, tax_percent: tax,
                         gross, discount: round(gross - net),
                         net, tax: taxAmt, total: round(net + taxAmt),
                     };
@@ -543,7 +547,7 @@ document.addEventListener('alpine:init', () => {
         maxDiscount: config.maxDiscount ?? null,
         discountError: '',
         addRow() {
-            this.items.push({ product_id: '', description: '', qty: 1, unit_price: 0, discount_percent: 0, tax_percent: 0 });
+            this.items.push({ product_id: '', description: '', qty: 1, unit_price: 0, discount_mode: 'percent', discount_percent: 0, discount_amount: 0, tax_percent: 0 });
         },
         removeRow(i) {
             this.items.splice(i, 1);
@@ -555,12 +559,32 @@ document.addEventListener('alpine:init', () => {
                 this.items[i].unit_price = p.unit_price;
             }
         },
+        onDiscountModeChange(i) {
+            const item = this.items[i];
+
+            // Only one discount style is live per line, so switching clears the
+            // figure it replaces. The server resolves the same way.
+            if (item.discount_mode === 'percent') {
+                item.discount_amount = 0;
+            } else {
+                item.discount_percent = 0;
+            }
+        },
         validateDiscount(i) {
             if (this.maxDiscount !== null && this.maxDiscount !== undefined) {
-                const val = Number(this.items[i].discount_percent) || 0;
-                if (val > this.maxDiscount) {
-                    this.discountError = 'Discount cannot exceed ' + this.maxDiscount + '%. You entered ' + val + '%.';
-                    this.items[i].discount_percent = this.maxDiscount;
+                const item = this.items[i];
+                const gross = this.lineGross(i);
+                const effectivePercent = item.discount_mode === 'amount'
+                    ? (gross > 0 ? ((Number(item.discount_amount) || 0) / gross) * 100 : 0)
+                    : (Number(item.discount_percent) || 0);
+
+                if (effectivePercent > this.maxDiscount) {
+                    this.discountError = 'Discount cannot exceed ' + this.maxDiscount + '%. You entered ' + effectivePercent + '%.';
+                    if (item.discount_mode === 'amount') {
+                        item.discount_amount = this.maxDiscount * gross / 100;
+                    } else {
+                        item.discount_percent = this.maxDiscount;
+                    }
                     return false;
                 }
             }
@@ -573,7 +597,13 @@ document.addEventListener('alpine:init', () => {
         },
         lineNet(i) {
             const it = this.items[i];
-            const sub = (Number(it.qty) || 0) * (Number(it.unit_price) || 0);
+            const sub = this.lineGross(i);
+
+            if (it.discount_mode === 'amount') {
+                const amount = Number(it.discount_amount) || 0;
+                return sub - Math.min(amount, sub);
+            }
+
             return sub * (1 - (Number(it.discount_percent) || 0) / 100);
         },
         lineTax(i) {
@@ -605,7 +635,7 @@ document.addEventListener('alpine:init', () => {
         products: config.products || {},
         items: config.items || [],
         addRow() {
-            this.items.push({ product_id: '', account_id: '', description: '', qty: 1, unit_price: 0, discount_percent: 0, tax_percent: 0 });
+            this.items.push({ product_id: '', account_id: '', description: '', qty: 1, unit_price: 0, discount_mode: 'percent', discount_percent: 0, discount_amount: 0, tax_percent: 0 });
         },
         removeRow(i) {
             this.items.splice(i, 1);
@@ -617,13 +647,30 @@ document.addEventListener('alpine:init', () => {
                 this.items[i].unit_price = p.unit_price;
             }
         },
+        onDiscountModeChange(i) {
+            const item = this.items[i];
+
+            // Only one discount style is live per line, so switching clears the
+            // figure it replaces. The server resolves the same way.
+            if (item.discount_mode === 'percent') {
+                item.discount_amount = 0;
+            } else {
+                item.discount_percent = 0;
+            }
+        },
         lineGross(i) {
             const it = this.items[i];
             return (Number(it.qty) || 0) * (Number(it.unit_price) || 0);
         },
         lineNet(i) {
             const it = this.items[i];
-            const sub = (Number(it.qty) || 0) * (Number(it.unit_price) || 0);
+            const sub = this.lineGross(i);
+
+            if (it.discount_mode === 'amount') {
+                const amount = Number(it.discount_amount) || 0;
+                return sub - Math.min(amount, sub);
+            }
+
             return sub * (1 - (Number(it.discount_percent) || 0) / 100);
         },
         lineTax(i) {

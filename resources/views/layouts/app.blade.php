@@ -22,11 +22,24 @@
         @include('partials.theme-tokens')
 
         <style>
+            @page { margin: 0; }
+
+            {{--
+                Margins of zero leave the browser no room for its own print
+                band, so Chrome/Edge/Firefox drop the date, the page title
+                ("Invoice INV-2026-0007 — Nexos Digital") and the URL with the
+                page count ("companybased.test/sales/invoices/7  1/1") that
+                otherwise sit on every printed page. The paper margin the band
+                used to provide is replaced by body padding below, so content
+                still prints off the paper's edge.
+            --}}
+
             {{-- Print cleanly: only the document content, no sidebar/topbar/app chrome. --}}
             @media print {
                 aside, header, .toasts, x-toasts, .print\:hidden { display: none !important; }
                 body {
                     background: #fff !important;
+                    padding: 10mm 12mm !important;
                 }
                 main { overflow: visible !important; }
                 main > div {

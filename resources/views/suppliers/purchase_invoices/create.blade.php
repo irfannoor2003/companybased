@@ -74,7 +74,9 @@
                         'description' => $line->componentItem?->product?->name ?? ($line->componentItem?->product?->sku ?? ''),
                         'qty' => (float) ($line->quantity_required ?? 0),
                         'unit_price' => (float) ($line->componentItem?->product?->cost_price ?? 0),
+                        'discount_mode' => 'percent',
                         'discount_percent' => 0,
+                        'discount_amount' => 0,
                         'tax_percent' => 0,
                     ])->all() : ($fromOrder ? $fromOrder->items->map(fn ($item) => [
                         'product_id' => (string) ($item->product_id ?? ''),
@@ -82,7 +84,9 @@
                         'description' => $item->description,
                         'qty' => (float) $item->qty,
                         'unit_price' => (float) $item->unit_price,
+                        'discount_mode' => ((float) ($item->discount_amount ?? 0)) > 0 ? 'amount' : 'percent',
                         'discount_percent' => (float) $item->discount_percent,
+                        'discount_amount' => (float) ($item->discount_amount ?? 0),
                         'tax_percent' => (float) $item->tax_percent,
                     ])->all() : []);
                 @endphp

@@ -35,6 +35,8 @@ class ApprovalWorkflowTest extends TestCase
 
     private ?User $approver = null;
 
+    private ?User $maker = null;
+
     /**
      * Memoised: userForRole() creates the row, so calling it twice in one test
      * collides on the unique email.
@@ -42,6 +44,18 @@ class ApprovalWorkflowTest extends TestCase
     private function requester(): User
     {
         return $this->requester ??= $this->userForRole('Admin');
+    }
+
+    /**
+     * A requester who holds no approval permissions at all.
+     *
+     * Deliberately NOT the Admin: expense claims grant the Admin a
+     * self-approve permission (the one-finance-office escape hatch), so the
+     * maker-checker invariant below must be proved against a plain user.
+     */
+    private function maker(): User
+    {
+        return $this->maker ??= $this->staffUser('Unequipped maker');
     }
 
     private function approver(): User
@@ -120,28 +134,28 @@ class ApprovalWorkflowTest extends TestCase
     public function test_the_requester_cannot_approve_their_own_request(): void
     {
         $claim = $this->claim();
-        $claim->submitForApproval($this->requester());
+        $claim->submitForApproval($this->maker());
 
         $this->expectException(\RuntimeException::class);
-        $claim->approve($this->requester());
+        $claim->approve($this->maker());
     }
 
     public function test_the_requester_cannot_reject_their_own_request(): void
     {
         $claim = $this->claim();
-        $claim->submitForApproval($this->requester());
+        $claim->submitForApproval($this->maker());
 
         $this->expectException(\RuntimeException::class);
-        $claim->reject($this->requester(), 'changed my mind');
+        $claim->reject($this->maker(), 'changed my mind');
     }
 
     public function test_a_failed_self_approval_leaves_the_request_live(): void
     {
         $claim = $this->claim();
-        $claim->submitForApproval($this->requester());
+        $claim->submitForApproval($this->maker());
 
         try {
-            $claim->approve($this->requester());
+            $claim->approve($this->maker());
         } catch (\RuntimeException) {
             // expected
         }

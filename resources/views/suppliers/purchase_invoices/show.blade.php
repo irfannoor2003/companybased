@@ -86,10 +86,12 @@
                     @foreach ($invoice->items as $item)
                         @php
                             $lineGross = (float) $item->qty * (float) $item->unit_price;
-                            $lineNet = $lineGross * (1 - (float) $item->discount_percent / 100);
-                            $lineTax = $lineNet * ((float) $item->tax_percent / 100);
+                            $lineDiscount = (float) ($item->discount_amount ?? 0) > 0
+                                ? (float) $item->discount_amount
+                                : round($lineGross * ((float) ($item->discount_percent ?? 0) / 100), 2);
+                            $lineNet = round($lineGross - $lineDiscount, 2);
+                            $lineTax = $lineNet * ((float) ($item->tax_percent ?? 0) / 100);
                             $lineTotal = $lineNet + $lineTax;
-                            $lineDiscount = $lineGross - $lineNet;
                         @endphp
                         <tr>
                             <td class="text-sm text-ink">{{ $loop->iteration }}</td>

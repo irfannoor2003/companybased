@@ -112,6 +112,27 @@ class BillController extends Controller
             return back()->with('toasts', [['type' => 'danger', 'message' => 'Paid or void bills cannot be edited.']]);
         }
 
+        /**
+         * While a request is live the bill is locked, not merely discouraged:
+         * the approver must decide on the figures they can see, and the trait's
+         * rule applies to any substantive column. Withdraw the request, change
+         * the bill, submit again.
+         */
+        if ($bill->isPendingApproval()) {
+            return back()->with('toasts', [['type' => 'danger', 'message' => 'This bill is awaiting approval and cannot be changed. Withdraw the approval request first.']]);
+        }
+
+        /**
+         * An approved bill is signed off — its amount is what the approver
+         * authorised, so remaining changes are refused rather than quietly
+         * invalidating the approval that sits behind the payments. The escape
+         * hatch is the real workflow: void the bill and record a corrected one
+         * (voiding is still allowed for a bill with no payments).
+         */
+        if ($bill->isApproved()) {
+            return back()->with('toasts', [['type' => 'danger', 'message' => 'This bill has been approved and its figures are signed off — it cannot be edited. Void it and record a corrected bill if the figures are wrong.']]);
+        }
+
         $data = $request->validate([
             'vendor_name' => ['required', 'string', 'max:255'],
             'supplier_id' => ['nullable', 'integer', Rule::exists('suppliers', 'id')],
@@ -164,8 +185,19 @@ class BillController extends Controller
             DB::transaction(function () use ($data, $bill): void {
                 $bill = Bill::query()->lockForUpdate()->findOrFail($bill->id);
 
-                if (in_array($bill->status, ['paid', 'void'], true)) {
-                    throw new \RuntimeException('This bill is already '.$bill->status.'.');
+                /**
+                 * The approval gate. Payment moves real money out, so it is
+                 * refused unless someone has approved the bill — the one control
+                 * the whole flow exists for. `open` is the recorded-but-not-
+                 * approved state; `pending_approval` is mid-review; both must
+                 * wait.
+                 */
+                if (! in_array($bill->status, ['approved', 'partially_paid'], true)) {
+                    throw new \RuntimeException(match ($bill->status) {
+                        'pending_approval' => 'This bill is awaiting approval and cannot be paid yet.',
+                        'open' => 'This bill has not been approved yet. Approval is required before a payment can be recorded.',
+                        default => 'This bill is already '.$bill->status.'.',
+                    });
                 }
 
                 if ((float) $data['amount'] > $bill->balance()) {
@@ -195,13 +227,120 @@ class BillController extends Controller
             return back()->with('toasts', [['type' => 'danger', 'message' => 'This bill cannot be voided.']]);
         }
 
+        /**
+         * Voiding while a request is live must retire that request too. An
+         * approval engine that accepts a decision against a cancelled bill
+         * would stamp some other approver's decision onto a document that no
+         * longer exists — and worse, approve() would resurrect the bill to
+         * `approved` past its voiding.
+         */
+        $bill->liveApprovalFor()?->update([
+            'status' => 'cancelled',
+            'decided_by' => $request->user()?->id,
+            'decided_at' => now(),
+        ]);
+
         $bill->update(['status' => 'void']);
 
         return back()->with('toasts', [['type' => 'success', 'message' => "Bill {$bill->number} voided."]]);
     }
 
+    /**
+     * Hand the bill to the approver. The bill's own maker-checker rules apply
+     * from the trait: it must be in a submittable status and must not already
+     * carry a live request.
+     */
+    public function submit(Request $request, Bill $bill): RedirectResponse
+    {
+        try {
+            $request->validate(['comment' => ['nullable', 'string', 'max:2000']]);
+
+            $bill->submitForApproval($request->user(), 1, $request->input('comment'));
+        } catch (\RuntimeException $e) {
+            return back()->with('toasts', [['type' => 'danger', 'message' => $e->getMessage()]]);
+        }
+
+        return back()->with('toasts', [[
+            'type' => 'success',
+            'message' => "Bill {$bill->number} submitted for approval. It cannot be paid until it is approved.",
+        ]]);
+    }
+
+    /**
+     * Grant approval, which is what makes the bill payable.
+     *
+     * Bills post no journals of their own — the payment records money moving —
+     * so approval changes nothing in the ledger; it only opens the payment gate.
+     */
+    public function approve(Request $request, Bill $bill): RedirectResponse
+    {
+        try {
+            $request->validate(['comment' => ['nullable', 'string', 'max:2000']]);
+
+            $bill->approve($request->user(), $request->input('comment'));
+        } catch (\RuntimeException $e) {
+            return back()->with('toasts', [['type' => 'danger', 'message' => $e->getMessage()]]);
+        }
+
+        return back()->with('toasts', [[
+            'type' => 'success',
+            'message' => "Bill {$bill->number} approved. Payments can now be recorded against it.",
+        ]]);
+    }
+
+    /**
+     * Refuse approval, recording why. Back to `open` so the owner can correct
+     * and resubmit; the refusal stays in the trail the next request carries.
+     */
+    public function reject(Request $request, Bill $bill): RedirectResponse
+    {
+        try {
+            $data = $request->validate([
+                'comment' => ['required', 'string', 'max:2000'],
+            ]);
+
+            $bill->reject($request->user(), $data['comment']);
+        } catch (\RuntimeException $e) {
+            return back()->with('toasts', [['type' => 'danger', 'message' => $e->getMessage()]]);
+        }
+
+        return back()->with('toasts', [[
+            'type' => 'success',
+            'message' => "Bill {$bill->number} rejected. It can be corrected and resubmitted.",
+        ]]);
+    }
+
+    /**
+     * Pull a live request back. Only the requester may do this — that rule
+     * lives in the trait and is enforced even for an Admin who is not the
+     * requester.
+     */
+    public function withdraw(Request $request, Bill $bill): RedirectResponse
+    {
+        try {
+            $bill->withdrawApproval($request->user());
+        } catch (\RuntimeException $e) {
+            return back()->with('toasts', [['type' => 'danger', 'message' => $e->getMessage()]]);
+        }
+
+        return back()->with('toasts', [[
+            'type' => 'success',
+            'message' => "Approval request for {$bill->number} withdrawn.",
+        ]]);
+    }
+
     public function destroy(Bill $bill): RedirectResponse
     {
+        /**
+         * Deleting a bill whose request is live would orphan the request: soft
+         * deletes keep the bill row and the approver's inbox would list a bill
+         * that is no longer really there. Withdraw first — or void it instead
+         * if the disagreement is with the bill itself.
+         */
+        if ($bill->isPendingApproval()) {
+            return back()->with('toasts', [['type' => 'danger', 'message' => 'This bill is awaiting approval. Withdraw the request before deleting it.']]);
+        }
+
         if ($bill->paid_amount > 0) {
             return back()->with('toasts', [['type' => 'danger', 'message' => 'This bill has payments recorded and cannot be deleted.']]);
         }

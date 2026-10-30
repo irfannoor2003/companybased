@@ -23,22 +23,37 @@
 --}}
 @php($pdfLayoutStyle = $layout->style())
 
+{{-- The document kind and number -- "QUOTE", "QUOTE #QUO-LAYOUT-0001" -- belong to
+    the `title` block, which is consultable per placement rather than printed from
+    its own canvas partial: the classic style keeps it inside its bordered box, the
+    masthead designs carry it in their band and the rail prints it at the top of
+    the canvas. The settings screen can switch the block off, so every placement
+    gates on `$layout->has('title')` and drops out of the print altogether. --}}
+
 @if ($pdfLayoutStyle === \App\Support\PdfLayout::STYLE_CLASSIC)
-    <div class="classic-box">
-        <div class="doc-kind">{{ strtoupper($title) }}</div>
-        <div class="doc-number">{{ $title }} #{{ $number }}</div>
-        @if (filled($referenceNumber))
-            <div class="doc-number">Your ref: {{ $referenceNumber }}</div>
-        @endif
-    </div>
+    @if ($layout->has('title') || filled($referenceNumber))
+        <div class="classic-box">
+            @if ($layout->has('title'))
+                <div class="doc-kind">{{ strtoupper($title) }}</div>
+                <div class="doc-number">{{ $title }} #{{ $number }}</div>
+            @endif
+            @if (filled($referenceNumber))
+                <div class="doc-number">Your ref: {{ $referenceNumber }}</div>
+            @endif
+        </div>
+    @endif
 @elseif ($pdfLayoutStyle === \App\Support\PdfLayout::STYLE_MINIMAL)
-    <div class="doc-kind" style="font-size: 15px; letter-spacing: 0.24em; font-weight: bold;">{{ strtoupper($title) }}</div>
-    <div class="doc-number" style="font-size: 10px;"># {{ $number }}{{ filled($referenceNumber) ? '<br>Your ref: '.$referenceNumber : '' }}</div>
+    @if ($layout->has('title'))
+        <div class="doc-kind" style="font-size: 15px; letter-spacing: 0.24em; font-weight: bold;">{{ strtoupper($title) }}</div>
+        <div class="doc-number" style="font-size: 10px;"># {{ $number }}{{ filled($referenceNumber) ? '<br>Your ref: '.$referenceNumber : '' }}</div>
+    @endif
 @elseif ($pdfLayoutStyle !== \App\Support\PdfLayout::STYLE_RAIL)
     {{-- modern and banded carry the title in the band across the top --}}
 @else
-    <div class="doc-kind">{{ strtoupper($title) }}</div>
-    <div class="doc-number">{{ $title }} #{{ $number }}</div>
+    @if ($layout->has('title'))
+        <div class="doc-kind">{{ strtoupper($title) }}</div>
+        <div class="doc-number">{{ $title }} #{{ $number }}</div>
+    @endif
 @endif
 
 @if ($hasPricing)

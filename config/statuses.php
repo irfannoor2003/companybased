@@ -66,6 +66,7 @@ return [
         'posted' => ['success', 'Posted'],
         'void' => ['danger', 'Void'],
         'pending' => ['warning', 'Pending'],
+        'pending_approval' => ['warning', 'Awaiting approval'],
         'approved' => ['success', 'Approved'],
         'rejected' => ['danger', 'Rejected'],
         'reimbursed' => ['info', 'Reimbursed'],

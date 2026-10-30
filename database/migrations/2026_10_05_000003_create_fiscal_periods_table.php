@@ -8,48 +8,65 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('fiscal_periods', function (Blueprint $table) {
-            $table->id();
-            $table->string('name', 120)->nullable();
-            $table->date('start_date');
-            $table->date('end_date');
-            $table->string('status', 20)->default('open');
+        // Deployments restored from another host may hold some artefacts of
+        // this migration without the ledger row (found in the wild: the table
+        // exists, the journal_entries link does not). Each step skips only
+        // what is already there; DDL is not transactional, so partial state
+        // must be resumable, not fatal.
+        if (! Schema::hasTable('fiscal_periods')) {
+            Schema::create('fiscal_periods', function (Blueprint $table) {
+                $table->id();
 
-            /**
-             * Set independently of status: the period can still be open for new
-             * work while refusing backdated entries. See the model.
-             */
-            $table->date('date_lock')->nullable();
+                // Period label; resolved from ranges, not required to be unique.
+                $table->string('name', 120)->nullable();
+                $table->date('start_date');
+                $table->date('end_date');
+                $table->string('status', 20)->default('open');
 
-            $table->timestamp('closed_at')->nullable();
-            $table->foreignId('closed_by')->nullable()->constrained('users')->nullOnDelete();
-            $table->text('lock_reason')->nullable();
-            $table->timestamps();
-            $table->softDeletes();
+                /**
+                 * Set independently of status: the period can still be open for new
+                 * work while refusing backdated entries. See the model.
+                 */
+                $table->date('date_lock')->nullable();
 
-            $table->index(['start_date', 'end_date']);
-            $table->index('status');
-        });
+                $table->timestamp('closed_at')->nullable();
+                $table->foreignId('closed_by')->nullable()->constrained('users')->nullOnDelete();
+                $table->text('lock_reason')->nullable();
+                $table->timestamps();
+                $table->softDeletes();
 
-        Schema::table('journal_entries', function (Blueprint $table) {
-            $table->foreignId('fiscal_period_id')
-                ->nullable()
-                ->after('entry_date')
-                ->constrained('fiscal_periods')
-                ->nullOnDelete();
+                $table->index(['start_date', 'end_date']);
+                $table->index('status');
+            });
+        }
 
-            // Resolving a period on every lookup is the hot path once periods exist.
-            $table->index(['entry_date', 'fiscal_period_id'], 'journal_entries_date_period_index');
-        });
+        if (! Schema::hasColumn('journal_entries', 'fiscal_period_id')) {
+            Schema::table('journal_entries', function (Blueprint $table) {
+                $table->foreignId('fiscal_period_id')
+                    ->nullable()
+                    ->after('entry_date')
+                    ->constrained('fiscal_periods')
+                    ->nullOnDelete();
+            });
+        }
+
+        // Resolving a period on every lookup is the hot path once periods exist.
+        if (! Schema::hasIndex('journal_entries', 'journal_entries_date_period_index')) {
+            Schema::table('journal_entries', function (Blueprint $table) {
+                $table->index(['entry_date', 'fiscal_period_id'], 'journal_entries_date_period_index');
+            });
+        }
 
         /**
          * A duplicated exact range is refused by the database. Genuine overlap
          * (two partially overlapping ranges) is enforced in FiscalPeriodService,
          * which can report which period conflicts -- a unique index cannot.
          */
-        Schema::table('fiscal_periods', function (Blueprint $table) {
-            $table->unique(['start_date', 'end_date'], 'fiscal_periods_range_unique');
-        });
+        if (! Schema::hasIndex('fiscal_periods', 'fiscal_periods_range_unique')) {
+            Schema::table('fiscal_periods', function (Blueprint $table) {
+                $table->unique(['start_date', 'end_date'], 'fiscal_periods_range_unique');
+            });
+        }
     }
 
     public function down(): void

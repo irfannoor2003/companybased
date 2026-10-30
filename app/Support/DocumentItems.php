@@ -34,6 +34,11 @@ class DocumentItems
      * the printed rows stop adding up to the printed total: subtotal is net of the
      * line discount, and tax is a percentage of that net rather than of the gross.
      *
+     * A line may carry its discount as a PERCENTAGE (`discountPercent`) or as a
+     * SPECIFIC AMOUNT off the line (`discountAmount`). The two are never both
+     * live on one line: the line editor's select keeps them mutually exclusive,
+     * and the fixed amount -- when set -- is what gets applied.
+     *
      * Rounding is per-line and to two places. Doing it once per line and summing
      * the rounded figures is what keeps the header reconcilable; rounding only the
      * final sum drifts by a cent per line.
@@ -45,9 +50,14 @@ class DocumentItems
         float $unitPrice,
         float $discountPercent = 0,
         float $taxPercent = 0,
+        float $discountAmount = 0,
     ): array {
         $lineSubtotal = round($qty * $unitPrice, 2);
-        $lineDiscount = round($lineSubtotal * ($discountPercent / 100), 2);
+
+        $lineDiscount = $discountAmount > 0.0
+            ? round($discountAmount, 2)
+            : round($lineSubtotal * ($discountPercent / 100), 2);
+
         $lineNet = round($lineSubtotal - $lineDiscount, 2);
         $lineTax = round($lineNet * ($taxPercent / 100), 2);
 
@@ -81,6 +91,7 @@ class DocumentItems
                 (float) $item->unit_price,
                 (float) ($item->discount_percent ?? 0),
                 (float) ($item->tax_percent ?? 0),
+                (float) ($item->discount_amount ?? 0),
             );
 
             $subtotal += $totals['line_net'];
@@ -163,25 +174,58 @@ class DocumentItems
         foreach ($items as $item) {
             $qty = (float) ($item['qty'] ?? 1);
             $unitPrice = (float) ($item['unit_price'] ?? 0);
-            $discount = (float) ($item['discount_percent'] ?? 0);
+            $discountPercent = (float) ($item['discount_percent'] ?? 0);
+            $discountAmount = (float) ($item['discount_amount'] ?? 0);
             $taxPercent = (float) ($item['tax_percent'] ?? 0);
             $description = trim((string) ($item['description'] ?? ''));
-            $numericFields = [$item['qty'] ?? 1, $item['unit_price'] ?? 0, $item['discount_percent'] ?? 0, $item['tax_percent'] ?? 0];
+            $numericFields = [$item['qty'] ?? 1, $item['unit_price'] ?? 0, $item['discount_percent'] ?? 0, $item['discount_amount'] ?? 0, $item['tax_percent'] ?? 0];
+            $gross = round($qty * $unitPrice, 2);
 
-            if ($description === '' || count(array_filter($numericFields, fn ($value) => ! is_numeric($value))) > 0 || $qty <= 0 || $unitPrice < 0 || $discount < 0 || $discount > 100 || $taxPercent < 0 || $taxPercent > 100) {
+            if ($description === '' || count(array_filter($numericFields, fn ($value) => ! is_numeric($value))) > 0 || $qty <= 0 || $unitPrice < 0 || $taxPercent < 0 || $taxPercent > 100) {
                 throw ValidationException::withMessages([
                     'items' => 'Each item must have a description, a positive quantity, a non-negative price, and discount and tax percentages between 0 and 100.',
                 ]);
             }
 
-            $totals = self::lineTotals($qty, $unitPrice, $discount, $taxPercent);
+            // The discount may be a percentage or a specific amount off the line,
+            // and only one of the two is ever in play. A fixed amount -- the
+            // operator's "discount of 1000" -- is applied as that amount and the
+            // percentage is carried as zero; a percentage is applied as a
+            // percentage of the gross and the amount stays zero. When both reach
+            // the server the amount wins, so a document can never be discounted
+            // twice for the same line.
+            if ($discountAmount < 0) {
+                throw ValidationException::withMessages([
+                    'items' => 'A discount cannot be negative.',
+                ]);
+            }
+
+            if ($discountAmount > 0) {
+                if ($discountAmount > $gross) {
+                    throw ValidationException::withMessages([
+                        'items' => 'Discount on a line cannot exceed the line total.',
+                    ]);
+                }
+
+                $discount = $discountAmount;
+                $discountPercent = 0.0;
+            } elseif ($discountPercent < 0 || $discountPercent > 100) {
+                throw ValidationException::withMessages([
+                    'items' => 'Each item must have a description, a positive quantity, a non-negative price, and discount and tax percentages between 0 and 100.',
+                ]);
+            } else {
+                $discount = round($gross * ($discountPercent / 100), 2);
+            }
+
+            $totals = self::lineTotals($qty, $unitPrice, $discountPercent, $taxPercent, $discountAmount);
 
             $cleaned[] = [
                 'product_id' => ! empty($item['product_id']) ? $item['product_id'] : null,
                 'description' => $description,
                 'qty' => $qty,
                 'unit_price' => $unitPrice,
-                'discount_percent' => $discount,
+                'discount_percent' => $discountAmount > 0 ? 0.0 : $discountPercent,
+                'discount_amount' => $discountAmount > 0 ? $discountAmount : 0.0,
                 'tax_percent' => $taxPercent,
                 'line_total' => $totals['line_net'],
             ] + self::optionalColumns($document, $item);

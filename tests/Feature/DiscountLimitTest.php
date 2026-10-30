@@ -217,6 +217,32 @@ class DiscountLimitTest extends TestCase
         $this->assertSame(1, SalesInvoice::count());
     }
 
+    public function test_a_fixed_amount_discount_over_the_cap_is_refused(): void
+    {
+        $this->capFor('Admin', '10');
+
+        // 100.00 off a 100.00 line is a 25% discount, which the 10% cap forbids --
+        // expressed as a specific amount rather than a percentage.
+        $this->postInvoice([
+            'customer_id' => $this->customer()->id,
+            'issue_date' => now()->toDateString(),
+            'status' => 'draft',
+            'currency' => 'USD',
+            'items' => [
+                [
+                    'description' => 'Consulting',
+                    'qty' => '1',
+                    'unit_price' => '100.00',
+                    'discount_amount' => '25',
+                    'tax_percent' => '0',
+                ],
+            ],
+        ])
+            ->assertSessionHasErrors('items');
+
+        $this->assertSame(0, SalesInvoice::count());
+    }
+
     /**
      * The cap is per role. A rule naming a different role must not constrain this
      * user, otherwise every discount limit applies to the whole company.

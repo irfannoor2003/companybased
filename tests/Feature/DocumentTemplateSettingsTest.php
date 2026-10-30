@@ -280,10 +280,12 @@ class DocumentTemplateSettingsTest extends TestCase
     }
 
     /**
-     * A crafted POST, or a stale one saved before this pass, must not be able to
-     * strip the letterhead or the line items off a document.
+     * A crafted POST, or a stale one saved before this pass, cannot smuggle an
+     * unknown block INTO the renderer -- but it CAN legitimately strip every
+     * section off the document now, because every block is the operator's to
+     * remove. The renderer defends pagination; the save defends the keys.
      */
-    public function test_a_crafted_post_cannot_remove_the_blocks_a_document_needs(): void
+    public function test_a_crafted_post_cannot_add_blocks_the_renderer_does_not_know(): void
     {
         $this->signIn();
 
@@ -293,9 +295,9 @@ class DocumentTemplateSettingsTest extends TestCase
 
         $blocks = DocumentTemplate::where('name', 'Seasonal Delivery_note')->firstOrFail()->layout['blocks'];
 
-        $this->assertSame('header', $blocks[0], 'the letterhead is no longer first');
-        $this->assertContains('items', $blocks);
+        $this->assertSame(['totals', 'footer'], $blocks, 'unknown keys survived the save or the order drifted');
         $this->assertNotContains('evil_block', $blocks);
+        $this->assertNotContains('header', $blocks, 'the letterhead was resurrected behind the operator');
     }
 
     /**

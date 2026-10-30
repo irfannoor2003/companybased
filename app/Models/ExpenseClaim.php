@@ -33,8 +33,9 @@ public function submittableStatuses(): array
     }
 
     protected $fillable = [
-        'number', 'employee_name', 'expense_date', 'expense_type', 'merchant',
-        'amount', 'currency', 'status', 'notes', 'reviewed_by', 'reviewed_at', 'reimbursed_at',
+        'number', 'employee_name', 'expense_date', 'expense_type', 'expense_category_id',
+        'bank_account_id', 'merchant', 'amount', 'discount_percent', 'discount_amount', 'currency', 'status', 'notes',
+        'reviewed_by', 'reviewed_at', 'reimbursed_at',
     ];
 
     protected function casts(): array
@@ -42,9 +43,55 @@ public function submittableStatuses(): array
         return [
             'expense_date' => 'date',
             'amount' => 'decimal:2',
+            'discount_percent' => 'decimal:2',
+            'discount_amount' => 'decimal:2',
             'reviewed_at' => 'datetime',
             'reimbursed_at' => 'datetime',
         ];
+    }
+
+    /**
+     * The claim's amount after the discount off the billed figure.
+     *
+     * A claim of 100 with a 10% discount -- or a specific 10 off the bill the
+     * other party gave the employee -- is really a claim of 90. This is the figure
+     * that leaves the account on approval, so every consumer that moves money
+     * (the bank withdrawal at approval, the journal, the reimbursement) reads it
+     * rather than the raw billed amount and the deduction silently keeps the
+     * undiscounted total.
+     */
+    public function effectiveAmount(): float
+    {
+        $amount = (float) $this->amount;
+        $discount = (float) ($this->discount_amount ?? 0);
+
+        if ($discount > 0.0) {
+            return round($amount - $discount, 2);
+        }
+
+        $percent = (float) ($this->discount_percent ?? 0);
+
+        return round($amount - ($amount * ($percent / 100)), 2);
+    }
+
+    /**
+     * The admin-created category the claim charges.
+     */
+    public function expenseCategory(): BelongsTo
+    {
+        return $this->belongsTo(ExpenseCategory::class);
+    }
+
+    /**
+     * The bank account — or petty-cash account — the claim is paid from.
+     *
+     * An approval withdraws the claim's amount from this account, which is why
+     * it never dangles loosely: a null here means the claim is paid outside the
+     * tracked accounts and posts no deduction.
+     */
+    public function paidFrom(): BelongsTo
+    {
+        return $this->belongsTo(BankAccount::class, 'bank_account_id');
     }
 
     /**
@@ -128,6 +175,23 @@ public function submittableStatuses(): array
     public static function typeOptions(): array
     {
         return ['travel', 'meals', 'fuel', 'supplies', 'software', 'other'];
+    }
+
+    /**
+     * The self-approval override the Approvable trait consults.
+     *
+     * A claim raised by someone who also holds the DEDICATED self-approve
+     * permission may be decided by that same person. It is deliberately not
+     * `accounting.expense_claims.approve`: that grants approving OTHERS' claims
+     * and is carried by Accountant and Admin alike, while self-approval is the
+     * narrower, audited escape hatch for a deployment where the approver and the
+     * claimant are the same finance office — so it rides on the Admin role, not
+     * the Accountant's.
+     */
+    protected function allowsSelfApproval(?User $decider): bool
+    {
+        return $decider !== null
+            && $decider->can('accounting.expense_claims.self_approve');
     }
 
     public static function statusOptions(): array

@@ -301,8 +301,10 @@ class BackupController extends Controller
      */
     protected function runDump(array $connection, string $target): void
     {
+        $binary = $this->resolveDbBinary('mysqldump');
+
         $command = array_values(array_filter([
-            $this->resolveDbBinary('mysqldump'),
+            $binary,
             '--single-transaction',
             '--quick',
             '--routines',
@@ -313,7 +315,10 @@ class BackupController extends Controller
             // Common on MySQL 8 where the app user lacks PROCESS (to read the
             // tablespace files) and where GTID purging must be left to the host.
             '--no-tablespaces',
-            '--set-gtid-purged=OFF',
+            // The live deployment may run MariaDB, whose mysqldump fork has
+            // never accepted --set-gtid-purged and dies before a single table
+            // is dumped, so the flag travels only with a binary that parses it.
+            ...$this->gtidFlag($binary),
             '-h', (string) $connection['host'],
             '-P', (string) ($connection['port'] ?: 3306),
             '-u', (string) $connection['username'],
@@ -322,7 +327,7 @@ class BackupController extends Controller
             // the argv list, and Symfony's Process stringifies every element
             // with strval() — which fatals with "Array to string conversion"
             // before mysqldump is ever executed.
-            ...$this->protocolFlag($connection),
+            ...$this->protocolFlag($connection, $binary),
             (string) $connection['database'],
         ]));
 
@@ -364,12 +369,14 @@ class BackupController extends Controller
      */
     protected function runRestore(array $connection, string $source): void
     {
+        $binary = $this->resolveDbBinary('mysql');
+
         $command = array_values(array_filter([
-            $this->resolveDbBinary('mysql'),
+            $binary,
             '-h', (string) $connection['host'],
             '-P', (string) ($connection['port'] ?: 3306),
             '-u', (string) $connection['username'],
-            ...$this->protocolFlag($connection),
+            ...$this->protocolFlag($connection, $binary),
             '--default-character-set=utf8mb4',
             (string) $connection['database'],
         ]));
@@ -413,14 +420,79 @@ class BackupController extends Controller
     }
 
     /**
+     * Whether the client binary belongs to MariaDB rather than MySQL.
+     *
+     * The two forks have drifted apart where option naming is concerned:
+     * MariaDB's mysqldump has never accepted --set-gtid-purged, and its
+     * mysql client never accepted --ssl-mode (MySQL 8 dropped --ssl in
+     * return). An unknown option kills the process before a single byte is
+     * dumped or replayed, so the flags must be spelled the way the binary
+     * that will parse them understands.
+     *
+     * The binary announces itself in --version output ("... Ver
+     * 10.11.8-MariaDB, ..."), so the *client* is probed, not the server
+     * dialect: option syntax belongs to the client parsing them, and a
+     * MySQL front-end pointed at a MariaDB server must still get the MySQL
+     * spelling. Probed once per process and memoised by path, since the
+     * result only depends on which file sits there.
+     *
+     * A binary that cannot be probed at all (wrong path, broken install) is
+     * read as MySQL — the spelling the flags were originally written for.
+     * The dump fails either way; this only decides the message.
+     */
+    protected function clientIsMaria(string $binary): bool
+    {
+        static $memo = [];
+
+        if (! array_key_exists($binary, $memo)) {
+            try {
+                $probe = new Process([$binary, '--version'], null, null, null, 10.0);
+                $probe->run();
+
+                $memo[$binary] = $probe->isSuccessful()
+                    && str_contains($probe->getOutput(), 'MariaDB');
+            } catch (\Throwable) {
+                // A spawn failure cannot distinguish flavors; default below.
+                $memo[$binary] = false;
+            }
+        }
+
+        return $memo[$binary];
+    }
+
+    /**
+     * GTID flags for the dump command, decided by the binary in use.
+     *
+     * MySQL 5.6 stamps every dump with `SET @@GLOBAL.gtid_purged=...` when the
+     * source server has GTIDs on, which a restore cannot replay into another
+     * GTID-enabled host without SUPER, so real MySQL keeps the explicit OFF.
+     * MariaDB never stamped that line in the first place and rejects the
+     * option outright ("unknown variable 'set-gtid-purged=OFF'"), so it gets
+     * no flag — every backup on such a host currently fails because of it.
+     *
+     * @param  string  $binary  the resolved mysqldump path/command
+     * @return array<int, string>
+     */
+    protected function gtidFlag(string $binary): array
+    {
+        return $this->clientIsMaria($binary) ? [] : ['--set-gtid-purged=OFF'];
+    }
+
+    /**
      * SSL options for the client, taken from the connection config so a
      * deployment that connects over TLS does not silently dump or restore in
      * plaintext.
      *
+     * The REQUIRE spelling again splits by fork: MySQL 8 only understands
+     * --ssl-mode (it removed --ssl), MariaDB only understands --ssl (it never
+     * gained --ssl-mode), so passing the MySQL spelling under MariaDB would
+     * recreate the same refuse-at-parse failure --set-gtid-purged produced.
+     *
      * @param  array<string, mixed>  $connection
+     * @param  string  $binary  the resolved mysqldump or mysql client
      * @return array<int, string>
      */
-    protected function protocolFlag(array $connection): array
+    protected function protocolFlag(array $connection, string $binary): array
     {
         $flags = ['--protocol=TCP'];
 
@@ -431,7 +503,7 @@ class BackupController extends Controller
         ]);
 
         if ($ssl !== []) {
-            $flags[] = '--ssl-mode=REQUIRED';
+            $flags[] = $this->clientIsMaria($binary) ? '--ssl' : '--ssl-mode=REQUIRED';
         }
 
         return $flags;

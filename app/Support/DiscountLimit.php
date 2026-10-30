@@ -52,12 +52,23 @@ trait DiscountLimit
         $maxDiscount = (float) $maxDiscount;
 
         foreach ($items as $index => $item) {
-            $discount = (float) ($item['discount_percent'] ?? 0);
-            if ($discount > $maxDiscount) {
+            // A line may discount by percentage or by a specific amount off the
+            // line, so the cap has to be tested against whichever is in play.
+            // A fixed amount is a percentage of that line's gross once it is
+            // priced, and is compared the same way a percentage discount is.
+            $discountAmount = (float) ($item['discount_amount'] ?? 0);
+            $discountPercent = (float) ($item['discount_percent'] ?? 0);
+            $gross = round((float) ($item['qty'] ?? 1) * (float) ($item['unit_price'] ?? 0), 2);
+
+            $effectivePercent = $discountAmount > 0.0
+                ? round($gross > 0.0 ? ($discountAmount / $gross) * 100 : 0.0, 2)
+                : $discountPercent;
+
+            if ($effectivePercent > $maxDiscount) {
                 $message = sprintf(
                     'Discount on line %d (%s%%) exceeds your maximum allowed discount (%s%%).',
                     $index + 1,
-                    $this->trimNumber($discount),
+                    $this->trimNumber($effectivePercent),
                     $this->trimNumber($maxDiscount),
                 );
 
@@ -69,6 +80,7 @@ trait DiscountLimit
                 throw ValidationException::withMessages([
                     'items' => $message,
                     "items.{$index}.discount_percent" => $message,
+                    "items.{$index}.discount_amount" => $message,
                 ]);
             }
         }

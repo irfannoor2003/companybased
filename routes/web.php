@@ -73,6 +73,7 @@ use App\Http\Controllers\Purchasing\SupplierController;
 use App\Http\Controllers\Purchasing\SupplierLedgerController;
 use App\Http\Controllers\Purchasing\SupplierPaymentController;
 use App\Http\Controllers\ReportsController;
+use App\Http\Controllers\RegistersReportController;
 use App\Http\Controllers\Sales\CreditNoteController;
 use App\Http\Controllers\Sales\CustomerController;
 use App\Http\Controllers\Sales\DeliveryNoteController;
@@ -170,6 +171,36 @@ Route::middleware('auth')->group(function () {
         ->middleware('permission:reports.reports.view')
         ->name('reports.inventory');
 
+    /**
+     * The register reports: per-party balance sheets and per-document
+     * registers. Views sit behind the reports hub permission; the CSV exports
+     * additionally require the export one, matching the financial and
+     * inventory reports.
+     */
+    Route::prefix('reports/registers')->name('reports.registers.')->middleware('permission:reports.reports.view')->group(function () {
+        Route::get('/', [RegistersReportController::class, 'index'])->name('index');
+
+        Route::get('/customers', [RegistersReportController::class, 'customers'])->name('customers');
+        Route::get('/customers/export', [RegistersReportController::class, 'customersExport'])
+            ->middleware('permission:reports.reports.export')->name('customers.export');
+
+        Route::get('/suppliers', [RegistersReportController::class, 'suppliers'])->name('suppliers');
+        Route::get('/suppliers/export', [RegistersReportController::class, 'suppliersExport'])
+            ->middleware('permission:reports.reports.export')->name('suppliers.export');
+
+        Route::get('/credit-notes', [RegistersReportController::class, 'creditNotes'])->name('credit_notes');
+        Route::get('/credit-notes/export', [RegistersReportController::class, 'creditNotesExport'])
+            ->middleware('permission:reports.reports.export')->name('credit_notes.export');
+
+        Route::get('/debit-notes', [RegistersReportController::class, 'debitNotes'])->name('debit_notes');
+        Route::get('/debit-notes/export', [RegistersReportController::class, 'debitNotesExport'])
+            ->middleware('permission:reports.reports.export')->name('debit_notes.export');
+
+        Route::get('/delivery-challans', [RegistersReportController::class, 'deliveryChallans'])->name('delivery_challans');
+        Route::get('/delivery-challans/export', [RegistersReportController::class, 'deliveryChallansExport'])
+            ->middleware('permission:reports.reports.export')->name('delivery_challans.export');
+    });
+
     Route::prefix('catalog')->name('catalog.')->middleware('module:catalog')->group(function () {
         Route::get('/products', [ProductController::class, 'index'])
             ->middleware('permission:catalog.products.view')->name('products.index');
@@ -249,6 +280,8 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:sales.customers.edit')->name('customers.edit');
         Route::get('/customers/{customer}/statement/export', [StatementController::class, 'export'])
             ->middleware('permission:sales.statements.export')->name('customers.statement.export');
+        Route::get('/customers/{customer}/statement/pdf', [StatementController::class, 'pdf'])
+            ->middleware('permission:sales.statements.export')->name('customers.statement.pdf');
         Route::get('/customers/{customer}/statement', [StatementController::class, 'show'])
             ->middleware('permission:sales.customers.view')->name('customers.statement');
         Route::post('/customers', [CustomerController::class, 'store'])
@@ -445,6 +478,8 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:sales.statements.view')->name('statements.show');
         Route::get('/statements/{customer}/export', [StatementController::class, 'export'])
             ->middleware('permission:sales.statements.export')->name('statements.export');
+        Route::get('/statements/{customer}/pdf', [StatementController::class, 'pdf'])
+            ->middleware('permission:sales.statements.export')->name('statements.pdf');
 
         Route::get('/reports/salesman', [SalesReportController::class, 'index'])
             ->middleware('permission:sales.reports.view')->name('reports.salesman');
@@ -747,6 +782,8 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:suppliers.supplier_ledger.view')->name('supplier_ledger.show');
         Route::get('/ledger/{supplier}/export', [SupplierLedgerController::class, 'export'])
             ->middleware('permission:suppliers.supplier_ledger.export')->name('supplier_ledger.export');
+        Route::get('/ledger/{supplier}/pdf', [SupplierLedgerController::class, 'pdf'])
+            ->middleware('permission:suppliers.supplier_ledger.export')->name('supplier_ledger.pdf');
 
         Route::get('/{supplier}', [SupplierController::class, 'show'])
             ->middleware('permission:suppliers.suppliers.view')->name('suppliers.show');
@@ -977,6 +1014,14 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:accounting.bills.record_payment')->name('bills.payment');
         Route::patch('/bills/{bill}/status', [BillController::class, 'updateStatus'])
             ->middleware('permission:accounting.bills.edit')->name('bills.status');
+        Route::post('/bills/{bill}/submit', [BillController::class, 'submit'])
+            ->middleware('permission:accounting.bills.edit')->name('bills.submit');
+        Route::post('/bills/{bill}/approve', [BillController::class, 'approve'])
+            ->middleware('permission:accounting.bills.approve')->name('bills.approve');
+        Route::post('/bills/{bill}/reject', [BillController::class, 'reject'])
+            ->middleware('permission:accounting.bills.approve')->name('bills.reject');
+        Route::post('/bills/{bill}/withdraw', [BillController::class, 'withdraw'])
+            ->middleware('permission:accounting.bills.edit')->name('bills.withdraw');
         Route::delete('/bills/{bill}', [BillController::class, 'destroy'])
             ->middleware('permission:accounting.bills.delete')->name('bills.destroy');
 

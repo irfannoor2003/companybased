@@ -83,6 +83,47 @@ class BankLedger
     }
 
     /**
+     * Post an approved expense claim as a withdrawal from the account it was
+     * paid from.
+     *
+     * The claim is the disbursement: approving it is the moment the money is
+     * committed out of the account the claim named, so the withdrawal posts at
+     * approval and is dated THAT day. The bank ledger reports what left an
+     * account and when — and a reimbursement flag set later is paperwork, not a
+     * second payment. A claim that named no account posts nothing here.
+     *
+     * The polymorphic reference is what lets deletion unwind the leg — the same
+     * mechanism payments already use.
+     */
+    public static function postExpenseClaim(Model $claim): void
+    {
+        if (! $claim->bank_account_id) {
+            return;
+        }
+
+        $account = BankAccount::query()->find($claim->bank_account_id);
+
+        if (! $account) {
+            return;
+        }
+
+        BankTransaction::create([
+            'bank_account_id' => $account->id,
+            'number' => next_document_number('bank_transaction', 'BT', BankTransaction::class),
+            'transaction_date' => today()->toDateString(),
+            'type' => 'withdrawal',
+            'amount' => static::amountInAccountCurrency($claim, $account, $claim->effectiveAmount()),
+            'counterparty' => $claim->employee_name ?: 'Employee',
+            'description' => 'Expense claim '.$claim->number
+                .($claim->expenseCategory?->name ? ' ('.$claim->expenseCategory->name.')' : ''),
+            'reference' => $claim->number,
+            'is_reconciled' => false,
+            'reference_type' => $claim->getMorphClass(),
+            'reference_id' => $claim->id,
+        ]);
+    }
+
+    /**
      * Drop the bank leg for a payment. Called before the payment is re-posted on
      * an edit and when it is deleted, so the ledger tracks the payment rather
      * than accumulating a row per edit.
@@ -147,16 +188,17 @@ class BankLedger
      * exact whenever the account is held in the base currency (the common case)
      * and otherwise uses the latest configured reference rate for the account.
      */
-    private static function amountInAccountCurrency(Model $payment, BankAccount $account): string
+    private static function amountInAccountCurrency(Model $payment, BankAccount $account, ?float $amount = null): string
     {
+        $value = $amount ?? (float) $payment->amount;
         $accountCurrency = strtoupper((string) $account->currency);
         $paymentCurrency = strtoupper((string) ($payment->currency ?: $accountCurrency));
 
         if ($paymentCurrency === $accountCurrency) {
-            return (string) $payment->amount;
+            return (string) $value;
         }
 
-        $inBase = to_base_currency($payment->amount, $payment->exchange_rate ?? 1);
+        $inBase = to_base_currency($value, $payment->exchange_rate ?? 1);
 
         if ($accountCurrency === base_currency()) {
             return number_format($inBase, 2, '.', '');

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\DocumentTemplate;
 use App\Models\PurchaseInvoice;
 use App\Models\SalesInvoice;
 use App\Models\SalesPayment;
@@ -216,6 +217,106 @@ class ReceiptPdfConsolidationTest extends TestCase
                 ->output();
 
             $this->assertStringStartsWith('%PDF', $pdf, 'brand colour "'.$value.'" broke rendering');
+        }
+    }
+
+    /**
+     * The receipt follows the receipt TEMPLATE, the way every other printed
+     * document follows its template.
+     *
+     * Before this the receipt hard-coded the company branding colour while
+     * invoices answered the template the operator managed on Settings ->
+     * Templates -- which made restyling a receipt a company-wide change and
+     * left the template row for type `receipt` (which the seeder has always
+     * written) unread. The colour, the operator's stylesheet and the
+     * operator's footer must reach the receipt; the LAYOUT must stay the
+     * receipt's own, because a proof of payment is not an invoice shape.
+     */
+    public function test_a_receipt_follows_the_receipt_templates_colour_css_and_footer(): void
+    {
+        $previous = DocumentTemplate::query()
+            ->where('type', 'receipt')
+            ->where('is_default', true)
+            ->first();
+
+        DocumentTemplate::query()
+            ->where('type', 'receipt')
+            ->update(['is_default' => false]);
+
+        DocumentTemplate::create([
+            'name' => 'Operator receipt '.uniqid(),
+            'type' => 'receipt',
+            'style' => 'rail',
+            'colors' => ['primary' => '#7a0011', 'accent' => '#059669', 'text' => '#1f2937'],
+            'header_html' => null,
+            'footer_html' => '<p>RECEIPT FOOTER MARKER</p>',
+            'css' => '.receipt-op-css { color: #00d; }',
+            'is_default' => true,
+        ]);
+
+        try {
+            $html = ReceiptDocument::salesPayment($this->salesPayment())->render();
+
+            // Company branding is #4f46e5 in this suite; only the template can
+            // put #7a0011 on the page.
+            $this->assertStringContainsString(
+                '#7a0011',
+                $html,
+                'the receipt template colour wins over company branding',
+            );
+
+            $this->assertStringContainsString(
+                'RECEIPT FOOTER MARKER',
+                $html,
+                'the operator footer prints after the built-in one',
+            );
+
+            $this->assertStringContainsString(
+                '.receipt-op-css',
+                $html,
+                'the operator stylesheet is signed into the page',
+            );
+        } finally {
+            DocumentTemplate::query()->where('name', 'like', 'Operator receipt %')->delete();
+
+            $previous?->update(['is_default' => true]);
+        }
+    }
+
+    public function test_a_receipt_template_without_custom_fields_prints_no_custom_box(): void
+    {
+        $previous = DocumentTemplate::query()
+            ->where('type', 'receipt')
+            ->where('is_default', true)
+            ->first();
+
+        DocumentTemplate::query()
+            ->where('type', 'receipt')
+            ->update(['is_default' => false]);
+
+        DocumentTemplate::create([
+            'name' => 'Operator plain receipt '.uniqid(),
+            'type' => 'receipt',
+            'style' => 'rail',
+            'colors' => ['primary' => '#7a0011', 'accent' => '#059669', 'text' => '#1f2937'],
+            'header_html' => null,
+            'footer_html' => null,
+            'css' => null,
+            'is_default' => true,
+        ]);
+
+        try {
+            $html = ReceiptDocument::salesPayment($this->salesPayment())->render();
+
+            $this->assertStringNotContainsString(
+                'custom-html-footer',
+                $html,
+                'a receipt template with no custom footer must not print a footer box',
+            );
+        } finally {
+            DocumentTemplate::query()->where('name', 'like', 'Operator plain receipt %')->delete();
+
+            $previous?->update(['is_default' => true]);
         }
     }
 }

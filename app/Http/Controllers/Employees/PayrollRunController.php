@@ -12,6 +12,7 @@ use App\Services\PayrollService;
 use App\Support\ExportsCsv;
 use App\Support\ExportsJson;
 use App\Support\Money;
+use App\Support\PdfLayout;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -166,10 +167,20 @@ class PayrollRunController extends Controller
         $payslip->load(['employee.department']);
         $run->loadMissing('preparer');
 
+        // The payslip borrows the INVOICE design's colour and custom stylesheet.
+        // It has no template row of its own -- an internal document the employee
+        // holds, not something the customer reads -- but a business printing the
+        // suite wants one consistent brand across payslips and invoices, and a
+        // second settings screen for payslips alone is a screen nobody would
+        // ever find. Template colour first, company branding as fallback, is the
+        // same order the frame and the receipts apply.
+        $invoiceLayout = PdfLayout::forType('invoice');
+
         $html = view('employees.payroll.payslip-pdf', [
             'run' => $run,
             'payslip' => $payslip,
-            'brandColor' => settings('branding.primary_color', '#4f46e5'),
+            'brandColor' => $invoiceLayout->color('primary', settings('branding.primary_color', '#4f46e5')),
+            'customCss' => $invoiceLayout->templateCss(),
 
             // An unapproved or draft run is not a final statement of pay, and the
             // document says so on its face rather than implying otherwise.

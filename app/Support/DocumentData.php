@@ -341,6 +341,7 @@ class DocumentData
                 (float) $item->unit_price,
                 (float) ($item->discount_percent ?? 0),
                 (float) ($item->tax_percent ?? 0),
+                (float) ($item->discount_amount ?? 0),
             )['line_subtotal'];
         }
 
@@ -437,6 +438,7 @@ class DocumentData
                     (float) $item->unit_price,
                     (float) ($item->discount_percent ?? 0),
                     (float) ($item->tax_percent ?? 0),
+                    (float) ($item->discount_amount ?? 0),
                 );
 
                 $rows[] = [

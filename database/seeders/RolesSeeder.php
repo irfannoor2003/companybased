@@ -182,6 +182,7 @@ class RolesSeeder extends Seeder
             'accounting.bills.delete',
             'accounting.bills.export',
             'accounting.bills.record_payment',
+            'accounting.bills.approve',
             'accounting.tax_returns.view',
             'accounting.tax_returns.create',
             'accounting.tax_returns.edit',

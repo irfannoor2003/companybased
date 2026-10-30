@@ -11,7 +11,7 @@ class SalesInvoiceItem extends Model
 
     protected $fillable = [
         'invoice_id', 'product_id', 'description', 'qty', 'unit_price', 'unit_cost',
-        'discount_percent', 'tax_percent', 'line_total',
+        'discount_percent', 'discount_amount', 'tax_percent', 'line_total',
     ];
 
     protected function casts(): array
@@ -21,6 +21,7 @@ class SalesInvoiceItem extends Model
             'unit_price' => 'decimal:2',
             'unit_cost' => 'decimal:2',
             'discount_percent' => 'decimal:2',
+            'discount_amount' => 'decimal:2',
             'tax_percent' => 'decimal:2',
             'line_total' => 'decimal:2',
         ];

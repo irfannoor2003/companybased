@@ -27,11 +27,11 @@
                     <x-input name="search" label="Search" placeholder="Number, employee, merchant…" leadingIcon="search"
                         value="{{ request('search') }}" size="sm" />
                 </div>
-                <div class="w-40">
-                    <x-select name="type" label="Type" size="sm">
-                        <option value="">Any type</option>
-                        @foreach (\App\Models\ExpenseClaim::typeOptions() as $type)
-                            <option value="{{ $type }}" @selected(request('type') === $type)>{{ ucfirst($type) }}</option>
+                <div class="w-44">
+                    <x-select name="category" label="Category" size="sm">
+                        <option value="">Any category</option>
+                        @foreach ($categories as $category)
+                            <option value="{{ $category->id }}" @selected(request('category') == $category->id)>{{ $category->name }}</option>
                         @endforeach
                     </x-select>
                 </div>
@@ -51,7 +51,7 @@
                 </div>
                 <div class="flex gap-2">
                     <x-button type="submit" size="sm" icon="filter">Filter</x-button>
-                    @if (request()->hasAny(['search', 'type', 'status', 'from', 'to']))
+                    @if (request()->hasAny(['search', 'category', 'status', 'from', 'to']))
                         <x-button href="{{ route('accounting.expense_claims.index') }}" variant="ghost" size="sm">Clear</x-button>
                     @endif
                 </div>
@@ -67,7 +67,7 @@
                                 <th>Number</th>
                                 <th>Date</th>
                                 <th>Employee</th>
-                                <th>Type</th>
+                                <th>Category</th>
                                 <th>Merchant</th>
                                 <th>Status</th>
                                 <th class="text-right">Amount</th>
@@ -84,7 +84,7 @@
                                     </td>
                                     <td class="text-ink-soft">{{ $claim->expense_date->format('Y-m-d') }}</td>
                                     <td class="text-ink">{{ $claim->employee_name }}</td>
-                                    <td><span class="text-ink-soft">{{ ucfirst($claim->expense_type) }}</span></td>
+                                    <td><span class="text-ink-soft">{{ $claim->expenseCategory?->name ?? ucfirst($claim->expense_type) }}</span></td>
                                     <td class="text-ink-soft">{{ $claim->merchant ?: '—' }}</td>
                                     <td><x-accounting.status-badge :status="$claim->status" /></td>
                                     <td class="text-right font-medium text-ink">{{ money($claim->amount, $claim->currency) }}</td>

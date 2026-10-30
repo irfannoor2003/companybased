@@ -2,10 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Models\DocumentTemplate;
 use App\Models\SalesInvoice;
 use App\Models\SalesInvoiceItem;
 use App\Support\DocumentData;
 use App\Support\InvoiceTemplate;
+use App\Support\PdfLayout;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\SeedsDatabase;
 use Tests\TestCase;
@@ -246,5 +248,114 @@ class InvoicePdfTemplateTest extends TestCase
         }
 
         $this->assertStringContainsString('<!DOCTYPE html>', $html);
+    }
+
+    /**
+     * The three operator-authored fields the template editor exposes.
+     *
+     * They used to be an usaved lie: the settings form asked for custom header
+     * HTML, custom footer HTML and custom CSS, the bytes were stored, and the
+     * design printed none of them. This document and its assertions are the
+     * contract that they now print.
+     */
+    public function test_the_operators_custom_html_and_css_reach_the_document(): void
+    {
+        $previous = DocumentTemplate::query()
+            ->where('type', 'invoice')
+            ->where('is_default', true)
+            ->first();
+
+        // Demote, don't delete: the seeded default belongs to the deployment,
+        // and the render resolution takes one default per type.
+        DocumentTemplate::query()
+            ->where('type', 'invoice')
+            ->update(['is_default' => false]);
+
+        DocumentTemplate::create([
+            'name' => 'Operator custom '.uniqid(),
+            'type' => 'invoice',
+            'style' => 'modern',
+            'layout' => ['style' => 'modern', 'blocks' => PdfLayout::DEFAULT_BLOCK_ORDER],
+            'colors' => ['primary' => '#123456', 'accent' => '#654321', 'text' => '#111111'],
+            'header_html' => '<p>OPERATOR HEADER MARKER</p>',
+            'footer_html' => '<p>OPERATOR FOOTER MARKER</p>',
+            'css' => '.custom-html p { color: #ff00ff; }',
+            'is_default' => true,
+        ]);
+
+        try {
+            $html = view('documents.pdf', DocumentData::build($this->invoice()))->render();
+
+            $this->assertStringContainsString(
+                'OPERATOR HEADER MARKER',
+                $html,
+                'the custom header HTML must print at the top of the document',
+            );
+
+            $this->assertStringContainsString(
+                'OPERATOR FOOTER MARKER',
+                $html,
+                'the custom footer HTML must print after the built-in footer',
+            );
+
+            $this->assertStringContainsString(
+                '.custom-html p',
+                $html,
+                'the custom CSS must be signed into the page so it can override the design',
+            );
+        } finally {
+            // Whatever the assertions did, the seeded default is restored and the
+            // test row is gone -- the suite runs on the same database.
+            DocumentTemplate::query()->where('name', 'like', 'Operator custom %')->delete();
+
+            $previous?->update(['is_default' => true]);
+        }
+    }
+
+    public function test_a_template_without_custom_html_prints_no_custom_boxes(): void
+    {
+        $previous = DocumentTemplate::query()
+            ->where('type', 'invoice')
+            ->where('is_default', true)
+            ->first();
+
+        DocumentTemplate::query()
+            ->where('type', 'invoice')
+            ->update(['is_default' => false]);
+
+        DocumentTemplate::create([
+            'name' => 'Operator plain '.uniqid(),
+            'type' => 'invoice',
+            'style' => 'rail',
+            'layout' => ['style' => 'rail', 'blocks' => PdfLayout::DEFAULT_BLOCK_ORDER],
+            'colors' => ['primary' => '#123456', 'accent' => '#654321', 'text' => '#111111'],
+            'header_html' => null,
+            'footer_html' => null,
+            'css' => null,
+            'is_default' => true,
+        ]);
+
+        try {
+            $html = view('documents.pdf', DocumentData::build($this->invoice()))->render();
+
+            // The base stylesheet always declares the custom-html hooks, so the
+            // thing to assert is the WRAPPER: no custom header and no custom
+            // footer div may print for a template that saved neither.
+            $this->assertStringNotContainsString(
+                'custom-html-header',
+                $html,
+                'a template with no custom header must not print a header box',
+            );
+
+            $this->assertStringNotContainsString(
+                'custom-html-footer',
+                $html,
+                'a template with no custom footer must not print a footer box',
+            );
+        } finally {
+            DocumentTemplate::query()->where('name', 'like', 'Operator plain %')->delete();
+
+            $previous?->update(['is_default' => true]);
+        }
     }
 }

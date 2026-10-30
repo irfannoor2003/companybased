@@ -86,6 +86,7 @@
                 @endif
                 @if (auth()->user()->can('sales.statements.export'))
                     <div class="mt-4">
+                        <x-button href="{{ route('sales.customers.statement.pdf', $customer) }}" variant="secondary" size="sm" icon="printer">Statement PDF</x-button>
                         <x-button href="{{ route('sales.customers.statement.export', $customer) }}" variant="secondary" size="sm" icon="export">Export statement</x-button>
                     </div>
                 @endif
