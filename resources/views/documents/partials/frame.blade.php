@@ -573,7 +573,7 @@
                             <table class="rail-logo-panel">
                                 <tr>
                                     <td>
-                                        <img src="{{ company_logo_path() }}" alt="{{ company_name() }}" style="width: 26mm;">
+                                        <img src="{{ company_logo_src() }}" alt="{{ company_name() }}" style="width: 26mm;">
                                     </td>
                                 </tr>
                             </table>
@@ -634,7 +634,7 @@
                     <td>
                         @if (company_logo_path())
                             <div class="masthead-logo-panel">
-                                <img src="{{ company_logo_path() }}" alt="{{ company_name() }}" style="width: 22mm;">
+                                <img src="{{ company_logo_src() }}" alt="{{ company_name() }}" style="width: 22mm;">
                             </div>
                         @endif
                         <div class="masthead-name">{{ company_name() }}</div>

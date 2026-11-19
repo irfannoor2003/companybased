@@ -153,9 +153,39 @@ class InvoicePdfDesignTest extends TestCase
         return Pdf::loadHTML($this->html($invoice, $template))->setPaper('a4', 'portrait')->setOptions(pdf_options())->output();
     }
 
+    private function htmlWithTemplate(string $slug): string
+    {
+        $data = DocumentData::build($this->invoice());
+        $data['layout'] = PdfLayout::forTemplate(
+            DocumentTemplate::where('slug', $slug)->firstOrFail()
+        );
+
+        return view('documents.pdf', $data)->render();
+    }
+
     private function classicTemplate(): DocumentTemplate
     {
         return DocumentTemplate::where('slug', 'classic-invoice')->firstOrFail();
+    }
+
+    /**
+     * The identity and the grand total belong on the page once each. A signature
+     * block used to reprint the company name, and the headline figure duplicated
+     * the totals row, so a customer saw two "Totals" with no way to choose.
+     */
+    public function test_no_block_repeats_the_company_name_or_grand_total(): void
+    {
+        $modern = $this->htmlWithTemplate('modern-invoice');
+
+        $this->assertSame(1, substr_count($modern, 'class="masthead-name"'));
+        $this->assertStringNotContainsString('class="sign-name"', $modern);
+        $this->assertStringNotContainsString('class="doc-due"', $modern);
+        $this->assertSame(1, substr_count($modern, '<td class="label">Total</td>'));
+
+        $sigma = $this->htmlWithTemplate('sigmashop-invoice');
+
+        $this->assertSame(1, substr_count($sigma, 'class="sigma-chip"'));
+        $this->assertStringNotContainsString('Thank you for choosing', $sigma);
     }
 
     public function test_a_realistic_invoice_renders_to_a_valid_pdf(): void

@@ -33,6 +33,13 @@ return [
     'fallback' => (bool) env('MYSQL_BINARY_FALLBACK', true),
 
     /*
+     * Force the pure-PHP (PDO) dump/restore even when the host can spawn
+     * processes. Useful where proc_open exists but no MySQL client binary does,
+     * and for verifying the fallback path on a development machine.
+     */
+    'force_php' => (bool) env('BACKUP_FORCE_PHP', false),
+
+    /*
     | How many .sql dumps to keep in the backups disk root. After each
     | successful backup the oldest are deleted, so the directory cannot grow
     | without bound on a long-lived deployment.

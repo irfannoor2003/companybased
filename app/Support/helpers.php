@@ -65,6 +65,50 @@ if (! function_exists('company_logo_path')) {
     }
 }
 
+if (! function_exists('company_logo_src')) {
+    /**
+     * A logo <img src> that works in BOTH the browser preview and DomPDF.
+     *
+     * `company_logo_path()` returns a server filesystem path: DomPDF can read it
+     * (its chroot allows storage/app/public), but a browser cannot -- it asks the
+     * web server for `/home/.../storage/...` and gets a 404. Settings -> Templates
+     * previews `documents.pdf` directly in the browser, so the logo vanished there
+     * while the sidebar (which uses Storage::url()) showed it fine.
+     *
+     * A data URI needs no symlink, no public URL and no chroot, so it works in
+     * every consumer of the shared template.
+     */
+    function company_logo_src(): ?string
+    {
+        $path = company_logo_path();
+
+        if ($path === null) {
+            return null;
+        }
+
+        $contents = @file_get_contents($path);
+
+        if ($contents === false) {
+            return null;
+        }
+
+        $mime = function_exists('mime_content_type') ? (mime_content_type($path) ?: null) : null;
+
+        if ($mime === null) {
+            $mime = match (strtolower((string) pathinfo($path, PATHINFO_EXTENSION))) {
+                'png' => 'image/png',
+                'jpg', 'jpeg' => 'image/jpeg',
+                'gif' => 'image/gif',
+                'svg' => 'image/svg+xml',
+                'webp' => 'image/webp',
+                default => 'image/png',
+            };
+        }
+
+        return 'data:'.$mime.';base64,'.base64_encode($contents);
+    }
+}
+
 if (! function_exists('pdf_options')) {
     /**
      * The DomPDF options every render in this application should use.

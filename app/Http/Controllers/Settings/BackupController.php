@@ -174,6 +174,29 @@ class BackupController extends Controller
     }
 
     /**
+     * Whether this host allows spawning child processes.
+     *
+     * `proc_open` is the function Symfony Process needs. On locked-down shared
+     * hosting it is either absent or listed in disable_functions, and every
+     * attempt to run mysqldump throws before the binary is touched. Detecting
+     * that once here lets both dump and restore fall back to the PDO path.
+     */
+    protected function canSpawnProcesses(): bool
+    {
+        if (config('backups.force_php')) {
+            return false;
+        }
+
+        if (! function_exists('proc_open')) {
+            return false;
+        }
+
+        $disabled = array_map('trim', explode(',', (string) ini_get('disable_functions')));
+
+        return ! in_array('proc_open', $disabled, true);
+    }
+
+    /**
      * The active connection's settings, or null when backups cannot be taken.
      *
      * @return array<string, mixed>|null
@@ -302,6 +325,15 @@ class BackupController extends Controller
      */
     protected function runDump(array $connection, string $target): void
     {
+        // Shared hosts frequently disable proc_open(), which makes Symfony
+        // Process -- and every client binary -- unusable. Dump through PDO
+        // instead so the button keeps working on those deployments.
+        if (! $this->canSpawnProcesses()) {
+            (new \App\Support\MySqlDump)->dump($target);
+
+            return;
+        }
+
         $binary = $this->resolveDbBinary('mysqldump');
 
         $command = array_values(array_filter([
@@ -370,6 +402,20 @@ class BackupController extends Controller
      */
     protected function runRestore(array $connection, string $source): void
     {
+        if (! $this->canSpawnProcesses()) {
+            $import = DumpSanitizer::sanitizeFile($source);
+
+            try {
+                (new \App\Support\MySqlDump)->restore($import);
+            } finally {
+                if ($import !== $source) {
+                    @unlink($import);
+                }
+            }
+
+            return;
+        }
+
         $binary = $this->resolveDbBinary('mysql');
 
         $command = array_values(array_filter([

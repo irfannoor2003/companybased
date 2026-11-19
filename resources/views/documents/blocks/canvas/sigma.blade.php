@@ -20,12 +20,13 @@
         <tr>
             <td style="width: 58%; vertical-align: middle;">
                 @if (company_logo_path())
-                    <img src="{{ company_logo_path() }}" alt="{{ $sigmaCompany }}" style="max-width: 32mm; max-height: 16mm;">
+                    <img src="{{ company_logo_src() }}" alt="{{ $sigmaCompany }}" style="max-width: 32mm; max-height: 16mm;">
                 @endif
                 <div class="sigma-chip" style="background-color: {{ $sigmaBrand }}; color: #ffffff; padding: 3px 8px; font-size: 8px; font-weight: bold; letter-spacing: 0.1em; text-transform: uppercase;">{{ $sigmaCompany }}</div>
             </td>
             <td style="width: 42%; vertical-align: middle; text-align: right; font-size: 10px; line-height: 1.5; color: #222;">
-                <strong style="font-size: 12px;">{{ $sigmaCompany }}</strong><br>
+                {{-- The chip on the left already names the company; repeat only its
+                     contact details here, not its name a second time. --}}
                 @if (settings('company.address')) {!! nl2br(e(settings('company.address'))) !!}<br> @endif
                 @if (settings('company.phone')) Tel: {{ settings('company.phone') }}<br> @endif
                 @if (settings('company.email')) {{ settings('company.email') }}<br> @endif
@@ -178,7 +179,6 @@
     @endif
 
     <div class="sigma-footer" style="margin-top: 10mm; text-align: center; font-size: 9px; color: #374151;">
-        <strong>Thank you for choosing {{ $sigmaCompany }}!</strong>
-        <div style="margin-top: 2px;">{{ $sigmaCompany }}</div>
+        <strong>Thank you for your business!</strong>
     </div>
 </div>

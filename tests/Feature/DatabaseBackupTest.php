@@ -411,6 +411,60 @@ class DatabaseBackupTest extends TestCase
         );
     }
 
+    public function test_a_backup_works_without_process_spawning(): void
+    {
+        // Shared hosts disable proc_open. Force the PDO path and prove the
+        // button still produces a real, restorable-looking dump.
+        config()->set('backups.force_php', true);
+
+        $this->actingAs($this->superAdmin())
+            ->post('/settings/backups')
+            ->assertRedirect()
+            ->assertSessionHas('toasts');
+
+        $files = $this->dumpNames();
+
+        $this->assertCount(1, $files, 'the PDO path should have written one dump');
+
+        $contents = Storage::disk('backups')->get($files[0]);
+
+        $this->assertStringContainsString('CREATE TABLE', $contents);
+        $this->assertStringContainsString('INSERT INTO', $contents);
+        $this->assertStringContainsString('users', $contents);
+        $this->assertGreaterThan(1024, strlen($contents));
+        $this->assertSame([], Storage::disk('backups')->allFiles('tmp'));
+    }
+
+    public function test_the_php_sql_reader_keeps_compound_statements_intact(): void
+    {
+        $sql = <<<'SQL'
+-- a comment containing a semicolon; ignore me
+SET FOREIGN_KEY_CHECKS=0;
+INSERT INTO `t` (`note`) VALUES ('a;b'), ('it''s; fine'), ('back\slash;');
+DELIMITER $$
+CREATE TRIGGER `trg` AFTER INSERT ON `t` FOR EACH ROW BEGIN
+  SET @x = 'one; two';
+  SET @y = 'three; four';
+END$$
+DELIMITER ;
+SET FOREIGN_KEY_CHECKS=1;
+SQL;
+
+        $path = tempnam(sys_get_temp_dir(), 'sql').'.sql';
+        file_put_contents($path, $sql);
+
+        try {
+            $statements = iterator_to_array((new \App\Support\MySqlDump)->statements($path));
+        } finally {
+            @unlink($path);
+        }
+
+        $this->assertCount(4, $statements, 'DELIMITER lines and comments are not statements');
+        $this->assertStringContainsString("('a;b')", $statements[1]);
+        $this->assertStringContainsString("SET @y = 'three; four';", $statements[2]);
+        $this->assertStringContainsString('END', $statements[2]);
+    }
+
     /**
      * A controller with the protected helpers exposed, so retention and the
      * connection guard can be asserted directly instead of through a request

@@ -10,7 +10,11 @@
     <tr>
         <td class="mark">
             <div class="sign-rule"></div>
-            <div class="sign-name">{{ company_name() }}</div>
+            {{--
+                The company name is NOT repeated here: the letterhead above has
+                already named the issuer, and a second copy read as a duplicate
+                rather than as a signature. The line is for the signatory's mark.
+            --}}
             <div class="sign-role">Authorised signature</div>
         </td>
         <td></td>

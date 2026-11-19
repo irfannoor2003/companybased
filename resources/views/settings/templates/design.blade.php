@@ -120,7 +120,15 @@
              `on()` and `position()` are functions rather than derived state so there
              is one definition of "is this printed" -- the row's faded appearance, its
              checkbox and the hidden input that actually posts the block all read it. --}}
-        <div class="space-y-1" x-data='{
+        {{--
+            The component used to live inside a single-quoted x-data attribute,
+            but its own JavaScript strings ('text/plain', 'opacity-40', ...) closed
+            that attribute early and the rest printed as text on the page. Register
+            it with Alpine.data in a real script block: no attribute quoting at all.
+        --}}
+        <script>
+            document.addEventListener('alpine:init', () => {
+                Alpine.data('blockBuilder', () => ({
             state: @js($blockState),
 
             // The block currently being dragged, or null. Native HTML5 drag state
@@ -291,8 +299,12 @@
 
             last(block) {
                 return this.state.all.indexOf(block) === this.state.all.length - 1;
-            },
-        }'>
+            }
+                }));
+            });
+        </script>
+
+        <div class="space-y-1" x-data="blockBuilder()">
 
             @foreach (array_keys($orderedBlocks) as $block)
                 @php($on = (bool) $orderedBlocks[$block])

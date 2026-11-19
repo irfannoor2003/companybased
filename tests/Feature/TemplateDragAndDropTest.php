@@ -48,6 +48,13 @@ class TemplateDragAndDropTest extends TestCase
         $this->assertStringContainsString('reorder(source, target, after)', $html);
         $this->assertStringContainsString('placeRow(source, target, after)', $html);
         $this->assertStringContainsString('insertBefore(sourceRow', $html);
+
+        // The component must be registered in a real script block. It used to sit
+        // in a single-quoted x-data attribute, whose own JS strings closed the
+        // attribute early and printed the component as text on the page.
+        $this->assertStringContainsString("Alpine.data('blockBuilder'", $html);
+        $this->assertStringContainsString('x-data="blockBuilder()"', $html);
+        $this->assertStringNotContainsString("x-data='{", $html);
     }
 
     public function test_the_drop_target_highlight_is_styled(): void

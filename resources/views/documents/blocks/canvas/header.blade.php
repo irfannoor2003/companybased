@@ -64,8 +64,17 @@
     `DocumentData::make()`; everything else keeps the invoice's behaviour.
 --}}
 <div class="doc-date">{{ $dateLabel ?? 'Date' }}: {{ $dateValue ?? ($doc?->issue_date?->format('d/m/Y') ?: '-') }}</div>
-<div class="doc-due-label">{{ $headlineLabel ?? ($hasPricing ? 'Total' : 'Items') }}</div>
-<div class="doc-due">{{ $headlineValue ?? ($hasPricing ? money((float) ($doc?->total ?: 0), $currency) : count($rows)) }}</div>
+{{--
+    The headline figure is the FALLBACK for documents with no totals table to
+    carry it. Printing it as well as the totals row put two large "Total"
+    figures on the same invoice, with no way to tell which one to trust. A
+    statement's closing balance and a payslip's net pay are repeated by their
+    own totals/body for the same reason. Receipts have their own amount panel.
+--}}
+@if (empty($receipt) && (! $layout->has('totals') || ! ($hasPricing ?? false)))
+    <div class="doc-due-label">{{ $headlineLabel ?? ($hasPricing ? 'Total' : 'Items') }}</div>
+    <div class="doc-due">{{ $headlineValue ?? ($hasPricing ? money((float) ($doc?->total ?: 0), $currency) : count($rows)) }}</div>
+@endif
 
 @if (filled($referenceNumber) && ! in_array($pdfLayoutStyle, [\App\Support\PdfLayout::STYLE_CLASSIC, \App\Support\PdfLayout::STYLE_MINIMAL], true))
     <div class="doc-number">Your ref: {{ $referenceNumber }}</div>
