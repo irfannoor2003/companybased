@@ -58,6 +58,23 @@ class ReceiptController extends Controller
     {
         $sale->load(['shift.opener', 'paymentMethod', 'items']);
 
+        /**
+         * `?design=document` is the filing copy: the same sale through the shared
+         * invoice-style frame. The default (including ?size=a4) stays the thermal
+         * till receipt -- an 80mm roll cannot print an A4 document, so the two
+         * designs are a choice, not a replacement.
+         */
+        if ($request->query('design') === 'document') {
+            $this->preparePdf();
+
+            $html = view('documents.pdf', \App\Support\PosDocument::payload($sale))->render();
+
+            return Pdf::loadHTML($html)
+                ->setPaper('a4', 'portrait')
+                ->setOptions(pdf_options())
+                ->download($this->filename($sale, true));
+        }
+
         $a4 = $request->query('size') === 'a4';
 
         $html = view('pos.receipts.print', ['sale' => $sale, 'narrow' => ! $a4])->render();

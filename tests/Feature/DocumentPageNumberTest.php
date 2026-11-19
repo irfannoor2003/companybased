@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\SalesQuote;
 use App\Support\DocumentData;
+use App\Support\PdfLayout;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Tests\SeedsDatabase;
 use Tests\Support\PdfText;
@@ -38,7 +39,7 @@ class DocumentPageNumberTest extends TestCase
     /**
      * Render a quote with $lineCount lines and return the raw PDF.
      */
-    private function renderQuote(int $lineCount): string
+    private function renderQuote(int $lineCount, bool $rail = false): string
     {
         $customer = $this->customer('Northwind Traders Ltd', 'ap@northwind.test');
 
@@ -67,7 +68,16 @@ class DocumentPageNumberTest extends TestCase
             ]);
         }
 
-        $html = view('documents.pdf', DocumentData::build($quote))->render();
+        $data = DocumentData::build($quote);
+
+        if ($rail) {
+            // The rail assertion is about the fixed rail repeating on every page.
+            // SigmaShop is now the default quote design and has no rail, so name
+            // the rail layout explicitly rather than depending on the default.
+            $data['layout'] = new PdfLayout(PdfLayout::STYLE_RAIL);
+        }
+
+        $html = view('documents.pdf', $data)->render();
 
         return Pdf::loadHTML($html)
             ->setPaper('a4', 'portrait')
@@ -193,7 +203,7 @@ class DocumentPageNumberTest extends TestCase
      */
     public function test_adding_page_numbers_does_not_disturb_the_rail_or_the_page_count(): void
     {
-        $pages = PdfText::pages($this->renderQuote(80));
+        $pages = PdfText::pages($this->renderQuote(80, rail: true));
 
         foreach ($pages as $index => $pageText) {
             $this->assertStringContainsString(

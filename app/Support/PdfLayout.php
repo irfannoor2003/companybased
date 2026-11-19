@@ -53,12 +53,20 @@ class PdfLayout
 
     public const STYLE_BANDED = 'banded';
 
+    /** Ported from the inventory project's "Modern" design family. */
+    public const STYLE_MODERN_PRO = 'modern_pro';
+
+    /** Ported from the inventory project's "SigmaShop Style" design family. */
+    public const STYLE_SIGMASHOP = 'sigmashop';
+
     public const STYLES = [
         self::STYLE_RAIL => 'Rail',
         self::STYLE_CLASSIC => 'Classic',
         self::STYLE_MODERN => 'Modern',
         self::STYLE_MINIMAL => 'Minimal',
         self::STYLE_BANDED => 'Banded',
+        self::STYLE_MODERN_PRO => 'Modern Pro',
+        self::STYLE_SIGMASHOP => 'SigmaShop',
     ];
 
     /**
@@ -75,6 +83,8 @@ class PdfLayout
         self::STYLE_MODERN => 'A full-width brand masthead across the top of every page.',
         self::STYLE_MINIMAL => 'No fills at all. Hairline rules, white space and ink only - pick this when your brand colour cannot survive being flooded across a page.',
         self::STYLE_BANDED => 'Tinted table header, zebra rows and a filled total bar. The most modern of the five.',
+        self::STYLE_MODERN_PRO => 'Modern design ported from the inventory project: pill document title, card sections and a coloured grand total.',
+        self::STYLE_SIGMASHOP => 'Flat design ported from the inventory project: brand-coloured table header, three-column details and a right-floated totals table.',
     ];
 
     /**
@@ -100,8 +110,42 @@ class PdfLayout
         'title' => ['label' => 'Document kind and number', 'removable' => true],
         'party' => ['label' => 'Bill to / Supplier block', 'removable' => true],
         'meta' => ['label' => 'Dates and document details', 'removable' => true],
+
+        /*
+         * A document with a shape of its own -- currently the payslip -- renders
+         * through a dedicated body view inside this frame. It is a no-op for every
+         * other document, so it can sit in every template's order harmlessly.
+         */
+        'body' => ['label' => 'Document body', 'removable' => true],
+
         'items' => ['label' => 'Line items table', 'removable' => true],
+
+        /*
+         * A generic table for documents that are neither invoices nor receipts:
+         * statements, list exports and ledger-style reports. Same canvas, same
+         * style, same operator header/footer -- just rows instead of products.
+         */
+        'table' => ['label' => 'Data table', 'removable' => true],
+
         'totals' => ['label' => 'Totals and settlement', 'removable' => true],
+
+        /*
+         * A money-received / money-paid document has no line items, subtotal or
+         * tax. Its one figure is the amount that changed hands, printed as a
+         * panel the same way an invoice prints its totals. The partial is a no-op
+         * for a document without a receipt payload, so this block is harmless on
+         * an invoice -- it simply has nothing to say there.
+         */
+        'receipt' => ['label' => 'Payment amount', 'removable' => true],
+
+        /*
+         * The full SigmaShop-style document body ported from the inventory
+         * project. A template using only this block renders the real flat
+         * layout (brand chip, 3-column details, coloured items table, right
+         * totals, footer) instead of the standard canvas blocks.
+         */
+        'sigma' => ['label' => 'SigmaShop document', 'removable' => true],
+
         'bank' => ['label' => 'Bank details', 'removable' => true],
         'terms' => ['label' => 'Payment terms', 'removable' => true],
         'notes' => ['label' => 'Notes', 'removable' => true],
@@ -129,7 +173,7 @@ class PdfLayout
      * them after the notes buries the only two fields the customer acts on.
      */
     public const DEFAULT_BLOCK_ORDER = [
-        'header', 'title', 'party', 'meta', 'items', 'totals', 'bank', 'terms', 'notes', 'signature', 'footer',
+        'header', 'title', 'party', 'meta', 'body', 'items', 'table', 'totals', 'receipt', 'bank', 'terms', 'notes', 'signature', 'footer',
     ];
 
     private string $style;
@@ -199,6 +243,18 @@ class PdfLayout
         'recurring_invoice' => 'invoice',
         'purchase_quote' => 'purchase_order',
         'debit_note' => 'purchase_invoice',
+
+        /*
+         * Statements, payslips and list exports have no template row of their own.
+         * They borrow the invoice template so restyling an invoice restyles them too
+         * -- the same reason recurring invoices and purchase quotes borrow one.
+         * A POS receipt borrows the receipt template.
+         */
+        'statement' => 'invoice',
+        'supplier_statement' => 'invoice',
+        'payslip' => 'invoice',
+        'export' => 'invoice',
+        'pos_receipt' => 'receipt',
     ];
 
     /**

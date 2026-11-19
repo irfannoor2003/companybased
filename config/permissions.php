@@ -63,6 +63,7 @@ return [
                 'permissions' => ['view', 'manage'],
                 'theme' => ['view', 'manage'],
                 'templates' => ['view', 'manage'],
+                'sidebar' => ['view', 'manage'],
                 'currencies' => ['view', 'manage'],
                 'base_currency' => ['view', 'manage'],
                 'payment_terms' => ['view', 'manage'],

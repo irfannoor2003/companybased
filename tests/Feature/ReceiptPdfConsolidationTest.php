@@ -180,16 +180,20 @@ class ReceiptPdfConsolidationTest extends TestCase
      */
     public function test_all_receipts_share_one_template(): void
     {
-        $this->assertFileExists(resource_path('views/partials/pdf/receipt.blade.php'));
+        // The three receipts now render from the SAME document template as the
+        // invoice, not from a bespoke receipt template of their own.
+        $this->assertFileExists(resource_path('views/documents/pdf.blade.php'));
+        $this->assertFileExists(resource_path('views/documents/blocks/canvas/receipt.blade.php'));
 
         foreach ([
+            'partials/pdf/receipt.blade.php',
             'sales/payments/pdf.blade.php',
             'suppliers/supplier_payments/pdf.blade.php',
             'sales/withholding_tax_receipts/pdf.blade.php',
         ] as $obsolete) {
             $this->assertFileDoesNotExist(
                 resource_path('views/'.$obsolete),
-                'a duplicated receipt template is back; the three designs will drift again',
+                'a bespoke receipt template is back; the three designs will drift again',
             );
         }
     }

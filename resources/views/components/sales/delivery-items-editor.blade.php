@@ -32,7 +32,10 @@
         </p>
     </template>
 
-    <div class="space-y-2">
+    {{-- Same horizontal-scroll rule as the priced line-item editor, so a long
+         description stays readable on a narrow screen. --}}
+    <div class="document-form-scroll">
+    <div class="document-form-inner space-y-2">
         <template x-for="(item, i) in items" :key="i">
             <div class="grid grid-cols-1 gap-2 rounded-lg border border-line bg-surface-muted/40 p-3 sm:grid-cols-[1fr_1.5fr_120px_40px]">
                 <select :name="'items[' + i + '][product_id]'" x-model="item.product_id" x-on:change="onProductChange(i)" class="select-input">
@@ -41,13 +44,14 @@
                         <option value="{{ $product->id }}">{{ $product->name }}{{ $product->sku ? ' ('.$product->sku.')' : '' }}</option>
                     @endforeach
                 </select>
-                <input type="text" :name="'items[' + i + '][description]'" x-model="item.description" class="input" placeholder="Description…">
+                <textarea rows="2" :name="'items[' + i + '][description]'" x-model="item.description" class="input break-all leading-snug" placeholder="Description…"></textarea>
                 <input type="number" step="any" min="0" :name="'items[' + i + '][qty]'" x-model="item.qty" class="input" placeholder="Qty">
-                <button type="button" x-on:click="removeRow(i)" class="btn-ghost btn-icon btn-sm self-center text-rose-500 dark:text-rose-400" title="Remove">
+                <button type="button" x-on:click="removeRow(i)" class="btn-ghost btn-icon btn-sm self-start text-rose-500 dark:text-rose-400" title="Remove">
                     <x-icon name="trash" class="size-4" />
                 </button>
             </div>
         </template>
+    </div>
     </div>
 
     @error('items')

@@ -218,12 +218,48 @@
         @apply mb-1.5 block text-sm font-medium text-ink-soft;
     }
 
+    /* Line-item editors use `field-label` for the small captions above each
+       input. It was used 26 times but defined nowhere, so the captions rendered
+       as unstyled inline text and the rows misaligned. Same rhythm as .label. */
+    .field-label {
+        @apply mb-1 block text-xs font-medium text-ink-soft;
+    }
+
     .badge {
         @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap;
     }
 
+    /* The one piece of state the template block editor needs from its own CSS:
+       which row a dragged block would land on right now. */
+    .is-drop-target {
+        @apply border-primary bg-primary/5 ring-2 ring-primary/20;
+    }
+
     .table-wrap {
         @apply overflow-x-auto rounded-xl border border-line;
+    }
+
+    /*
+     * Wide document entry.
+     *
+     * A line of products has seven real fields, and a description can be a
+     * sentence. Squeezing that into the width of a laptop viewport is what makes
+     * the first half of a typed value disappear. The row grid therefore has a
+     * floor width, and its wrapper scrolls horizontally when the screen cannot
+     * show it all. The scrollbar is the theme-aware 8px one defined above, so it
+     * is visible and usable rather than an invisible trackpad-only gesture.
+     */
+    .document-form-scroll {
+        @apply w-full overflow-x-auto pb-2;
+    }
+
+    .document-form-inner {
+        min-width: 1180px;
+    }
+
+    /* Page-header actions become full-width tap targets on a phone. */
+    .page-actions > * {
+        @apply w-full justify-center sm:w-auto;
     }
 
     .table-base {
@@ -242,8 +278,21 @@
         @apply divide-y divide-line bg-surface;
     }
 
+    /*
+     * Cells wrap by default so a long description or memo cannot be forced onto
+     * one line that shoves the numeric columns off-screen. `anywhere` also
+     * breaks a single 140-character pasted word. Numeric cells opt back out
+     * below, so "PKR 200,000.00" is never split across lines.
+     */
     .table-base td {
-        @apply px-4 py-3 align-middle whitespace-nowrap;
+        @apply px-4 py-3 align-middle;
+        overflow-wrap: anywhere;
+    }
+
+    .table-base td.text-right,
+    .table-base td.num,
+    .table-base td.tabular-nums {
+        white-space: nowrap;
     }
 
     .table-base tbody tr {
@@ -260,6 +309,18 @@
 
     .link {
         @apply font-medium text-primary hover:text-primary-strong;
+    }
+}
+
+/*
+ * On a phone the 1180px line-item floor would demand ~800px of sideways
+ * scrolling. Let the grid collapse to a narrower floor; the scroll wrapper is
+ * still there for anything that does not fit. The base declaration above stays
+ * intact for the width test and for larger screens.
+ */
+@media (max-width: 640px) {
+    .document-form-inner {
+        min-width: 680px;
     }
 }
 

@@ -46,6 +46,33 @@
                     max-width: 100% !important;
                     padding: 0 !important;
                 }
+                /* A wide description must wrap inside the page, never widen
+                   the table past it and scroll the numeric columns off-paper. */
+                .table-wrap { overflow: visible !important; }
+                .table-base {
+                    width: 100% !important;
+                    min-width: 0 !important;
+                }
+                /* Slightly smaller table text in print gives the money columns
+                   breathing room so adjacent figures don't run together. */
+                .table-base th, .table-base td { font-size: 12px !important; }
+                .invoice-document table, .document table {
+                    table-layout: fixed !important;
+                }
+                /* Only the description wraps. Numeric cells must stay on one
+                   line: breaking "PKR 200,000.00" makes a figure unreadable. */
+                .table-base td,
+                .invoice-document td.desc, .document td.desc {
+                    white-space: normal !important;
+                    overflow-wrap: anywhere !important;
+                    word-break: break-all !important;
+                }
+                .table-base td.text-right, .table-base td.num, .table-base td.tabular-nums,
+                .table-base td.whitespace-nowrap {
+                    white-space: nowrap !important;
+                    overflow-wrap: normal !important;
+                    word-break: keep-all !important;
+                }
                 .document, .invoice-document {
                     box-shadow: none !important;
                     border: none !important;
@@ -128,7 +155,7 @@
                 @include('layouts.partials.topbar')
 
                 <main class="flex-1 overflow-y-auto">
-                    <div class="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+                    <div class="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
                         @isset($header)
                             <div class="mb-6">{{ $header }}</div>
                         @endisset

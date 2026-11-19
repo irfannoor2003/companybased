@@ -130,14 +130,32 @@ class InvoicePdfDesignTest extends TestCase
         return $this->invoice ??= $this->realisticInvoice();
     }
 
-    private function html(?SalesInvoice $invoice = null): string
+    private function html(?SalesInvoice $invoice = null, ?DocumentTemplate $template = null): string
     {
-        return view('documents.pdf', DocumentData::build($invoice ?? $this->invoice()))->render();
+        $data = DocumentData::build($invoice ?? $this->invoice());
+
+        /*
+         * A few assertions below describe the classic shared skeleton -- the
+         * Discount row, the spelled-out footer, the due date and salesperson.
+         * SigmaShop is now the default and renders a different body, so those
+         * tests name this template explicitly instead of depending on whatever
+         * happens to be default.
+         */
+        if ($template !== null) {
+            $data['layout'] = PdfLayout::forTemplate($template);
+        }
+
+        return view('documents.pdf', $data)->render();
     }
 
-    private function pdf(?SalesInvoice $invoice = null): string
+    private function pdf(?SalesInvoice $invoice = null, ?DocumentTemplate $template = null): string
     {
-        return Pdf::loadHTML($this->html($invoice))->setPaper('a4', 'portrait')->setOptions(pdf_options())->output();
+        return Pdf::loadHTML($this->html($invoice, $template))->setPaper('a4', 'portrait')->setOptions(pdf_options())->output();
+    }
+
+    private function classicTemplate(): DocumentTemplate
+    {
+        return DocumentTemplate::where('slug', 'classic-invoice')->firstOrFail();
     }
 
     public function test_a_realistic_invoice_renders_to_a_valid_pdf(): void
@@ -163,8 +181,12 @@ class InvoicePdfDesignTest extends TestCase
 
         $html = $this->html();
 
+        // The shared design states the currency once in the meta block and prints
+        // plain figures in the totals, so compare the figure itself. money() would
+        // prefix the currency ("USD 24,972.30") that the document does not repeat
+        // on every row.
         $this->assertStringContainsString(
-            money($invoice->total, 'USD'),
+            number_format((float) $invoice->total, 2),
             $html,
             'the grand total is not in the HTML at all',
         );
@@ -190,7 +212,11 @@ class InvoicePdfDesignTest extends TestCase
      */
     public function test_a_discounted_line_prints_a_discount_row(): void
     {
-        $this->assertStringContainsString('>Discount<', $this->html(), 'no Discount row was printed');
+        $this->assertStringContainsString(
+            '>Discount<',
+            $this->html(template: $this->classicTemplate()),
+            'no Discount row was printed',
+        );
     }
 
     /**
@@ -235,7 +261,7 @@ class InvoicePdfDesignTest extends TestCase
         Setting::set('company.tax_number', 'NTN-4471902');
         Setting::flushCache();
 
-        $html = $this->html();
+        $html = $this->html(template: $this->classicTemplate());
 
         $this->assertStringNotContainsString('P: ', $html, 'contact abbreviations are back');
         $this->assertStringNotContainsString('M: ', $html, 'contact abbreviations are back');
@@ -271,7 +297,7 @@ class InvoicePdfDesignTest extends TestCase
 
         $fresh = $invoice->fresh();
 
-        $text = PdfText::all($this->pdf($fresh));
+        $text = PdfText::all($this->pdf($fresh, $this->classicTemplate()));
 
         $this->assertStringContainsString('Due date', $text, 'the due date row is missing');
         $this->assertStringContainsString(

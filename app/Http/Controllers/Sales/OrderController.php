@@ -60,7 +60,7 @@ class OrderController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $data = $this->validateData($request);
-        $this->validateDiscountLimits($request->input('items', []));
+        $this->validateDiscountLimits($request->input('items', []), $data['currency'] ?? null);
         $this->validateTaxRates($request->input('items', []), 'sales', $data['issue_date'] ?? null);
 
         $order = SalesOrder::create([
@@ -128,7 +128,7 @@ class OrderController extends Controller
     public function update(Request $request, SalesOrder $order): RedirectResponse
     {
         $data = $this->validateData($request, $order->id);
-        $this->validateDiscountLimits($request->input('items', []));
+        $this->validateDiscountLimits($request->input('items', []), $data['currency'] ?? null);
         $this->validateTaxRates($request->input('items', []), 'sales', $data['issue_date'] ?? null);
 
         $order->update([

@@ -8,11 +8,17 @@
     BLOCKS, NOT PIXELS
     -----------------
     Each block is a tested, known-good piece of a document. They can be shown, hidden
-    and reordered freely. They cannot be dragged to an arbitrary position on the page,
-    because DomPDF paginates in flow: it cannot repeat a table row across a page break,
-    cannot count total pages, and cannot render `@page` margin boxes at `margin: 0`.
-    Free positioning over that engine does not produce an unusual layout, it produces a
-    document that breaks on page two and is discovered by the customer.
+    and reordered freely -- now by DRAG as well as by the arrows. What the operator
+    cannot do is drop a block at an arbitrary pixel coordinate: DomPDF paginates in
+    flow, cannot repeat a table row across a page break, cannot count total pages and
+    cannot render `@page` margin boxes at `margin: 0`. Free positioning over that
+    engine does not produce an unusual layout, it produces a document that breaks on
+    page two and is discovered by the customer. So dragging reorders the BLOCK LIST;
+    the flow inside a block is not something an operator can break.
+
+    The drag core is native HTML5 drag-and-drop, copied from the visual builder in the
+    sister inventory project. It needs no library: a row is `draggable`, `dragover`
+    marks the drop target, and `drop` splices the block into the new position.
 
     EVERY BLOCK IS LISTED, PRINTED OR NOT
     -------------------------------------
@@ -27,9 +33,11 @@
     fills in only after hydration looks broken for a moment on every page load.
 
     `enabled` holds ONLY the printed blocks, and it is what gets posted as
-    `blocks[]`, in order. The arrows move blocks in `all` and then rebuild `enabled`
+    `blocks[]`, in order. Both the arrows and a drag move blocks in `all` then rebuild `enabled`
     from it, which is why a hidden block sitting between two printed ones cannot
-    shift either of them along when it is moved.
+    shift either of them along when it is moved. The DOM row is moved too, so the
+    order of the `name="blocks[]"` inputs -- what the browser actually submits --
+    always matches the order shown on screen.
 
     The sections render as checkboxes: every block, including the letterhead and
     the line items, is the operator's to keep or drop, so the on-screen sentence
@@ -95,9 +103,10 @@
     <div>
         <p class="mb-1 text-sm font-medium text-ink">Sections</p>
         <p class="mb-3 text-xs text-ink-soft">
-            Tick to print a section, untick to drop it, use the arrows to set the order.
-            Every section is yours to remove -- including the letterhead, the document
-            number and the line items -- so the preview below is the page you get.
+            Tick to print a section, untick to drop it, drag the handle (or use the
+            arrows) to set the order. Every section is yours to remove -- including
+            the letterhead, the document number and the line items -- so the preview
+            below is the page you get.
         </p>
 
         {{-- One scope for the whole list. Alpine resolves an expression up the scope
@@ -113,6 +122,10 @@
              checkbox and the hidden input that actually posts the block all read it. --}}
         <div class="space-y-1" x-data='{
             state: @js($blockState),
+
+            // The block currently being dragged, or null. Native HTML5 drag state
+            // lives outside Alpine, so it has to be mirrored here explicitly.
+            dragging: null,
 
             on(block) {
                 return this.state.enabled.indexOf(block) !== -1;
@@ -144,13 +157,124 @@
                     return;
                 }
 
+                // Reuse the drag reorder path so the arrows and a drag cannot
+                // disagree about the resulting order. Step down => insert after.
+                this.reorder(block, this.state.all[to], step > 0);
+            },
+
+            /**
+             * The one place that changes order. `all` and `enabled` are rebuilt
+             * from the new sequence, and the DOM row actually moves -- which is
+             * what makes the browser submit the new order, because the hidden
+             * `blocks[]` inputs travel with their rows.
+             */
+            reorder(source, target, after) {
+                if (! source || ! target || source === target) {
+                    return;
+                }
+
+                const from = this.state.all.indexOf(source);
+
+                if (from === -1) {
+                    return;
+                }
+
                 const next = this.state.all.slice();
-                next.splice(to, 0, next.splice(at, 1)[0]);
+                next.splice(from, 1);
+
+                let to = next.indexOf(target);
+
+                if (to === -1) {
+                    return;
+                }
+
+                if (after) {
+                    to += 1;
+                }
+
+                next.splice(to, 0, source);
                 this.state.all = next;
 
                 // Rebuild from the new order rather than swapping indices, so a hidden
                 // block moving past a visible one cannot shift the visible one.
                 this.state.enabled = next.filter((b) => this.state.enabled.indexOf(b) !== -1);
+
+                this.placeRow(source, target, after);
+            },
+
+            rowFor(block) {
+                return Array.prototype.slice
+                    .call(this.$root.querySelectorAll('[data-block-row]'))
+                    .find((row) => row.dataset.blockRow === block);
+            },
+
+            placeRow(source, target, after) {
+                const sourceRow = this.rowFor(source);
+                const targetRow = this.rowFor(target);
+
+                if (! sourceRow || ! targetRow || sourceRow === targetRow) {
+                    return;
+                }
+
+                if (after) {
+                    targetRow.parentNode.insertBefore(sourceRow, targetRow.nextSibling);
+                } else {
+                    targetRow.parentNode.insertBefore(sourceRow, targetRow);
+                }
+            },
+
+            dragStart(block, event) {
+                // A drag that starts on a control is a mis-click, not a reorder.
+                if (event.target.closest('input, button, label, a, select')) {
+                    event.preventDefault();
+                    return;
+                }
+
+                this.dragging = block;
+                event.dataTransfer.effectAllowed = 'move';
+                event.dataTransfer.setData('text/plain', block);
+                event.currentTarget.classList.add('opacity-40', 'ring-2', 'ring-primary/30');
+            },
+
+            dragOver(block, event) {
+                if (! this.dragging || this.dragging === block) {
+                    return;
+                }
+
+                event.preventDefault();
+                event.dataTransfer.dropEffect = 'move';
+                event.currentTarget.classList.add('is-drop-target');
+            },
+
+            dragLeave(event) {
+                if (event.currentTarget.contains(event.relatedTarget)) {
+                    return;
+                }
+
+                event.currentTarget.classList.remove('is-drop-target');
+            },
+
+            drop(block, event) {
+                event.preventDefault();
+                event.currentTarget.classList.remove('is-drop-target');
+
+                if (! this.dragging || this.dragging === block) {
+                    return;
+                }
+
+                const box = event.currentTarget.getBoundingClientRect();
+                const after = event.clientY > box.top + box.height / 2;
+
+                this.reorder(this.dragging, block, after);
+                this.dragging = null;
+            },
+
+            dragEnd(event) {
+                event.currentTarget.classList.remove('opacity-40', 'ring-2', 'ring-primary/30');
+                this.$root.querySelectorAll('.is-drop-target').forEach((row) => {
+                    row.classList.remove('is-drop-target');
+                });
+                this.dragging = null;
             },
 
             up(block) {
@@ -187,7 +311,14 @@
                         'flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2',
                         'opacity-50' => ! $on,
                     ])
-                     x-bind:class="on('{{ $block }}') ? '' : 'opacity-50'">
+                     x-bind:class="on('{{ $block }}') ? '' : 'opacity-50'"
+                     draggable="true"
+                     data-block-row="{{ $block }}"
+                     x-on:dragstart="dragStart('{{ $block }}', $event)"
+                     x-on:dragover="dragOver('{{ $block }}', $event)"
+                     x-on:dragleave="dragLeave($event)"
+                     x-on:drop="drop('{{ $block }}', $event)"
+                     x-on:dragend="dragEnd($event)">
 
                     {{-- One hidden input per listed block, named `blocks[]`.
 
@@ -202,6 +333,13 @@
                     <input type="hidden" name="blocks[]" value="{{ $block }}"
                            @disabled(! $on)
                            x-bind:disabled="! on('{{ $block }}')">
+
+                    {{-- The handle is the affordance: it says "this row can be
+                         dragged" without making the checkbox look draggable. The
+                         whole row is draggable, but dragStart() refuses drags that
+                         begin on a control, so ticking a box never moves a row. --}}
+                    <span class="shrink-0 select-none text-ink-faint cursor-grab active:cursor-grabbing"
+                          title="Drag to reorder" aria-hidden="true">⠿</span>
 
                     <label class="flex flex-1 cursor-pointer items-center gap-2">
                         <input type="checkbox" class="rounded border-line text-primary-ink focus:ring-primary"

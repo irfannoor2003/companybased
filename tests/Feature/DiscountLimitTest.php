@@ -74,6 +74,19 @@ class DiscountLimitTest extends TestCase
     }
 
     /**
+     * A staff user who can actually reach the invoice store route. Roles alone
+     * do not grant the create permission in this test helper, so without this
+     * the POST 403s and none of the discount behaviour is exercised.
+     */
+    private function staffActor(string $role): User
+    {
+        $user = $this->userForRole($role);
+        $user->givePermissionTo('sales.invoices.create');
+
+        return $user;
+    }
+
+    /**
      * Post the invoice form as $role and return the response.
      *
      * @param  array<string, mixed>  $payload
@@ -244,14 +257,98 @@ class DiscountLimitTest extends TestCase
     }
 
     /**
-     * The cap is per role. A rule naming a different role must not constrain this
-     * user, otherwise every discount limit applies to the whole company.
+     * Role targeting still matters for staff users: a rule naming a role this
+     * user does not hold must not constrain them. Admins are the deliberate
+     * exception -- they are bound by every active rule (see the next test).
      */
-    public function test_a_rule_for_another_role_does_not_constrain_this_user(): void
+    public function test_a_rule_for_another_role_does_not_constrain_a_staff_user(): void
     {
         $this->capFor('Inventory Manager', '5');
 
+        $salesman = $this->staffActor('Salesman');
+
+        $this->actingAs($salesman)
+            ->post(route('sales.invoices.store'), $this->payload($this->customer()->id, '40'))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(1, SalesInvoice::count());
+    }
+
+    /**
+     * An admin is capped by an active rule even when the rule names only staff
+     * roles. "For all" in the settings screen must really mean everyone.
+     */
+    public function test_an_admin_is_capped_by_a_rule_naming_only_staff_roles(): void
+    {
+        $this->capFor('Salesman', '30');
+
         $this->postInvoice($this->payload($this->customer()->id, '40'))
+            ->assertSessionHasErrors('items');
+
+        $this->assertSame(0, SalesInvoice::count());
+    }
+
+    /**
+     * A user with two roles is matched on any of them, not just whichever role
+     * the permission package happened to return first.
+     */
+    public function test_a_rule_matches_any_of_a_users_roles(): void
+    {
+        $rule = $this->capFor('Salesman', '30');
+        $rule->update(['roles' => ['HR', 'Salesman']]);
+
+        $user = $this->staffActor('Salesman');
+        $user->assignRole('HR');
+
+        $this->actingAs($user)
+            ->post(route('sales.invoices.store'), $this->payload($this->customer()->id, '40'))
+            ->assertSessionHasErrors('items');
+
+        $this->assertSame(0, SalesInvoice::count());
+    }
+
+    /**
+     * A fixed-amount rule is a real cap, converted to a percentage of each
+     * line's gross. $10 off a $100 line is a 10% ceiling.
+     */
+    public function test_a_fixed_amount_rule_caps_the_effective_percentage(): void
+    {
+        DiscountRule::create([
+            'name' => 'Fixed cap',
+            'type' => 'fixed',
+            'max_value' => '10.00',
+            'currency' => 'USD',
+            'roles' => ['Salesman'],
+            'is_active' => true,
+        ]);
+
+        $salesman = $this->staffActor('Salesman');
+
+        $this->actingAs($salesman)
+            ->post(route('sales.invoices.store'), $this->payload($this->customer()->id, '20'))
+            ->assertSessionHasErrors('items');
+
+        $this->assertSame(0, SalesInvoice::count());
+    }
+
+    /**
+     * A fixed rule in another currency must not cap a document in this one.
+     */
+    public function test_a_fixed_rule_in_another_currency_is_ignored(): void
+    {
+        DiscountRule::create([
+            'name' => 'PKR cap',
+            'type' => 'fixed',
+            'max_value' => '10.00',
+            'currency' => 'PKR',
+            'roles' => ['Salesman'],
+            'is_active' => true,
+        ]);
+
+        $salesman = $this->staffActor('Salesman');
+
+        $this->actingAs($salesman)
+            ->post(route('sales.invoices.store'), $this->payload($this->customer()->id, '40'))
             ->assertSessionHasNoErrors();
 
         $this->assertSame(1, SalesInvoice::count());

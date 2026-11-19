@@ -104,6 +104,212 @@ The suite runs on MySQL only (`companybased_test`, or `companybased_test_` with
 
 ### What was done this session
 
+#### Receipts now share the invoice/quote design
+
+The three money-receipt documents — sales payment-in, supplier payment and withholding
+tax receipt — no longer print from a standalone receipt template that ignored the
+operator's document template. They are registered in `DocumentData::TYPES` as type
+`receipt` and render through the same `documents/pdf.blade.php` and
+`documents.show` as every other document: same five styles, rail colour, reorderable
+blocks, custom header/footer and page numbers.
+
+A receipt has no line items, subtotal or tax, so `DocumentData` supplies a single
+`receipt` amount panel and switches the item/total/bank/terms/signature blocks off.
+The wording that distinguishes the three (Received from / Paid to, Amount received /
+paid / Tax deducted, Against invoice / bill) is data in `DocumentData::TYPES`, not a
+second canvas. The `receipt` template previews with a real payment in Settings →
+Templates instead of a fake invoice. A migration splices the new block into stored
+receipt-template layouts; POS thermal receipts are deliberately untouched (80mm roll).
+`ReceiptDocument` remains as a thin compatibility wrapper. Covered by
+`ReceiptPdfConsolidationTest` (9) and `ReceiptSharedDesignTest` (5).
+
+#### The whole print suite now shares the document design
+
+After receipts, the remaining four PDF pipelines were folded into the same
+template-driven renderer:
+
+- **Statements and supplier ledgers** (`StatementDocument`) — the ledger is now
+  a generic `table` block inside the invoice frame; the old
+  `documents/statement.blade.php` is gone.
+- **List exports** (`?format=pdf` on every `export()` route) — `ExportsCsv` now
+  builds a shared payload instead of a standalone sheet, so one operator
+  stylesheet covers the whole suite. The old `exports/pdf.blade.php` is gone.
+- **Payslips** (`PayslipDocument` + a dedicated body block) — the itemised
+  earnings/attendance/deductions body prints inside the shared frame. The
+  stand-alone payslip template is now a thin compatibility view.
+- **POS receipts** — `?design=document` renders the sale through the shared
+  frame on A4. The 80mm thermal roll remains the default; the two are a choice,
+  not a replacement, because a thermal printer cannot print an A4 document.
+
+`DocumentData::make()` builds the shared payload for documents that are not
+modelled transactions; `PdfLayout` gained `table` and `body` blocks and aliases
+`statement`, `payslip`, `export` and `pos_receipt` onto existing template types.
+Migrations backfill the new blocks into stored layouts. Covered by
+`StatementPdfTest`, `PayslipPdfTest`, `PosReceiptPrintTest`, `PdfLayoutTest` and
+`AllDocumentsSharedDesignTest`.
+
+#### Wider document entry forms with horizontal scroll
+
+The page shell now allows up to 1600px (`max-w-[1600px]`), document create forms
+fill that width instead of stopping at `max-w-6xl`/`max-w-4xl`, and edit forms give
+the editor three of four columns instead of two. Header fields use two generous
+columns rather than three cramped ones, so a long typed value stays visible.
+
+The repeating line-item grid has a minimum width of 1180px inside a
+`.document-form-scroll` wrapper using the theme's 8px scrollbar, so on a narrow
+screen the operator slides sideways to reach the rest of a row instead of every
+field collapsing into an unreadable sliver. Applied to all sales and purchasing
+line-item editors (including delivery notes) and pinned by
+`DocumentFormWidthTest`. CSS rebuilt and verified.
+
+#### Inventory project design families ported as style presets
+
+The two real design families from the sister `inventory` project are now
+available here as `PdfLayout` style presets over the **same** tested blocks and
+page flow (only colour, cards and table treatment change — never pagination):
+
+- **Modern Pro** (`modern_pro`) — pill document title, card sections and a
+  coloured grand total, from inventory's "Modern" family.
+- **SigmaShop** (`sigmashop`) — flat layout with a brand-coloured table header,
+  three-column details and a right-floated totals table.
+
+Both are seeded for invoice, quote and delivery note. Modern Pro is the default
+for invoices and quotes; SigmaShop is the default for delivery notes. Classic
+remains available as a non-default alternative. `upsert()` demotes the old
+system default on re-seed but leaves a custom (non-system) choice untouched.
+On an existing install run `php artisan db:seed --class=DocumentTemplatesSeeder`
+to apply the new defaults. Verified by `PdfLayoutTest` and the template suites.
+
+#### Customizable sidebar (per role and per user)
+
+Admins can now choose which links appear in the sidebar — no deploy needed.
+`App\Support\NavBuilder` is the single source of truth, so the filter was added
+there rather than in a second Blade implementation:
+
+- **Settings → Sidebar** lets an admin set a default for each role.
+- **Customize sidebar** in the sidebar footer (and `/sidebar/customize`) lets
+  each user override those defaults; "Reset to role defaults" clears their rows.
+- **Custom links** (label, URL, icon) can be added to either scope.
+- `sidebar_preferences` stores one row per scope/key; user rows override role
+  rows per key. Module + permission gates are applied **after** preferences, so
+  a choice can only hide a link the user could already open, never reveal one.
+- Posted keys are whitelisted against `config/nav.php`; custom URLs are limited
+  to relative paths or http(s), and icons to names in the icon component.
+
+Covered by `SidebarCustomizationTest` (8). Migrations and the new
+`settings.sidebar.view|manage` permissions must be applied on deploy.
+
+#### Long line descriptions wrap instead of taking over the page
+
+A pasted 140-character code as a line description used to push Qty and Unit price
+off the row. The form's description field is now a wrapping `<textarea>` with
+`break-all` (in the sales, purchasing and delivery editors); the on-screen show
+tables override the global `whitespace-nowrap` on that cell; and the PDF frame
+adds `word-wrap: break-word` to the items and generic data-table description
+cells. One CSS change in `documents/partials/frame.blade.php` covers all five
+styles. The value is never truncated — `InvoicePdfDesignTest` requires the full
+description in the printed HTML — so the text wraps downward instead.
+
+The show pages also use `table-fixed` with an explicit 35% Description column,
+so Browser Print wraps exactly like the PDF, and the pages are full width
+(`max-w-none`) with the page-header actions becoming full-width tap targets on a
+phone. `.field-label` (used 26 times but defined nowhere) now has a real rule,
+the line-item remove buttons align to the top of their row, tables are wrapped
+for horizontal scroll, and a mobile media query narrows the 1180px form floor.
+Pinned by `LongDescriptionLayoutTest` and `DocumentFormWidthTest`.
+
+#### Discount cap applies to everyone, every role, both rule types
+
+`DiscountRule` is a maximum-discount guardrail: an admin sets the ceiling, and
+anyone exceeding it on an invoice, quote, order or credit note is refused with a
+visible form error. Three defects made it less than "for all":
+
+- **Admins were not capped** unless a rule named them explicitly. A rule set up
+  for the three staff roles left the admin free to give away the margin. Now an
+  active rule constrains every user; admins can still change the rule itself in
+  Settings, they just cannot exceed it on a document.
+- **Multi-role users matched only their first role.** `appliesToRole(...$roles)`
+  spread all roles into a method taking one string, so PHP ignored the rest.
+  `DiscountRule::appliesToRoles($roles)` now checks the whole set.
+- **Fixed-amount rules were inert** — only `percentage` rules were read. A fixed
+  rule now caps each line at `max_value` as a percentage of that line's gross,
+  and applies only when its currency matches the document's (or is unset).
+
+The client-side clamp still previews the tightest percentage cap; the server is
+authoritative for both types. Currency is now passed from all eight call sites.
+`DiscountLimitTest` covers all three behaviours.
+
+#### Restoring dumps that contain generated columns
+
+A backup taken with MariaDB `mysqldump`, HeidiSQL or phpMyAdmin "complete inserts"
+can list generated columns such as `approval_requests.live_step` in its `INSERT`
+statements. MySQL refuses those writes with `ERROR 3105 ... value specified for
+generated column ... is not allowed`, so restoring a live backup locally failed
+on the first approval request.
+
+`App\Support\DumpSanitizer` reads generated columns from the dump's own
+`CREATE TABLE` statements and removes them from that table's `INSERT` lists and
+value tuples before replay. It handles **both** named-column inserts and the
+positional `INSERT INTO t VALUES (...)` form mysqldump emits by default -- for
+the latter it derives the value's position from the CREATE TABLE column order and
+writes an explicit non-generated column list into the cleaned statement. MySQL
+recomputes the generated values from the retained definition, so no data is lost
+and the unique one-live-per-step index still applies. The
+Settings → Backup → Restore flow now sanitizes automatically; for manual restores:
+
+```bash
+php sanitize-dump.php live-backup.sql          # writes live-backup.restorable.sql
+php sanitize-dump.php live-backup.sql out.sql  # explicit output
+```
+
+The uploaded file is never modified. Verified end-to-end: the raw dump reproduces
+3105, the cleaned dump imports with `live_step` correctly derived (step when
+pending, NULL otherwise), and a duplicate live request is still rejected.
+Covered by `DumpSanitizerTest`.
+
+#### Template preview works on an empty database
+
+The Preview button used to 404 with "No sample document available" on a fresh
+install, because it looked up a real document of the template's type and there
+were none. `TemplateSample` now uses the newest real document when one exists,
+and otherwise builds an unsaved, representative sample (with in-memory relations
+and a placeholder route key) of the correct model class, so a bill previews as a
+bill and a receipt as a receipt. Nothing is written to the database. Covered by
+`TemplatePreviewEmptyDatabaseTest` against every seeded template.
+
+#### Two new modern showcase templates
+
+The seeder now ships two non-default `invoice` templates that demonstrate the two
+editing mechanisms side by side, both in the **modern** masthead style:
+
+- **Modern Flow Invoice** — pure drag-and-drop: no custom code at all, just a block
+  order reachable by dragging the rows (notes and signature moved above bank
+  details). Shows that reordering alone is a real design.
+- **Modern Signature Invoice** — pure custom code: a normal block order plus custom
+  header HTML, footer HTML and a CSS override sheet (teal masthead rule, restyled
+  table header and grand-total row, custom ribbons). Shows the second mechanism.
+
+They are deliberately `is_default => false`, so a fresh install still prints the
+classic design until someone picks one. `upsert()` is keyed on `slug`, so re-seeding
+is idempotent and never overwrites a default an administrator chose. Covered by
+`ModernTemplateShowcaseTest`, which asserts the block order reaches the canvas in
+that sequence and that both HTML hooks plus the stylesheet reach the printed page.
+
+#### Drag-and-drop template blocks
+
+The Settings → Templates section editor now reorders blocks by **dragging** as well
+as with the arrows. The mechanism is ported from the sister `inventory` project and
+is deliberately library-free: native HTML5 `draggable` / `dragover` / `drop` events
+in the existing Alpine scope, a `⠿` handle on each row, a `.is-drop-target` highlight,
+and a single `reorder()` path shared by both drag and arrows.
+
+Crucially the **DOM row is moved**, not just the state array — the browser submits
+the order of the `name="blocks[]"` inputs, so the saved order always matches what
+the operator sees. Drags that begin on a checkbox/button are ignored, and the
+server still sanitises the posted keys through `PdfLayout::normaliseBlocks()`.
+No new npm dependency. Covered structurally by `TemplateDragAndDropTest` (the real
+gesture still needs a browser pass — this repo has no JS test runner).
+
 #### Material requirements planning (NEW)
 
 `App\Services\Inventory\MaterialRequirementsService` answers the question that

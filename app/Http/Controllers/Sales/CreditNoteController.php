@@ -63,7 +63,7 @@ class CreditNoteController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $data = $this->validateData($request);
-        $this->validateDiscountLimits($request->input('items', []));
+        $this->validateDiscountLimits($request->input('items', []), $data['currency'] ?? null);
         $this->validateTaxRates($request->input('items', []), 'sales', $data['issue_date'] ?? null);
 
         $note = SalesCreditNote::create([
@@ -130,7 +130,7 @@ class CreditNoteController extends Controller
     public function update(Request $request, SalesCreditNote $creditNote): RedirectResponse
     {
         $data = $this->validateData($request, $creditNote->id);
-        $this->validateDiscountLimits($request->input('items', []));
+        $this->validateDiscountLimits($request->input('items', []), $data['currency'] ?? null);
         $this->validateTaxRates($request->input('items', []), 'sales', $data['issue_date'] ?? null);
 
         $previousInvoiceId = $creditNote->invoice_id;

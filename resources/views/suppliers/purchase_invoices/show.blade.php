@@ -23,8 +23,8 @@
         </x-page-header>
     </x-slot>
 
-    <div class="mt-6 max-w-4xl">
-        <div class="mb-6 flex justify-end gap-2 print:hidden">
+    <div class="mt-6 max-w-none">
+        <div class="mb-6 flex flex-wrap items-center justify-end gap-2 print:hidden">
             <button type="button" onclick="window.print()" class="btn-ghost btn-icon btn-sm" title="Print">
                 <x-icon name="printer" class="size-4" />
             </button>
@@ -70,16 +70,17 @@
                 @endif
             </div>
 
-            <table class="table-base mb-6">
+            <div class="table-wrap !border-0 !rounded-none">
+            <table class="table-base table-fixed w-full mb-6 !min-w-0">
                 <thead>
                     <tr>
-                        <th>#</th>
-                        <th>Description</th>
-                        <th class="text-right">Qty</th>
-                        <th class="text-right">Unit price</th>
-                        <th class="text-right">Disc.</th>
-                        <th class="text-right">Tax</th>
-                        <th class="text-right">Amount</th>
+                        <th class="w-[4%]">#</th>
+                        <th class="w-[30%]">Description</th>
+                        <th class="text-right w-[9%]">Qty</th>
+                        <th class="text-right w-[13%]">Unit price</th>
+                        <th class="text-right w-[14%]">Disc.</th>
+                        <th class="text-right w-[10%]">Tax</th>
+                        <th class="text-right w-[20%]">Amount</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -95,7 +96,7 @@
                         @endphp
                         <tr>
                             <td class="text-sm text-ink">{{ $loop->iteration }}</td>
-                            <td class="text-sm text-ink">{{ $item->description ?: ($item->product?->name ?? '—') }}</td>
+                            <td class="text-sm text-ink !whitespace-normal break-all min-w-0">{{ $item->description ?: ($item->product?->name ?? '—') }}</td>
                             <td class="text-right text-sm text-ink">{{ number_format((float) $item->qty, 2) }}</td>
                             <td class="text-right text-sm text-ink">{{ money($item->unit_price, $invoice->currency) }}</td>
                             <td class="text-right text-sm {{ $lineDiscount > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-ink-faint' }}">{{ $lineDiscount > 0 ? '-'.money($lineDiscount, $invoice->currency) : '—' }}</td>
@@ -105,6 +106,7 @@
                     @endforeach
                 </tbody>
             </table>
+            </div>
 
             @php
                 $docGross = $invoice->items->sum(fn ($it) => (float) $it->qty * (float) $it->unit_price);

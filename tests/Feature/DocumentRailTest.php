@@ -47,7 +47,9 @@ class DocumentRailTest extends TestCase
      */
     public function test_the_document_bodies_include_the_shared_frame(): void
     {
-        foreach (['documents/pdf.blade.php', 'documents/statement.blade.php'] as $body) {
+        // Statements, exports, payslips and POS document copies all print through
+        // this one body now, so there is a single frame include to pin.
+        foreach (['documents/pdf.blade.php'] as $body) {
             $this->assertStringContainsString(
                 "@include('documents.partials.frame')",
                 (string) file_get_contents(resource_path('views/'.$body)),

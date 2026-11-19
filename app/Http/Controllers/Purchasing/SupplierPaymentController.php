@@ -2,8 +2,6 @@
 
 namespace App\Http\Controllers\Purchasing;
 
-use App\Support\ReceiptDocument;
-
 use App\Services\Accounting\LedgerPostingFailure;
 
 use App\Http\Controllers\Controller;
@@ -13,6 +11,7 @@ use App\Models\Supplier;
 use App\Models\SupplierPayment;
 use App\Services\InvoicePaymentService;
 use App\Support\BankLedger;
+use App\Support\DocumentData;
 use App\Support\DocumentReference;
 use App\Support\ExportsCsv;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -49,7 +48,7 @@ class SupplierPaymentController extends Controller
     {
         $payment->load(['supplier', 'invoice', 'bankAccount']);
 
-        return view('suppliers.supplier_payments.show', compact('payment'));
+        return view('documents.show', DocumentData::build($payment));
     }
 
     public function create(Request $request): View
@@ -274,11 +273,11 @@ BankLedger::reversePayment($payment);
     public function pdf(SupplierPayment $payment): Response
     {
         $this->preparePdf();
-        $payment->load(['supplier', 'invoice']);
+        $payment->load(['supplier', 'invoice', 'bankAccount']);
 
-        $html = ReceiptDocument::supplierPayment($payment)->render();
+        $html = view('documents.pdf', DocumentData::build($payment))->render();
 
-        $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
+        $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait')->setOptions(pdf_options());
 
         return $pdf->stream('payment-'.$payment->number.'.pdf');
     }

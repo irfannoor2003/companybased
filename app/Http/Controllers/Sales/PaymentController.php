@@ -2,8 +2,6 @@
 
 namespace App\Http\Controllers\Sales;
 
-use App\Support\ReceiptDocument;
-
 use App\Http\Controllers\Controller;
 use App\Models\BankAccount;
 use App\Models\SalesCustomer;
@@ -12,6 +10,7 @@ use App\Models\SalesPayment;
 use App\Models\SalesStatusEvent;
 use App\Services\InvoicePaymentService;
 use App\Support\BankLedger;
+use App\Support\DocumentData;
 use App\Support\DocumentReference;
 use App\Support\ExportsCsv;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -66,7 +65,7 @@ class PaymentController extends Controller
     {
         $payment->load(['customer', 'invoice', 'bankAccount']);
 
-        return view('sales.payments.show', compact('payment'));
+        return view('documents.show', DocumentData::build($payment));
     }
 
     public function store(Request $request): RedirectResponse
@@ -432,19 +431,14 @@ $message = "Payment {$number} updated.";
 
     public function pdf(SalesPayment $payment)
     {
-        $payment->load(['customer', 'invoice']);
+        $this->preparePdf();
+        $payment->load(['customer', 'invoice', 'bankAccount']);
 
-        $html = ReceiptDocument::salesPayment($payment)->render();
+        $html = view('documents.pdf', DocumentData::build($payment))->render();
 
-        $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait')->output();
+        $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait')->setOptions(pdf_options());
 
-        $filename = 'payment-'.$payment->number.'.pdf';
-
-        return response($pdf, 200, [
-            'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'inline; filename="'.$filename.'"',
-            'Content-Length' => strlen($pdf),
-        ]);
+        return $pdf->stream('payment-'.$payment->number.'.pdf');
     }
 
     public function export(Request $request): StreamedResponse

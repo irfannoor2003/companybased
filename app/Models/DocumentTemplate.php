@@ -88,22 +88,26 @@ class DocumentTemplate extends Model
     {
         $colors = $this->attributes['colors'] ?? null;
 
+        /*
+         * An empty palette means "follow the brand", not "use indigo". These
+         * defaults come from the LIVE superadmin settings so a brand change is
+         * reflected on every print and on the settings form. Hardcoding them here
+         * froze every brand-driven template at the old colour.
+         */
+        $defaults = [
+            'primary' => settings('branding.primary_color', '#4f46e5'),
+            'accent' => settings('branding.accent_color', '#0ea5e9'),
+            'text' => '#1f2937',
+        ];
+
         if (blank($colors)) {
-            return [
-                'primary' => '#4f46e5',
-                'accent' => '#0ea5e9',
-                'text' => '#1f2937',
-            ];
+            return $defaults;
         }
 
         $decoded = json_decode((string) $colors, true);
 
         return is_array($decoded)
-            ? $decoded + ['primary' => '#4f46e5', 'accent' => '#0ea5e9', 'text' => '#1f2937']
-            : [
-                'primary' => '#4f46e5',
-                'accent' => '#0ea5e9',
-                'text' => '#1f2937',
-            ];
+            ? $decoded + $defaults
+            : $defaults;
     }
 }

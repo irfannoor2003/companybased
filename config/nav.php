@@ -196,6 +196,7 @@ return [
                 ['label' => 'Notification Rules', 'route' => 'settings.notification-rules', 'icon' => 'bell', 'permission' => 'settings.notifications.view'],
                 ['label' => 'Mail Server', 'route' => 'settings.mail', 'icon' => 'mail', 'permission' => 'settings.mail.view'],
                 ['label' => 'Templates', 'route' => 'settings.templates.index', 'icon' => 'document', 'permission' => 'settings.templates.view'],
+                ['label' => 'Sidebar', 'route' => 'settings.sidebar.index', 'icon' => 'menu', 'permission' => 'settings.sidebar.view'],
                 ['label' => 'Discount Rules', 'route' => 'settings.discount-rules.index', 'icon' => 'discount', 'permission' => 'settings.discount_rules.view'],
                 ['label' => 'Users', 'route' => 'settings.users.index', 'icon' => 'users', 'permission' => 'settings.users.view'],
                 ['label' => 'Roles & Permissions', 'route' => 'settings.roles.index', 'icon' => 'roles', 'permission' => 'settings.roles.view'],

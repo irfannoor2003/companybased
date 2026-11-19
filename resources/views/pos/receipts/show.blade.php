@@ -9,6 +9,9 @@
                           target="_blank">Print 80mm</x-button>
                 <x-button href="{{ route('pos.receipts.print', ['sale' => $sale, 'size' => 'a4']) }}"
                           variant="secondary" icon="document" target="_blank">Print A4</x-button>
+                {{-- The filing copy uses the invoice-style template design. --}}
+                <x-button href="{{ route('pos.receipts.print', ['sale' => $sale, 'design' => 'document']) }}"
+                          variant="primary" icon="printer" target="_blank">Document style</x-button>
             </x-slot>
         </x-page-header>
     </x-slot>

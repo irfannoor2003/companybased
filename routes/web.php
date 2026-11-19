@@ -98,6 +98,7 @@ use App\Http\Controllers\Settings\ManufacturingController;
 use App\Http\Controllers\Settings\ModuleController;
 use App\Http\Controllers\Settings\NotificationRuleController;
 use App\Http\Controllers\Settings\RoleController;
+use App\Http\Controllers\Settings\SidebarController;
 use App\Http\Controllers\Settings\SubscriptionController;
 use App\Http\Controllers\Settings\TemplateController;
 use App\Http\Controllers\Settings\UserController;
@@ -143,6 +144,17 @@ Route::middleware('auth')->group(function () {
     Route::put('/dashboard/customize', [DashboardPreferenceController::class, 'updatePersonal'])
         ->middleware(['verified', 'permission:dashboard.overview.view'])
         ->name('dashboard.customize.update');
+
+    // Personal sidebar layout: every signed-in user may choose their own links.
+    Route::get('/sidebar/customize', [SidebarController::class, 'personal'])
+        ->middleware(['verified', 'permission:dashboard.overview.view'])
+        ->name('sidebar.customize');
+    Route::put('/sidebar/customize', [SidebarController::class, 'updatePersonal'])
+        ->middleware(['verified', 'permission:dashboard.overview.view'])
+        ->name('sidebar.customize.update');
+    Route::delete('/sidebar/customize', [SidebarController::class, 'resetPersonal'])
+        ->middleware(['verified', 'permission:dashboard.overview.view'])
+        ->name('sidebar.customize.reset');
 
     Route::get('/dashboard', DashboardController::class)
         ->middleware(['verified', 'permission:dashboard.overview.view'])
@@ -1470,6 +1482,13 @@ Route::middleware('auth')->group(function () {
             ->middleware('permission:settings.dashboard.view')->name('dashboards.edit');
         Route::put('/dashboards/{role}', [DashboardPreferenceController::class, 'update'])
             ->middleware('permission:settings.dashboard.manage')->name('dashboards.update');
+
+        Route::get('/sidebar', [SidebarController::class, 'overview'])
+            ->middleware('permission:settings.sidebar.view')->name('sidebar.index');
+        Route::get('/sidebar/{role}', [SidebarController::class, 'edit'])
+            ->middleware('permission:settings.sidebar.view')->name('sidebar.edit');
+        Route::put('/sidebar/{role}', [SidebarController::class, 'update'])
+            ->middleware('permission:settings.sidebar.manage')->name('sidebar.update');
 
         Route::get('/modules', [ModuleController::class, 'index'])
             ->middleware('permission:settings.modules.view')->name('modules');

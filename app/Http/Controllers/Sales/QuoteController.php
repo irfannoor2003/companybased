@@ -74,7 +74,7 @@ class QuoteController extends Controller
             'items' => ['required', 'array', 'min:1'],
         ]);
 
-        $this->validateDiscountLimits($request->input('items', []));
+        $this->validateDiscountLimits($request->input('items', []), $data['currency'] ?? null);
         $this->validateTaxRates($request->input('items', []), 'sales', $data['issue_date'] ?? null);
 
         $quote = SalesQuote::create([
@@ -168,7 +168,7 @@ class QuoteController extends Controller
             'items' => ['required', 'array', 'min:1'],
         ]);
 
-        $this->validateDiscountLimits($request->input('items', []));
+        $this->validateDiscountLimits($request->input('items', []), $data['currency'] ?? null);
         $this->validateTaxRates($request->input('items', []), 'sales', $data['issue_date'] ?? null);
 
         $quote->update([

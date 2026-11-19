@@ -7,9 +7,8 @@ use App\Models\DebitNote;
 use App\Models\PurchaseInvoice;
 use App\Models\Supplier;
 use App\Models\SupplierPayment;
-use App\Support\DocumentData;
 use App\Support\ExportsCsv;
-use App\Support\PdfLayout;
+use App\Support\StatementDocument;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -169,12 +168,11 @@ class SupplierLedgerController extends Controller
             'closing' => round((float) ($ledger->last()['balance'] ?? 0), 2),
         ];
 
-        $payload = [
-            'doc' => $supplier,
-            'title' => 'Supplier Ledger Statement',
-            'number' => 'LEDG-'.str_pad((string) $supplier->id, 5, '0', STR_PAD_LEFT).'-'.now()->format('Ymd'),
-            'customerName' => $supplier->company_name,
-            'billTo' => [
+        $payload = StatementDocument::payload(
+            type: 'supplier_statement',
+            title: 'Supplier Ledger Statement',
+            number: 'LEDG-'.str_pad((string) $supplier->id, 5, '0', STR_PAD_LEFT).'-'.now()->format('Ymd'),
+            billTo: [
                 'heading' => 'Supplier',
                 'name' => (string) $supplier->company_name,
                 'contact' => (string) ($supplier->contact_name ?? ''),
@@ -185,17 +183,12 @@ class SupplierLedgerController extends Controller
                 'code' => (string) ($supplier->short_code ?? ''),
                 'tax' => (string) ($supplier->tax_number ?? ''),
             ],
-            'ledger' => $ledger
-                ->map(fn (array $row) => collect($row)->except('url')->all())
-                ->values(),
-            'totals' => $totals,
-            'currency' => $this->ledgerCurrency($supplier),
-            'asOf' => now(),
-            'layout' => PdfLayout::forDocumentType('invoice'),
-            'notes' => null,
-        ];
+            ledger: $ledger,
+            totals: $totals,
+            currency: $this->ledgerCurrency($supplier),
+        );
 
-        $html = view('documents.statement', DocumentData::printable($payload))->render();
+        $html = view('documents.pdf', $payload)->render();
 
         return Pdf::loadHTML($html)
             ->setPaper('a4', 'portrait')

@@ -10,12 +10,12 @@
         </x-page-header>
     </x-slot>
 
-    <div class="mt-6 max-w-6xl">
+    <div class="mt-6 max-w-none">
         <x-card title="Quote details">
             <form method="POST" action="{{ route('suppliers.purchase_quotes.store') }}" class="space-y-5">
                 @csrf
 
-                <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3" x-data="currencyFromEntity()" x-init="initCurrencySelect()">
+                <div class="grid grid-cols-1 gap-5 sm:grid-cols-2" x-data="currencyFromEntity()" x-init="initCurrencySelect()">
                     <x-select name="supplier_id" label="Supplier" required @change="$event.target.value && syncCurrency($event.target)">
                         <option value="">â€” Select supplier â€”</option>
                         @foreach ($suppliers as $supplier)

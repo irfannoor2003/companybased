@@ -36,6 +36,21 @@ class DiscountRule extends Model
         return in_array($role, $this->roles ?? []);
     }
 
+    /**
+     * Whether this rule applies to a user holding ANY of $roles.
+     *
+     * The old caller spread every role name into appliesToRole(), which takes
+     * one string: PHP ignored the extras, so a user who was both Salesman and
+     * HR was matched on whichever role happened to come first. Checking the
+     * whole set is what "applies to my roles" actually means.
+     *
+     * @param  array<int,string>  $roles
+     */
+    public function appliesToRoles(array $roles): bool
+    {
+        return count(array_intersect($roles, $this->roles ?? [])) > 0;
+    }
+
     public function getMaxDiscountLabelAttribute(): string
     {
         if ($this->type === 'percentage') {

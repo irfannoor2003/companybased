@@ -3,17 +3,20 @@
 namespace App\Support;
 
 /**
- * Presents a money-received or money-paid document as the shape the shared
- * receipt template renders.
+ * Compatibility adapter for the three money-receipt documents.
  *
- * Three near-identical receipt templates existed -- sales payments, supplier
- * payments and withholding tax receipts -- and they drifted apart while claiming
- * to be the same letterhead. They now share one template, fed by this adapter, so
- * a receipt and the invoice it pays are produced from one design.
+ * Receipts used to print from a standalone template that ignored the operator's
+ * document template. They now print from the SAME renderer as every other
+ * document -- `DocumentData` + `documents/pdf.blade.php` -- so a receipt carries
+ * the same letterhead, style, blocks, colours and custom header/footer as the
+ * invoice it settles. The amount panel is the `receipt` block, and the invoice's
+ * item and total blocks are switched off for receipts.
  *
- * The shared document template (documents/pdf.blade.php) is not usable here: it
- * assumes line items, a subtotal and a tax figure, and a receipt has none of those.
- * This is the reconciliation -- same visual language, different document shape.
+ * The factory wording is kept because it is still the clearest statement of what
+ * distinguishes the three documents: who the money came from or went to, what it
+ * is called, and which document it settles. The renderer no longer needs it --
+ * the wording now lives in `DocumentData::TYPES` -- but callers may still build a
+ * `ReceiptDocument` directly, so the API stays.
  */
 class ReceiptDocument
 {
@@ -23,7 +26,7 @@ class ReceiptDocument
         public readonly string $partyLabel,
         public readonly string $amountLabel,
         public readonly string $partyCodeLabel,
-        public readonly string $dateLabel = 'Payment date',
+        public readonly ?string $dateLabel = 'Payment date',
         public readonly ?string $againstLabel = 'Against invoice',
     ) {}
 
@@ -33,7 +36,7 @@ class ReceiptDocument
             receipt: $payment,
             docTitle: 'Payment Receipt',
             partyLabel: 'Received from',
-amountLabel: 'Amount received',
+            amountLabel: 'Amount received',
             partyCodeLabel: 'Customer code',
             dateLabel: 'Payment date',
             againstLabel: 'Against invoice',
@@ -46,7 +49,7 @@ amountLabel: 'Amount received',
             receipt: $payment,
             docTitle: 'Payment Receipt',
             partyLabel: 'Paid to',
-amountLabel: 'Amount paid',
+            amountLabel: 'Amount paid',
             partyCodeLabel: 'Supplier code',
             dateLabel: 'Payment date',
             againstLabel: 'Against bill',
@@ -59,7 +62,7 @@ amountLabel: 'Amount paid',
             receipt: $receipt,
             docTitle: 'Withholding Tax Receipt',
             partyLabel: 'Received from',
-amountLabel: 'Tax deducted',
+            amountLabel: 'Tax deducted',
             partyCodeLabel: 'Customer code',
             dateLabel: 'Receipt date',
             againstLabel: 'Against invoice',
@@ -97,73 +100,12 @@ amountLabel: 'Tax deducted',
     }
 
     /**
-     * Render the shared receipt template.
+     * Render the document through the shared template. The model's own type
+     * decides its wording, so a `ReceiptDocument` built through any factory
+     * prints exactly what its controller now prints.
      */
     public function render(): string
     {
-        /**
-         * The receipt template of its own type now owns the colour and the
-         * operator's additions.
-         *
-         * Before this the receipt hard-coded the company branding colour while
-         * every other printed document followed the template the operator
-         * managed on Settings -> Templates -- so restyling a receipt meant
-         * changing company branding, which also changed every other screen in
-         * the app. The colour order is now the same rule the frame applies:
-         * template colour first, company branding as the fallback, built-in
-         * last. The custom stylesheet and the custom footer HTML ride along the
-         * same way; the LAYOUT stays the receipt's own, because a receipt is a
-         * proof of payment, not an invoice without tax.
-         */
-        $layout = PdfLayout::forType('receipt');
-
-        $brand = $layout->color('primary', settings('branding.primary_color', '#4f46e5'));
-
-        return view('partials.pdf.receipt', [
-            'receipt' => $this->receipt,
-            'docTitle' => $this->docTitle,
-            'partyLabel' => $this->partyLabel,
-            'partyCodeLabel' => $this->partyCodeLabel,
-            'amountLabel' => $this->amountLabel,
-            'dateLabel' => $this->dateLabel,
-            'againstLabel' => $this->againstLabel,
-            'partyName' => $this->partyName(),
-            'partyCode' => $this->partyCode(),
-            'receiptDate' => $this->receiptDate(),
-            'method' => $this->method(),
-            'againstNumber' => $this->againstNumber(),
-            'brandColor' => $brand,
-            'brandTint' => $this->tint($brand),
-            'customCss' => $layout->templateCss(),
-            'footerHtml' => $layout->footerHtml(),
-        ])->render();
-    }
-
-    /**
-     * A very light wash of the brand colour, for the amount panel.
-     *
-     * DomPDF does not resolve CSS colour functions, so the tint is computed rather
-     * than expressed as color-mix() or an rgba() literal with a variable.
-     */
-    private function tint(string $hex): string
-    {
-        $hex = ltrim($hex, '#');
-
-        if (strlen($hex) === 3) {
-            $hex = $hex[0].$hex[0].$hex[1].$hex[1].$hex[2].$hex[2];
-        }
-
-        if (strlen($hex) !== 6 || ! ctype_xdigit($hex)) {
-            return '#eef2ff';
-        }
-
-        // Blend towards white by 92%.
-        $rounds = [];
-        foreach ([0, 2, 4] as $i) {
-            $component = hexdec(substr($hex, $i, 2));
-            $rounds[] = (int) round(255 - ((255 - $component) * 0.08));
-        }
-
-        return sprintf('#%02x%02x%02x', ...$rounds);
+        return view('documents.pdf', DocumentData::build($this->receipt))->render();
     }
 }

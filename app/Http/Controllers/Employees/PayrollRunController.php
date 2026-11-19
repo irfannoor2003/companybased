@@ -12,7 +12,7 @@ use App\Services\PayrollService;
 use App\Support\ExportsCsv;
 use App\Support\ExportsJson;
 use App\Support\Money;
-use App\Support\PdfLayout;
+use App\Support\PayslipDocument;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -167,25 +167,12 @@ class PayrollRunController extends Controller
         $payslip->load(['employee.department']);
         $run->loadMissing('preparer');
 
-        // The payslip borrows the INVOICE design's colour and custom stylesheet.
+        // A payslip prints through the same frame as every other document now.
         // It has no template row of its own -- an internal document the employee
-        // holds, not something the customer reads -- but a business printing the
-        // suite wants one consistent brand across payslips and invoices, and a
-        // second settings screen for payslips alone is a screen nobody would
-        // ever find. Template colour first, company branding as fallback, is the
-        // same order the frame and the receipts apply.
-        $invoiceLayout = PdfLayout::forType('invoice');
-
-        $html = view('employees.payroll.payslip-pdf', [
-            'run' => $run,
-            'payslip' => $payslip,
-            'brandColor' => $invoiceLayout->color('primary', settings('branding.primary_color', '#4f46e5')),
-            'customCss' => $invoiceLayout->templateCss(),
-
-            // An unapproved or draft run is not a final statement of pay, and the
-            // document says so on its face rather than implying otherwise.
-            'stampColor' => in_array($run->status, ['paid', 'approved'], true) ? '#15803d' : '#b45309',
-        ])->render();
+        // holds, not something the customer reads -- so `payslip` borrows the
+        // invoice template. Restyling invoices restyles payslips too, which is
+        // the one consistent brand the print suite is meant to have.
+        $html = view('documents.pdf', PayslipDocument::payload($run, $payslip))->render();
 
         return Pdf::loadHTML($html)
             ->setPaper('a4', 'portrait')

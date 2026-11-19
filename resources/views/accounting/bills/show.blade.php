@@ -40,7 +40,7 @@
                                         <span class="font-medium text-ink">{{ $item->account?->name }}</span>
                                         <span class="block font-mono text-xs text-ink-faint">{{ $item->account?->code }}</span>
                                     </td>
-                                    <td class="text-ink-soft">{{ $item->description ?: '—' }}</td>
+                                    <td class="text-ink-soft !whitespace-normal break-all min-w-0">{{ $item->description ?: '—' }}</td>
                                     <td class="text-right font-medium text-ink">{{ money($item->amount, $bill->currency) }}</td>
                                 </tr>
                             @endforeach

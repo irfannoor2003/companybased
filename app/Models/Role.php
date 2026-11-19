@@ -19,6 +19,11 @@ class Role extends SpatieRole
         return $this->hasMany(DashboardWidgetPreference::class)->orderBy('sort_order');
     }
 
+    public function sidebarPreferences(): HasMany
+    {
+        return $this->hasMany(SidebarPreference::class)->orderBy('sort_order');
+    }
+
     protected function casts(): array
     {
         return [

@@ -59,7 +59,10 @@
         </p>
     </template>
 
-    <div class="space-y-2">
+    {{-- Minimum row width keeps every field readable; the wrapper scrolls
+         horizontally on a narrow screen rather than crushing the columns. --}}
+    <div class="document-form-scroll">
+    <div class="document-form-inner space-y-2">
         <template x-for="(item, i) in items" :key="i">
             <div class="grid grid-cols-2 gap-2 rounded-lg border border-line bg-surface-muted/40 p-3 sm:grid-cols-7">
                 <div class="col-span-2 sm:col-span-2">
@@ -90,7 +93,9 @@
                 </div>
                 <div class="col-span-2 sm:col-span-2">
                     <label class="field-label">Description</label>
-                    <input type="text" :name="'items[' + i + '][description]'" x-model="item.description" class="input" placeholder="Line description…">
+                    {{-- Textarea so a long description wraps within the column and
+                         does not push qty and price off the row. --}}
+                    <textarea rows="2" :name="'items[' + i + '][description]'" x-model="item.description" class="input break-all leading-snug" placeholder="Line description…"></textarea>
                 </div>
                 <div>
                     <label class="field-label">Qty</label>
@@ -125,13 +130,14 @@
                     <label class="field-label">Net</label>
                     <p class="flex h-9 items-center text-sm font-medium text-ink" x-text="money(lineNet(i))"></p>
                 </div>
-                <div class="col-span-2 flex items-end justify-end sm:col-span-7">
+                <div class="col-span-2 flex items-start justify-end pt-6 sm:col-span-7">
                     <button type="button" x-on:click="removeRow(i)" class="btn-ghost btn-icon btn-sm text-rose-500 dark:text-rose-400" title="Remove">
                         <x-icon name="trash" class="size-4" />
                     </button>
                 </div>
             </div>
         </template>
+    </div>
     </div>
 
     <div class="mt-4 flex justify-end">

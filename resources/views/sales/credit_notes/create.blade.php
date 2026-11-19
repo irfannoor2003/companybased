@@ -10,12 +10,12 @@
         </x-page-header>
     </x-slot>
 
-    <div class="mt-6 max-w-6xl">
+    <div class="mt-6 max-w-none">
         <x-card title="Credit note details">
             <form method="POST" action="{{ route('sales.credit_notes.store') }}" class="space-y-5">
                 @csrf
 
-                <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
                     <x-select name="customer_id" label="Customer" required>
                         <option value="">â€” Select customer â€”</option>
                         @foreach ($customers as $customer)

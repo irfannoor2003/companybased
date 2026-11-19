@@ -39,7 +39,7 @@
         $metaExtras = array_values(array_filter($meta, fn ($row) => ($row['show'] ?? true) && ($dateRow ? $row['label'] !== $dateRow['label'] : true) && $row['label'] !== 'Status'));
     @endphp
 
-    <div class="mt-6 max-w-4xl">
+    <div class="mt-6 max-w-none">
         <div class="document">
             <div class="flex justify-between border-b border-line pb-4 mb-6">
                 <div>
@@ -58,7 +58,9 @@
                         <p class="text-sm text-ink-soft">Ref: {{ $referenceNumber }}</p>
                     @endif
                     <p class="text-sm text-ink-faint">{{ $dateRow['label'] }}: {{ $dateRow['value'] ?? '—' }}</p>
-                    <p class="text-sm text-ink-faint">Status: {{ $statusRow ? $statusRow['value'] : '—' }}</p>
+                    @if ($statusRow)
+                        <p class="text-sm text-ink-faint">Status: {{ $statusRow['value'] }}</p>
+                    @endif
                 </div>
             </div>
 
@@ -92,12 +94,22 @@
                 </div>
             @endif
 
+            @if (! empty($receipt))
+                <div class="mb-6 rounded-xl border border-primary/15 bg-primary/5 px-5 py-4">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-ink-faint">{{ $receipt['amountLabel'] }}</p>
+                    <p class="mt-1 text-2xl font-bold text-primary-ink">{{ money($receipt['amount'], $receipt['currency']) }}</p>
+                </div>
+            @endif
+
             @if (! empty($columns))
-                <table class="table-base mb-6">
+                {{-- table-fixed gives Description a real width so a long pasted
+                     code wraps inside it, matching the PDF's fixed column. --}}
+                <div class="table-wrap !border-0 !rounded-none">
+                <table class="table-base table-fixed w-full mb-6 !min-w-0">
                     <thead>
                         <tr>
                             @foreach ($columns as $column)
-                                <th class="{{ $column['align'] === 'right' ? 'text-right' : ($column['align'] === 'center' ? 'text-center' : '') }}">{{ $column['label'] }}</th>
+                                <th class="{{ $column['align'] === 'right' ? 'text-right' : ($column['align'] === 'center' ? 'text-center' : '') }} {{ $column['label'] === 'Description' ? 'w-[30%]' : '' }}">{{ $column['label'] }}</th>
                             @endforeach
                         </tr>
                     </thead>
@@ -105,7 +117,7 @@
         @foreach ($rows as $row)
             <tr>
                 <td class="text-sm text-ink">{{ $loop->iteration }}</td>
-                <td class="text-sm text-ink">{{ $row['description'] }}</td>
+                <td class="text-sm text-ink !whitespace-normal break-all min-w-0">{{ $row['description'] }}</td>
                 <td class="text-right text-sm text-ink">{{ number_format((float) $row['qty'], 2) }}</td>
                 @if ($hasPricing)
                     <td class="text-right text-sm text-ink">{{ money($row['unit_price'], $currency) }}</td>
@@ -117,6 +129,7 @@
         @endforeach
                     </tbody>
                 </table>
+                </div>
             @endif
 
             @if ($hasPricing && ! empty($totals))
@@ -140,7 +153,9 @@
             @endif
 
             <div class="border-t border-line pt-4 text-center text-xs text-ink-faint">
-                @if (! $hasPricing)
+                @if (filled($footerNote ?? null))
+                    <p>{{ $footerNote }}</p>
+                @elseif (! $hasPricing)
                     <p>Prepared for shipment.</p>
                 @else
                     <p>Thank you for your business.</p>

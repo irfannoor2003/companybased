@@ -7,7 +7,7 @@
         </x-page-header>
     </x-slot>
 
-    <div class="mt-6 max-w-4xl">
+    <div class="mt-6 max-w-none">
         <x-card title="Payment details">
              <form method="POST" action="{{ route('sales.sales_payments.store') }}" class="space-y-5" x-data="currencyFromEntity() paymentOverpayment()" x-init="initCurrencySelect()">
                  @csrf

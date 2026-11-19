@@ -236,4 +236,28 @@ class PosReceiptPrintTest extends TestCase
             ->get('/pos/receipts/'.$sale->receipt_number.'/print')
             ->assertForbidden();
     }
+
+    /**
+     * The filing copy prints through the shared document template -- the same
+     * frame an invoice uses -- while the default stays on the 80mm roll. Both
+     * designs must remain available or one of the two physical use cases breaks.
+     */
+    public function test_a_document_style_copy_uses_the_shared_design_on_a4(): void
+    {
+        $sale = $this->sale();
+        $pdf = $this->download($sale, '?design=document');
+        [$width, $height] = $this->pageSize($pdf);
+
+        $this->assertEqualsWithDelta(595.28, $width, 1.0, 'the document copy is A4, not a roll');
+        $this->assertEqualsWithDelta(841.89, $height, 1.0);
+
+        $text = PdfText::all($pdf);
+        $this->assertStringContainsString('SALES RECEIPT', $text);
+        $this->assertStringContainsString('POS-RCPT-0001', $text);
+        $this->assertStringContainsString('Espresso blend 250g', $text);
+
+        // A4 via ?size=a4 is still the thermal layout, not the document one.
+        $thermal = PdfText::all($this->download($sale, '?size=a4'));
+        $this->assertStringContainsString('CHANGE DUE', $thermal, 'the A4 thermal copy is unchanged');
+    }
 }

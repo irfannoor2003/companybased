@@ -26,6 +26,22 @@ class InvoicePdfTemplateTest extends TestCase
 {
     use SeedsDatabase;
 
+    /**
+     * These tests assert on the classic shared skeleton (single totals table,
+     * due date, manual number, per-line rounding). The SigmaShop design is now
+     * the default and renders a different body, so render these explicitly with
+     * the classic template rather than whatever happens to be default.
+     */
+    private function renderClassic(SalesInvoice $invoice): string
+    {
+        $data = DocumentData::build($invoice);
+        $data['layout'] = PdfLayout::forTemplate(
+            DocumentTemplate::where('slug', 'classic-invoice')->firstOrFail(),
+        );
+
+        return view('documents.pdf', $data)->render();
+    }
+
     private function invoice(): SalesInvoice
     {
         $invoice = SalesInvoice::create([
@@ -160,7 +176,7 @@ class InvoicePdfTemplateTest extends TestCase
 
     public function test_the_totals_block_is_a_single_table(): void
     {
-        $html = view('documents.pdf', DocumentData::build($this->invoice()))->render();
+        $html = $this->renderClassic($this->invoice());
 
         // The template wrapped the shared _totals partial in a <table> that the
         // partial already emitted, producing a nested table. The total was still
@@ -197,7 +213,7 @@ class InvoicePdfTemplateTest extends TestCase
             'total' => '947.70',
         ]);
 
-        $html = view('documents.pdf', DocumentData::build($invoice->fresh()))->render();
+        $html = $this->renderClassic($invoice->fresh());
 
         $this->assertStringContainsString('Discount', $html);
         $this->assertStringContainsString('90.00', $html, 'the discount amount must be shown');
@@ -207,7 +223,7 @@ class InvoicePdfTemplateTest extends TestCase
     {
         $invoice = $this->invoice();
 
-        $html = view('documents.pdf', DocumentData::build($invoice))->render();
+        $html = $this->renderClassic($invoice);
 
         // 10 x 65.00 with 17% tax = 760.50. Unrounded floats are what leave the
         // printed rows not adding up to the printed total.
@@ -220,7 +236,7 @@ class InvoicePdfTemplateTest extends TestCase
     {
         $invoice = $this->invoice();
 
-        $html = view('documents.pdf', DocumentData::build($invoice))->render();
+        $html = $this->renderClassic($invoice);
 
         $this->assertStringContainsString($invoice->number, $html, 'the system number is the primary identifier');
         $this->assertStringContainsString('INV-OS-4471', $html, 'the manual number must reach the document');
@@ -241,7 +257,7 @@ class InvoicePdfTemplateTest extends TestCase
     {
         // DomPDF cannot resolve a Blade layout, @vite or a Blade component, so a
         // template that reaches for one renders blank or throws.
-        $html = view('documents.pdf', DocumentData::build($this->invoice()))->render();
+        $html = $this->renderClassic($this->invoice());
 
         foreach (['@extends', '@vite', 'x-app-layout', '<x-', '@stack', '@push'] as $forbidden) {
             $this->assertStringNotContainsString($forbidden, $html, "PDF template must not contain {$forbidden}");
@@ -284,6 +300,10 @@ class InvoicePdfTemplateTest extends TestCase
         ]);
 
         try {
+            // Render with the operator's custom template -- the one just made
+            // default -- because its header/footer/CSS are exactly what this test
+            // is about. renderClassic() swaps in a different layout and would drop
+            // the very fields under test.
             $html = view('documents.pdf', DocumentData::build($this->invoice()))->render();
 
             $this->assertStringContainsString(
@@ -336,7 +356,7 @@ class InvoicePdfTemplateTest extends TestCase
         ]);
 
         try {
-            $html = view('documents.pdf', DocumentData::build($this->invoice()))->render();
+            $html = $this->renderClassic($this->invoice());
 
             // The base stylesheet always declares the custom-html hooks, so the
             // thing to assert is the WRAPPER: no custom header and no custom

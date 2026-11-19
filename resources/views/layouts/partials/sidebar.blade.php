@@ -54,7 +54,7 @@
                         {{-- Grouped accordion --}}
                         <li
                             class="mt-5 first:mt-0"
-                            x-data="{ groupOpen: {{ collect($nav['children'])->contains(fn ($c) => $isActive($c['route'])) ? 'true' : 'false' }} }"
+                            x-data="{ groupOpen: {{ collect($nav['children'])->contains(fn ($c) => $isActive($c['route'] ?? null)) ? 'true' : 'false' }} }"
                         >
                             <button
                                 type="button"
@@ -73,10 +73,11 @@
                                 @foreach ($nav['children'] as $child)
                                     <li>
                                         <a
-                                            href="{{ route($child['route']) }}"
+                                            href="{{ ! empty($child['custom']) ? e($child['url']) : route($child['route']) }}"
+                                            @if (! empty($child['custom'])) target="_blank" rel="noopener" @endif
                                             @click="drawerOpen = false"
                                             :class="collapsed ? 'lg:justify-center lg:px-0' : ''"
-                                            class="{{ $isActive($child['route']) ? 'bg-primary/10 text-primary-ink' : 'text-ink-soft hover:bg-surface-muted hover:text-ink' }} flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors"
+                                            class="{{ $isActive($child['route'] ?? null) ? 'bg-primary/10 text-primary-ink' : 'text-ink-soft hover:bg-surface-muted hover:text-ink' }} flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors"
                                         >
                                             <x-icon :name="$child['icon']" class="size-5 shrink-0" />
                                             <span class="truncate" :class="collapsed ? 'lg:hidden' : ''">{{ $child['label'] }}</span>
@@ -86,13 +87,15 @@
                             </ul>
                         </li>
                     @else
-                        {{-- Top-level link --}}
+                        {{-- Top-level link. Custom links carry an explicit URL;
+                             built-in ones resolve their route name. --}}
                         <li>
                             <a
-                                href="{{ route($nav['item']['route']) }}"
+                                href="{{ ! empty($nav['item']['custom']) ? e($nav['item']['url']) : route($nav['item']['route']) }}"
+                                @if (! empty($nav['item']['custom'])) target="_blank" rel="noopener" @endif
                                 @click="drawerOpen = false"
                                 :class="collapsed ? 'lg:justify-center lg:px-0' : ''"
-                                class="{{ $isActive($nav['item']['route']) ? 'bg-primary/10 text-primary-ink' : 'text-ink-soft hover:bg-surface-muted hover:text-ink' }} flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors"
+                                class="{{ $isActive($nav['item']['route'] ?? null) ? 'bg-primary/10 text-primary-ink' : 'text-ink-soft hover:bg-surface-muted hover:text-ink' }} flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors"
                             >
                                 <x-icon :name="$nav['item']['icon']" class="size-5 shrink-0" />
                                 <span class="truncate" :class="collapsed ? 'lg:hidden' : ''">{{ $nav['item']['label'] }}</span>
@@ -106,6 +109,15 @@
 
     {{-- Footer: collapse toggle + user --}}
     <div class="border-t border-line p-3">
+        @can('dashboard.overview.view')
+            <a href="{{ route('sidebar.customize') }}"
+               class="mb-1 flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-ink-soft transition-colors hover:bg-surface-muted hover:text-ink"
+               :class="collapsed ? 'lg:justify-center lg:px-0' : ''"
+               title="Customize sidebar">
+                <x-icon name="menu" class="size-5 shrink-0" />
+                <span class="truncate" :class="collapsed ? 'lg:hidden' : ''">Customize sidebar</span>
+            </a>
+        @endcan
         <button
             type="button"
             @click="collapsed = !collapsed"

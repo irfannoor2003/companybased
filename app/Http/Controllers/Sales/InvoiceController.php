@@ -92,7 +92,7 @@ class InvoiceController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $data = $this->validateData($request);
-        $this->validateDiscountLimits($request->input('items', []));
+        $this->validateDiscountLimits($request->input('items', []), $data['currency'] ?? null);
         $this->validateTaxRates($request->input('items', []), 'sales', $data['issue_date'] ?? null);
 
         /**
@@ -241,7 +241,7 @@ class InvoiceController extends Controller
     public function update(Request $request, SalesInvoice $invoice): RedirectResponse
     {
         $data = $this->validateData($request, $invoice->id);
-        $this->validateDiscountLimits($request->input('items', []));
+        $this->validateDiscountLimits($request->input('items', []), $data['currency'] ?? null);
         $this->validateTaxRates($request->input('items', []), 'sales', $data['issue_date'] ?? null);
 
         $totals = DocumentItems::sync($invoice, $request->input('items', []));

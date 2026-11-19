@@ -13,15 +13,15 @@
         </x-page-header>
     </x-slot>
 
-    <div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div class="lg:col-span-2">
+    <div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-4">
+        <div class="lg:col-span-3">
             <x-card title="Order details">
                 @php $locked = in_array($order->status, ['partial_received', 'received', 'completed']); @endphp
                 <form method="POST" action="{{ route('suppliers.purchase_orders.update', $order) }}" class="space-y-5">
                     @csrf
                     @method('PUT')
 
-                    <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3" x-data="currencyFromEntity()" x-init="initCurrencySelect()">
+                    <div class="grid grid-cols-1 gap-5 sm:grid-cols-2" x-data="currencyFromEntity()" x-init="initCurrencySelect()">
                         <x-select name="supplier_id" label="Supplier" required :disabled="$locked" @change="$event.target.value && syncCurrency($event.target)">
                             @foreach ($suppliers as $supplier)
                                 <option value="{{ $supplier->id }}" data-currency="{{ $supplier->currency ?? '' }}" @selected(old('supplier_id', $order->supplier_id) == $supplier->id)>{{ $supplier->company_name }}</option>

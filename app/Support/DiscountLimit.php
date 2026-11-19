@@ -8,28 +8,79 @@ use Illuminate\Validation\ValidationException;
 trait DiscountLimit
 {
     /**
-     * Get the maximum discount percentage allowed for the current user
-     * based on active discount rules that apply to their role.
+     * The active rules that constrain the current user.
+     *
+     * An admin is bound by every active rule, not only by the ones that name
+     * their role. A rule set up as "for all" lists the three staff roles, but
+     * an administrator creating an invoice is just as capable of giving away
+     * the company's margin. They can still change the rule itself in Settings;
+     * they just cannot quietly exceed it on a document.
+     *
+     * @return \Illuminate\Support\Collection<int,DiscountRule>
      */
-    public function getMaxDiscountForUser(): ?float
+    private function applicableRules(): \Illuminate\Support\Collection
     {
         $user = auth()->user();
-        if (!$user) {
-            return null;
+
+        if (! $user) {
+            return collect();
         }
 
         $roles = $user->getRoleNames()->all();
+        $privileged = count(array_intersect($roles, ['Admin', 'Super Admin'])) > 0;
 
-        $rules = DiscountRule::active()
+        return DiscountRule::active()->get()->filter(
+            fn (DiscountRule $rule) => $privileged || $rule->appliesToRoles($roles),
+        );
+    }
+
+    /**
+     * Get the maximum discount percentage allowed for the current user,
+     * for prefilling the line-item editor's client-side clamp.
+     *
+     * Fixed-amount rules cannot be expressed as one percentage without a line
+     * total, so they are enforced by validateDiscountLimits() alone. Returning
+     * null here does not mean "unrestricted" -- it means no percentage cap to
+     * prefill. The server remains authoritative.
+     */
+    public function getMaxDiscountForUser(): ?float
+    {
+        $caps = $this->applicableRules()
             ->where('type', 'percentage')
-            ->get()
-            ->filter(fn ($rule) => $rule->appliesToRole(...$roles));
+            ->pluck('max_value');
 
-        if ($rules->isEmpty()) {
-            return null;
+        return $caps->isEmpty() ? null : (float) $caps->min();
+    }
+
+    /**
+     * The tightest effective cap for one line, as a percentage.
+     *
+     * A fixed rule's ceiling depends on the line's gross: $100 off a $1,000
+     * line is 10%, but 100% off a $100 line. A fixed rule applies only when it
+     * has no currency or its currency matches the document's, since comparing
+     * 100 PKR against a USD invoice would be meaningless.
+     */
+    private function capForLine(float $gross, ?string $currency): ?float
+    {
+        $caps = [];
+
+        foreach ($this->applicableRules() as $rule) {
+            if ($rule->type === 'percentage') {
+                $caps[] = (float) $rule->max_value;
+
+                continue;
+            }
+
+            if ($rule->currency && $currency && strcasecmp((string) $rule->currency, $currency) !== 0) {
+                continue;
+            }
+
+            if ($gross > 0.0) {
+                $caps[] = round(((float) $rule->max_value / $gross) * 100, 2);
+            }
         }
 
-        return $rules->min('max_value');
+        return $caps === [] ? null : min($caps);
     }
 
     /**
@@ -42,14 +93,11 @@ trait DiscountLimit
      * no way back. The message now goes into the normal $errors bag so the form
      * redisplays with the offending line highlighted.
      */
-    public function validateDiscountLimits(array $items): void
+    public function validateDiscountLimits(array $items, ?string $currency = null): void
     {
-        $maxDiscount = $this->getMaxDiscountForUser();
-        if ($maxDiscount === null) {
+        if ($this->applicableRules()->isEmpty()) {
             return;
         }
-
-        $maxDiscount = (float) $maxDiscount;
 
         foreach ($items as $index => $item) {
             // A line may discount by percentage or by a specific amount off the
@@ -64,7 +112,9 @@ trait DiscountLimit
                 ? round($gross > 0.0 ? ($discountAmount / $gross) * 100 : 0.0, 2)
                 : $discountPercent;
 
-            if ($effectivePercent > $maxDiscount) {
+            $maxDiscount = $this->capForLine($gross, $currency);
+
+            if ($maxDiscount !== null && $effectivePercent > $maxDiscount) {
                 $message = sprintf(
                     'Discount on line %d (%s%%) exceeds your maximum allowed discount (%s%%).',
                     $index + 1,

@@ -7,7 +7,7 @@
         </x-page-header>
     </x-slot>
 
-    <div class="mt-6 max-w-4xl">
+    <div class="mt-6 max-w-none">
         <x-card title="Receipt details">
             <form method="POST" action="{{ route('sales.withholding_tax_receipts.store') }}" class="space-y-5">
                 @csrf

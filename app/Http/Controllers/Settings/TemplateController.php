@@ -51,11 +51,7 @@ class TemplateController extends Controller
             'description' => $data['description'] ?? null,
             'style' => $data['style'],
             'layout' => $this->layoutFrom($request),
-            'colors' => [
-                'primary' => $data['primary_color'] ?? '#4f46e5',
-                'accent' => $data['accent_color'] ?? '#0ea5e9',
-                'text' => $data['text_color'] ?? '#1f2937',
-            ],
+            'colors' => $this->colorsFrom($data),
             'header_html' => $data['header_html'] ?? null,
             'footer_html' => $data['footer_html'] ?? null,
             'css' => $data['css'] ?? null,
@@ -83,23 +79,14 @@ class TemplateController extends Controller
      */
     public function preview(DocumentTemplate $template): View
     {
-        $modelClass = match ($template->type) {
-            'quote' => \App\Models\SalesQuote::class,
-            'order' => \App\Models\SalesOrder::class,
-            'delivery_note' => \App\Models\SalesDeliveryNote::class,
-            'credit_note' => \App\Models\SalesCreditNote::class,
-            'purchase_quote' => \App\Models\PurchaseQuote::class,
-            'purchase_order' => \App\Models\PurchaseOrder::class,
-            'purchase_invoice' => \App\Models\PurchaseInvoice::class,
-            'receipt' => \App\Models\SalesInvoice::class,
-            default => \App\Models\SalesInvoice::class,
-        };
-
-        $sample = $modelClass::query()->latest('id')->first();
-
-        if ($sample === null) {
-            abort(404, 'No sample document available to preview this template.');
-        }
+        /**
+         * Use the newest real document of this type when one exists, but fall
+         * back to an in-memory sample when the database is empty. A preview that
+         * 404s on a fresh install is a design screen with no design on it.
+         * `TemplateSample` knows each type's model and the relations DocumentData
+         * reads, so a receipt still previews as a receipt and a bill as a bill.
+         */
+        $sample = \App\Support\TemplateSample::forType($template->type);
 
         $data = \App\Support\DocumentData::build($sample);
         $data['layout'] = \App\Support\PdfLayout::forTemplate($template);
@@ -132,11 +119,7 @@ class TemplateController extends Controller
             'name' => $data['name'],
             'description' => $data['description'] ?? null,
             'style' => $data['style'],
-            'colors' => [
-                'primary' => $data['primary_color'] ?? $template->colors['primary'],
-                'accent' => $data['accent_color'] ?? $template->colors['accent'],
-                'text' => $data['text_color'] ?? $template->colors['text'],
-            ],
+            'colors' => $this->colorsFrom($data),
             'layout' => $this->layoutFrom($request, $template),
             'header_html' => $data['header_html'] ?? null,
             'footer_html' => $data['footer_html'] ?? null,
@@ -151,6 +134,36 @@ class TemplateController extends Controller
         }
 
         return back()->with('toasts', [['type' => 'success', 'message' => "Template \"{$template->name}\" updated."]]);
+    }
+
+    /**
+     * Only genuine colour overrides are stored. An empty palette means "follow
+     * the superadmin's brand colour", so a later brand change still reaches the
+     * template. The form prefills the brand colour, so an untouched colour field
+     * must not silently freeze it into the row.
+     *
+     * @param  array<string,mixed>  $data
+     * @return array<string, string>
+     */
+    private function colorsFrom(array $data): array
+    {
+        $defaults = [
+            'primary' => settings('branding.primary_color', '#4f46e5'),
+            'accent' => settings('branding.accent_color', '#0ea5e9'),
+            'text' => '#1f2937',
+        ];
+
+        $colors = [];
+
+        foreach ($defaults as $key => $default) {
+            $posted = $data[$key.'_color'] ?? null;
+
+            if (filled($posted) && $posted !== $default) {
+                $colors[$key] = $posted;
+            }
+        }
+
+        return $colors;
     }
 
     /**

@@ -10,13 +10,14 @@
         </x-page-header>
     </x-slot>
 
-    <div class="mt-6 max-w-6xl">
+    <div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-4">
+        <div class="lg:col-span-3">
         <x-card title="Debit note details">
             <form method="POST" action="{{ route('suppliers.debit_notes.update', $debitNote) }}" class="space-y-5">
                 @csrf
                 @method('PUT')
 
-                <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
                     <x-select name="supplier_id" label="Supplier" required>
                         @foreach ($suppliers as $supplier)
                             <option value="{{ $supplier->id }}" @selected(old('supplier_id', $debitNote->supplier_id) == $supplier->id)>{{ $supplier->company_name }}</option>
@@ -65,5 +66,6 @@
                 </div>
             </form>
         </x-card>
+        </div>
     </div>
 </x-app-layout>

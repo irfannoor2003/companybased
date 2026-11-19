@@ -2,7 +2,6 @@
 
 namespace App\Support;
 
-use App\Support\PdfLayout;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\View;
@@ -53,24 +52,48 @@ trait ExportsCsv
     {
         set_time_limit(0);
 
-        // The invoice design owns the suite's colour and the operator's custom
-        // stylesheet. Template colour first, company branding as fallback -- the
-        // same resolution every other printed document applies.
-        $invoiceLayout = PdfLayout::forType('invoice');
-
         $rows = collect($rows)->map(fn ($row) => array_values((array) $row))->all();
 
-        $html = View::make('exports.pdf', array_merge([
-            'title' => $title,
-            'subtitle' => $extra['subtitle'] ?? null,
-            'headers' => $headers,
-            'rows' => $rows,
-            'meta' => $extra['meta'] ?? [],
-            'brandColor' => $invoiceLayout->color('primary', settings('branding.primary_color', '#4f46e5')),
-            'customCss' => $invoiceLayout->templateCss(),
-        ], $extra))->render();
+        $meta = [];
+        if (filled($extra['subtitle'] ?? null)) {
+            $meta[] = ['label' => 'Report', 'value' => (string) $extra['subtitle'], 'show' => true];
+        }
+        foreach ($extra['meta'] ?? [] as $label => $value) {
+            $meta[] = ['label' => (string) $label, 'value' => (string) $value, 'show' => true];
+        }
 
-        $pdf = Pdf::loadHTML($html)->setPaper('a4', $extra['orientation'] ?? 'portrait');
+        /**
+         * A list export is a document too. It now prints through the same frame
+         * as an invoice or a statement -- the operator's template, style, colours,
+         * header and footer -- with its rows in the generic table block instead of
+         * a standalone sheet that copied the invoice's colour and ignored the rest.
+         */
+        $payload = DocumentData::make('export', [
+            'title' => $title,
+            'meta' => $meta,
+            'table' => [
+                'headers' => array_values($headers),
+                'aligns' => array_fill(0, count($headers), 'left'),
+                'rows' => $rows,
+                'empty' => 'No records found.',
+            ],
+            'notes' => $extra['notes'] ?? null,
+            'blockReady' => [
+                'party' => false,
+                'items' => false,
+                'totals' => false,
+                'receipt' => false,
+                'bank' => false,
+                'terms' => false,
+                'signature' => false,
+            ],
+        ]);
+
+        $html = View::make('documents.pdf', $payload)->render();
+
+        $pdf = Pdf::loadHTML($html)
+            ->setPaper('a4', $extra['orientation'] ?? 'portrait')
+            ->setOptions(pdf_options());
 
         $filename = str_ends_with($filename, '.pdf') ? $filename : preg_replace('/\.(csv|json)$/i', '.pdf', $filename) ?? $filename.'.pdf';
 

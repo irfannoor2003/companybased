@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
+use App\Support\DumpSanitizer;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -381,8 +382,17 @@ class BackupController extends Controller
             (string) $connection['database'],
         ]));
 
+        /**
+         * Some dump tools list generated columns in INSERT statements, which
+         * MySQL refuses with ERROR 3105 ("The value specified for generated
+         * column ... is not allowed"). Strip them before replaying. The value
+         * is recomputed by MySQL from the dump's own CREATE TABLE, so no data is
+         * lost. sanitizeFile() returns the original path when nothing changed.
+         */
+        $import = DumpSanitizer::sanitizeFile($source);
+
         $errors = '';
-        $input = fopen($source, 'r');
+        $input = fopen($import, 'r');
 
         if ($input === false) {
             throw new \RuntimeException('could not read the uploaded backup file.');
@@ -398,6 +408,10 @@ class BackupController extends Controller
             });
         } finally {
             fclose($input);
+
+            if ($import !== $source) {
+                @unlink($import);
+            }
         }
 
         if (! $process->isSuccessful()) {

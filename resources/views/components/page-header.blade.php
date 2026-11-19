@@ -32,6 +32,8 @@
     </div>
 
     @isset($actions)
-        <div class="flex flex-wrap items-center gap-2">{{ $actions }}</div>
+        {{-- page-actions lets the stylesheet make every action a full-width tap
+             target on a phone, while staying compact from sm upward. --}}
+        <div class="page-actions flex flex-wrap items-center gap-2">{{ $actions }}</div>
     @endisset
 </div>

@@ -10,8 +10,11 @@ use App\Models\SalesCreditNote;
 use App\Models\SalesDeliveryNote;
 use App\Models\SalesInvoice;
 use App\Models\SalesOrder;
+use App\Models\SalesPayment;
 use App\Models\SalesQuote;
 use App\Models\SalesRecurringInvoice;
+use App\Models\SupplierPayment;
+use App\Models\WithholdingTaxReceipt;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -63,6 +66,37 @@ class DocumentData
          * application, so calling remaining() on it threw.
          */
         PurchaseInvoice::class => ['title' => 'Bill', 'route' => 'suppliers.purchase_invoices', 'kind' => 'supplier', 'pricing' => true, 'applied' => false, 'type' => 'purchase_invoice'],
+
+        /*
+         * Money-received / money-paid documents print from the SAME template as
+         * every other document now. A receipt has no line items, subtotal or tax,
+         * so the payload is deliberately shaped differently: `receipt` carries the
+         * one amount and the reference details, and the item/total blocks are
+         * switched off below. "Same design" does not mean "pretend a payment is an
+         * invoice" -- it means the same letterhead, style, blocks, colours and
+         * operator additions wrap a document that is honestly a proof of payment.
+         *
+         * All three borrow the `receipt` template type, which the seeder has
+         * always written, so restyling receipts changes all three together.
+         */
+        SalesPayment::class => [
+            'title' => 'Payment Receipt', 'route' => 'sales.sales_payments', 'kind' => 'customer',
+            'pricing' => false, 'applied' => false, 'type' => 'receipt', 'receipt' => true,
+            'docTitle' => 'Payment Receipt', 'partyLabel' => 'Received from', 'partyCodeLabel' => 'Customer code',
+            'amountLabel' => 'Amount received', 'dateLabel' => 'Payment date', 'againstLabel' => 'Against invoice',
+        ],
+        SupplierPayment::class => [
+            'title' => 'Payment Receipt', 'route' => 'suppliers.supplier_payments', 'kind' => 'supplier',
+            'pricing' => false, 'applied' => false, 'type' => 'receipt', 'receipt' => true,
+            'docTitle' => 'Payment Receipt', 'partyLabel' => 'Paid to', 'partyCodeLabel' => 'Supplier code',
+            'amountLabel' => 'Amount paid', 'dateLabel' => 'Payment date', 'againstLabel' => 'Against bill',
+        ],
+        WithholdingTaxReceipt::class => [
+            'title' => 'Withholding Tax Receipt', 'route' => 'sales.withholding_tax_receipts', 'kind' => 'customer',
+            'pricing' => false, 'applied' => false, 'type' => 'receipt', 'receipt' => true,
+            'docTitle' => 'Withholding Tax Receipt', 'partyLabel' => 'Received from', 'partyCodeLabel' => 'Customer code',
+            'amountLabel' => 'Tax deducted', 'dateLabel' => 'Receipt date', 'againstLabel' => 'Against invoice',
+        ],
     ];
 
     /**
@@ -80,6 +114,22 @@ class DocumentData
 
         $partner = $def['kind'] === 'supplier' ? $document->supplier : $document->customer;
         $currency = self::currencyFor($document);
+        $receipt = self::receiptFor($document, $def);
+
+        /**
+         * A receipt is a proof of payment, not an invoice without tax. Its amount
+         * panel replaces the invoice's item table and totals rather than sitting
+         * under an empty table and a "Subtotal 0.00". Switching the blocks off here
+         * -- rather than in the template -- means it holds for every receipt style,
+         * including one an operator has restyled since this was written.
+         */
+        $blockReady = $receipt === null ? [] : [
+            'items' => false,
+            'totals' => false,
+            'bank' => false,
+            'terms' => false,
+            'signature' => false,
+        ];
 
         return self::printable([
             'doc' => $document,
@@ -89,10 +139,15 @@ class DocumentData
             'currency' => $currency,
             'meta' => self::metaFor($document, $def, $partner, $currency),
             'billTo' => self::billToFor($document, $def, $partner),
-            'columns' => self::columnsFor($def),
-            'rows' => self::rowsFor($document, $def),
+            'columns' => $receipt === null ? self::columnsFor($def) : [],
+            'rows' => $receipt === null ? self::rowsFor($document, $def) : [],
             'totals' => self::totalsFor($document, $def),
             'notes' => $document->notes,
+            'receipt' => $receipt,
+            'blockReady' => $blockReady,
+            'footerNote' => $receipt === null
+                ? null
+                : ($def['kind'] === 'supplier' ? 'Payment made with thanks.' : 'Payment received with thanks.'),
             'hasPricing' => $def['pricing'],
             'hasApplied' => $def['applied'],
             /**
@@ -108,6 +163,60 @@ class DocumentData
             'pdfRoute' => route($def['route'].'.pdf', $document),
             'backRoute' => route($def['route'].'.index'),
         ]);
+    }
+
+    /**
+     * Build the shared payload for a document that is NOT one of the modelled
+     * transaction types -- a statement, a payslip, a list export or a POS receipt.
+     *
+     * These documents have a letterhead, a title, meta rows and a table of rows,
+     * just like an invoice. They used to each print their own HTML with a copy of
+     * the invoice's colour and custom stylesheet, which meant they drifted and
+     * could never be restyled from Settings -> Templates. `make()` gives them the
+     * same contract as `build()`: one frame, one layout, one printable pipeline.
+     *
+     * The caller supplies only what its document has; everything else takes a
+     * sensible default. `layout` is passed as an OBJECT so `printable()` leaves it
+     * alone, exactly as in `build()`.
+     *
+     * @param  array<string,mixed>  $payload
+     * @return array<string,mixed>
+     */
+    public static function make(string $type, array $payload = []): array
+    {
+        $defaults = [
+            'doc' => null,
+            'title' => '',
+            'number' => '',
+            'referenceNumber' => null,
+            'currency' => settings('company.currency') ?: 'USD',
+            'meta' => [],
+            'billTo' => ['heading' => '', 'name' => null, 'contact' => null, 'address' => null, 'tax' => null, 'code' => null],
+            'columns' => [],
+            'rows' => [],
+            'totals' => [],
+            'table' => null,
+            'notes' => null,
+            'receipt' => null,
+            'body' => null,
+            'blockReady' => [],
+            'footerNote' => null,
+            'hasPricing' => false,
+            'hasApplied' => false,
+            'dateLabel' => null,
+            'dateValue' => null,
+            'headlineLabel' => null,
+            'headlineValue' => null,
+            'viewPermission' => null,
+            'editRoute' => null,
+            'pdfRoute' => null,
+            'backRoute' => null,
+        ];
+
+        $data = array_merge($defaults, $payload);
+        $data['layout'] = $payload['layout'] ?? PdfLayout::forDocumentType($type);
+
+        return self::printable($data);
     }
 
     /**
@@ -231,6 +340,10 @@ class DocumentData
     {
         $type = $def['type'];
 
+        if ($def['receipt'] ?? false) {
+            return self::receiptMetaFor($document, $def, $currency);
+        }
+
         $dateLabel = $type === 'purchase_order' ? 'Order date' : 'Issue date';
         $dateField = $type === 'purchase_order' ? 'order_date' : 'issue_date';
         $dateValue = $document->{$dateField}?->format('Y-m-d') ?: '—';
@@ -315,6 +428,85 @@ class DocumentData
         if (in_array($type, ['credit_note', 'debit_note'], true) && $document->invoice?->number) {
             $rows[] = ['label' => 'Invoice', 'value' => $document->invoice->number, 'show' => true];
         }
+
+        return $rows;
+    }
+
+    /**
+     * The single amount panel a receipt is built around, plus the reference
+     * details that identify what the money was for.
+     *
+     * Every field is read defensively. The three receipt models are not siblings:
+     * a withholding receipt has no payment method and no bank reference, while a
+     * supplier payment has no `reference_number`. An Eloquent model returns null
+     * for a missing attribute, so the shared shape simply omits what is absent.
+     *
+     * @return array<string,mixed>|null
+     */
+    protected static function receiptFor(Model $document, array $def): ?array
+    {
+        if (! ($def['receipt'] ?? false)) {
+            return null;
+        }
+
+        $date = $document->payment_date
+            ?? $document->receipt_date
+            ?? null;
+
+        return [
+            'docTitle' => $def['docTitle'],
+            'partyLabel' => $def['partyLabel'],
+            'partyCodeLabel' => $def['partyCodeLabel'],
+            'amountLabel' => $def['amountLabel'],
+            'dateLabel' => $def['dateLabel'],
+            'againstLabel' => $def['againstLabel'],
+            'partyName' => $document->customer?->company_name ?? $document->supplier?->company_name,
+            'partyCode' => $document->customer?->short_code ?? $document->supplier?->short_code,
+            'amount' => (float) ($document->amount ?? 0),
+            'date' => $date?->format('Y-m-d'),
+            'method' => $document->method ?? null,
+            'reference' => $document->reference ?? $document->reference_number ?? null,
+            'againstNumber' => $document->invoice?->number,
+            'depositAccount' => $document->bankAccount?->name,
+            'currency' => $document->currency ?: self::currencyFor($document),
+        ];
+    }
+
+    /**
+     * The meta rows for a receipt, in the order someone reading a proof of
+     * payment actually wants them: when, how, and which document it settles.
+     *
+     * @return array<int, array{label: string, value: string|null, show: bool}>
+     */
+    protected static function receiptMetaFor(Model $document, array $def, string $currency): array
+    {
+        $receipt = self::receiptFor($document, $def);
+
+        $rows = [];
+
+        $rows[] = ['label' => $def['dateLabel'], 'value' => $receipt['date'] ?: '—', 'show' => true];
+
+        if ($receipt['partyCode']) {
+            $rows[] = ['label' => $def['partyCodeLabel'], 'value' => $receipt['partyCode'], 'show' => true];
+        }
+
+        if ($receipt['method']) {
+            $rows[] = ['label' => 'Method', 'value' => ucfirst(str_replace('_', ' ', $receipt['method'])), 'show' => true];
+        }
+
+        if ($receipt['reference']) {
+            $rows[] = ['label' => 'Reference', 'value' => $receipt['reference'], 'show' => true];
+        }
+
+        if ($receipt['depositAccount']) {
+            $rows[] = ['label' => 'Deposit account', 'value' => $receipt['depositAccount'], 'show' => true];
+        }
+
+        if ($def['againstLabel'] && $receipt['againstNumber']) {
+            $rows[] = ['label' => $def['againstLabel'], 'value' => $receipt['againstNumber'], 'show' => true];
+        }
+
+        $rows[] = ['label' => 'Currency', 'value' => $receipt['currency'] ?: $currency, 'show' => true];
 
         return $rows;
     }
@@ -466,7 +658,7 @@ class DocumentData
     protected static function billToFor(Model $document, array $def, $partner): array
     {
         return [
-            'heading' => $def['kind'] === 'supplier' ? 'Supplier' : 'Bill to',
+            'heading' => $def['partyLabel'] ?? ($def['kind'] === 'supplier' ? 'Supplier' : 'Bill to'),
             'name' => $partner?->company_name ?: null,
             'contact' => $partner?->contact_name ?: null,
             'address' => $partner?->address ?: null,

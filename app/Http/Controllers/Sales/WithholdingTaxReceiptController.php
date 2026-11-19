@@ -2,12 +2,11 @@
 
 namespace App\Http\Controllers\Sales;
 
-use App\Support\ReceiptDocument;
-
 use App\Http\Controllers\Controller;
 use App\Models\SalesCustomer;
 use App\Models\SalesInvoice;
 use App\Models\WithholdingTaxReceipt;
+use App\Support\DocumentData;
 use App\Support\ExportsCsv;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
@@ -74,7 +73,7 @@ class WithholdingTaxReceiptController extends Controller
     {
         $withholdingTaxReceipt->load(['customer', 'invoice']);
 
-        return view('sales.withholding_tax_receipts.show', compact('withholdingTaxReceipt'));
+        return view('documents.show', DocumentData::build($withholdingTaxReceipt));
     }
 
     public function update(Request $request, WithholdingTaxReceipt $withholdingTaxReceipt): RedirectResponse
@@ -107,11 +106,12 @@ class WithholdingTaxReceiptController extends Controller
 
     public function pdf(WithholdingTaxReceipt $withholdingTaxReceipt): \Illuminate\Http\Response
     {
+        $this->preparePdf();
         $withholdingTaxReceipt->load(['customer', 'invoice']);
 
-        $html = ReceiptDocument::withholdingTaxReceipt($withholdingTaxReceipt)->render();
+        $html = view('documents.pdf', DocumentData::build($withholdingTaxReceipt))->render();
 
-        $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait');
+        $pdf = Pdf::loadHTML($html)->setPaper('a4', 'portrait')->setOptions(pdf_options());
 
         return $pdf->stream('wht-'.$withholdingTaxReceipt->number.'.pdf');
     }

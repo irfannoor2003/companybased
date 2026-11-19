@@ -10,14 +10,14 @@
         </x-page-header>
     </x-slot>
 
-    <div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div class="lg:col-span-2">
+    <div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-4">
+        <div class="lg:col-span-3">
             <x-card title="Credit note details">
                 <form method="POST" action="{{ route('sales.credit_notes.update', $creditNote) }}" class="space-y-5">
                     @csrf
                     @method('PUT')
 
-                    <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                    <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
                         <x-select name="customer_id" label="Customer" required>
                             @foreach ($customers as $customer)
                                 <option value="{{ $customer->id }}" @selected(old('customer_id', $creditNote->customer_id) == $customer->id)>{{ $customer->company_name }}</option>

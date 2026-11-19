@@ -90,6 +90,9 @@ class RouteSweep
      * @var array<string, array{0: string, 1: string}> "uri prefix" => [param, table]
      */
     private const PREFIX_OVERRIDES = [
+        // {category} also names an accounting expense category, whose model
+        // resolves against expense_categories, not the catalogue's categories.
+        'accounting/expense-categories' => ['category', 'expense_categories'],
         'banking/accounts' => ['account', 'bank_accounts'],
         'banking/transactions' => ['transaction', 'bank_transactions'],
         'banking/transfers' => ['transfer', 'bank_transfers'],

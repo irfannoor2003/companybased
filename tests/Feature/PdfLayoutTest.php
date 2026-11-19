@@ -187,6 +187,10 @@ class PdfLayoutTest extends TestCase
 
     public function test_a_document_type_with_no_template_still_prints(): void
     {
+        // Every type now ships with a SigmaShop default, so remove it explicitly
+        // to exercise the built-in fallback this test is about.
+        DocumentTemplate::where('type', 'credit_note')->delete();
+
         $layout = PdfLayout::forDocumentType('credit_note');
 
         $this->assertSame(PdfLayout::STYLE_RAIL, $layout->style());
@@ -343,7 +347,7 @@ class PdfLayoutTest extends TestCase
 
         // Registry order, not print order: the list is what the settings screen
         // offers to switch back on, so it reads the same every time.
-        $this->assertSame(['title', 'meta', 'bank', 'terms', 'notes'], $layout->hiddenBlocks());
+        $this->assertSame(['title', 'meta', 'body', 'table', 'receipt', 'sigma', 'bank', 'terms', 'notes'], $layout->hiddenBlocks());
     }
 
     /**
@@ -686,19 +690,20 @@ class PdfLayoutTest extends TestCase
         ]);
 
         try {
-            $html = View::make('exports.pdf', [
+            $html = View::make('documents.pdf', DocumentData::make('export', [
                 'title' => 'Expense claims',
-                'headers' => ['Number', 'Amount'],
-                'rows' => [['EC-0001', '100.00']],
-                'brandColor' => PdfLayout::forType('invoice')->color('primary', settings('branding.primary_color', '#4f46e5')),
-                'customCss' => PdfLayout::forType('invoice')->templateCss(),
-            ])->render();
+                'table' => [
+                    'headers' => ['Number', 'Amount'],
+                    'rows' => [['EC-0001', '100.00']],
+                ],
+            ]))->render();
 
             $this->assertStringContainsString(
                 '#3b0a45',
                 $html,
                 'the invoice template colour must reach the list export',
             );
+            $this->assertStringContainsString('data-table', $html, 'the rows print in the shared table block');
 
             $this->assertStringContainsString(
                 '.export-op-glyphs',
@@ -733,13 +738,13 @@ class PdfLayoutTest extends TestCase
         ]);
 
         try {
-            $html = View::make('exports.pdf', [
+            $html = View::make('documents.pdf', DocumentData::make('export', [
                 'title' => 'Expense claims',
-                'headers' => ['Number'],
-                'rows' => [['EC-0001']],
-                'brandColor' => PdfLayout::forType('invoice')->color('primary', settings('branding.primary_color', '#4f46e5')),
-                'customCss' => PdfLayout::forType('invoice')->templateCss(),
-            ])->render();
+                'table' => [
+                    'headers' => ['Number'],
+                    'rows' => [['EC-0001']],
+                ],
+            ]))->render();
 
             $this->assertStringNotContainsString(
                 'op-glyphs',

@@ -18,14 +18,14 @@
 <table class="items">
     <thead>
         <tr>
-            <th class="idx" style="width: 7%;">#</th>
-            <th style="width: 33%;">Description</th>
+            <th class="idx" style="width: 4%;">#</th>
+            <th style="width: 27%;">Description</th>
             @if ($hasPricing)
-                <th class="num" style="width: 8%;">Qty</th>
-                <th class="num" style="width: 13%;">Unit price</th>
-                <th class="num" style="width: 11%;">Disc.</th>
+                <th class="num" style="width: 11%;">Qty</th>
+                <th class="num" style="width: 14%;">Unit price</th>
+                <th class="num" style="width: 15%;">Disc.</th>
                 <th class="num" style="width: 11%;">Tax</th>
-                <th class="num" style="width: 17%;">Total</th>
+                <th class="num" style="width: 18%;">Total</th>
             @else
                 <th class="num" style="width: 60%;">Qty</th>
             @endif

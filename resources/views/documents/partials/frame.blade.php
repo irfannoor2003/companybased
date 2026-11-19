@@ -92,11 +92,11 @@
              * Checked here, once, rather than in each loop, so the rail and the
              * canvas cannot disagree about it.
              */
-            $blockReady = [
+            $blockReady = array_merge([
                 'bank' => filled(settings('company.bank_account_number')),
                 'terms' => filled(settings('company.payment_terms')),
                 'notes' => filled($notes),
-            ];
+            ], $blockReady ?? []);
         @endphp
 
         * { box-sizing: border-box; }
@@ -307,24 +307,35 @@
             border: 1px solid {{ $ink }};
             color: {{ $ink }};
             text-align: left;
-            padding: 6px 7px;
-            font-size: 7.5px;
+            padding: 6px 6px;
+            font-size: 7px;
             font-weight: bold;
-            letter-spacing: 0.1em;
+            letter-spacing: 0.08em;
             text-transform: uppercase;
         }
         table.items thead th.num { text-align: right; }
 
         table.items tbody td {
-            padding: 7px;
-            font-size: 9.5px;
+            padding: 6px 6px;
+            font-size: 8px;
             color: #333a4a;
             border-bottom: 1px solid {{ $rule }};
             vertical-align: top;
         }
-        table.items tbody td.num { text-align: right; white-space: nowrap; }
-        table.items tbody td.idx { width: 7%; color: {{ $muted }}; }
-        table.items tbody td.desc { width: 33%; }
+        table.items tbody td.num { text-align: right; white-space: nowrap; padding-left: 10px; }
+        table.items tbody td.idx { width: 4%; color: {{ $muted }}; }
+        /*
+         * A description can be a sentence or a single 140-character pasted code.
+         * break-word wraps even an unbroken token inside its column, so a long
+         * line grows downward instead of pushing Qty and price off the page.
+         * The text is never truncated -- every character still prints.
+         */
+        table.items tbody td.desc {
+            width: 27%;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            word-break: break-word;
+        }
         table.items tbody td.total { font-weight: bold; color: {{ $ink }}; }
         table.items tbody tr { page-break-inside: avoid; }
 
@@ -344,6 +355,49 @@
             padding: 5px 6px 4px;
         }
         .style-minimal table.items tbody td { border-bottom: 1px solid {{ $rule }}; padding: 6px; }
+
+        /*
+         * The generic data table used by statements, exports and ledger reports.
+         * Same visual language as the items table -- it is the same kind of object
+         * printed for the same kind of reader -- but without product-specific
+         * columns. Column widths are percentages because DomPDF ignores mm on <td>.
+         */
+        table.data-table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-top: 9mm; }
+        table.data-table thead th {
+            border: 1px solid {{ $ink }};
+            color: {{ $ink }};
+            text-align: left;
+            padding: 6px 7px;
+            font-size: 7.5px;
+            font-weight: bold;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }
+        table.data-table thead th.num { text-align: right; }
+        table.data-table tbody td {
+            padding: 6px 7px;
+            font-size: 9px;
+            color: #333a4a;
+            border-bottom: 1px solid {{ $rule }};
+            vertical-align: top;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+        table.data-table tbody td.num { text-align: right; white-space: nowrap; }
+        table.data-table tbody tr { page-break-inside: avoid; }
+        table.data-table tbody tr.alt td { background-color: {{ $panel }}; }
+        table.data-table tbody tr.empty td { color: {{ $muted }}; font-style: italic; }
+        .style-banded table.data-table thead th {
+            background-color: {{ mix_hex($brand, '#ffffff', 88) }};
+            border: 1px solid {{ $brand }};
+            color: {{ darken_hex($brand, 30) }};
+        }
+        .style-minimal table.data-table thead th {
+            border: none;
+            border-bottom: 1px solid {{ $ink }};
+            padding: 5px 6px 4px;
+        }
+        .style-minimal table.data-table tbody td { border-bottom: 1px solid {{ $rule }}; padding: 6px; }
 
         /* The totals block sits in the right half of the canvas, so its width has to
            be relative to the canvas rather than an absolute 74mm plus a 50mm gutter.
@@ -387,6 +441,20 @@
 
         .settlement { page-break-inside: avoid; }
 
+        /*
+         * A receipt's one figure. Same visual language as the grand-total row
+         * above it -- brand border, generous type -- but standing alone, because
+         * a proof of payment has one amount and no line items to total up to it.
+         */
+        .receipt-amount { page-break-inside: avoid; margin-bottom: 7mm; }
+        table.receipt-amount-table { width: 100%; border-collapse: collapse; border: 1px solid {{ $brand }}; background: {{ $panel }}; }
+        table.receipt-amount-table td { padding: 9px 12px; }
+        .receipt-amount-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; color: {{ $muted }}; }
+        .receipt-amount-value { font-size: 18px; font-weight: 700; color: {{ $ink }}; }
+        .style-banded table.receipt-amount-table { background: {{ $brand }}; }
+        .style-banded .receipt-amount-label,
+        .style-banded .receipt-amount-value { color: #ffffff; }
+
         table.sign { width: 100%; border-collapse: collapse; margin-top: 6mm; }
         table.sign td { border: none; vertical-align: bottom; }
         table.sign td.mark { width: 62mm; padding-right: 8mm; }
@@ -410,6 +478,54 @@
              from their custom CSS. --}}
         .custom-html { margin: 4mm 0; font-size: 9px; color: {{ $ink }}; }
         .custom-html p { margin: 0 0 2mm 0; }
+
+        /*
+         * Design families ported from the inventory project. They are style
+         * presets over the SAME tested blocks and page flow -- only colour,
+         * cards and table treatment change, never pagination.
+         */
+        .style-modern_pro .doc-kind {
+            display: inline-block; background: {{ $brand }}; color: #ffffff;
+            padding: 4px 12px; border-radius: 999px; font-size: 11px;
+            letter-spacing: 0.14em; font-weight: bold;
+        }
+        .style-modern_pro .canvas-block {
+            border: 1px solid {{ $rule }}; border-radius: 6px;
+            background: {{ $panel }}; padding: 8px; margin-bottom: 6mm;
+        }
+        .style-modern_pro table.items thead th {
+            background: {{ mix_hex($brand, '#ffffff', 88) }};
+            color: {{ darken_hex($brand, 30) }}; border-color: {{ $brand }};
+        }
+        .style-modern_pro table.totals tr.grand td {
+            background: {{ $brand }}; color: #ffffff; border-color: {{ $brand }};
+            border-radius: 6px;
+        }
+
+        /*
+         * The SigmaShop body block prints its own complete header, so the
+         * frame's masthead must be removed rather than duplicated. Only the
+         * sigma block carries this design; no other block is printed with it.
+         */
+        .style-sigmashop .masthead { display: none !important; }
+        .style-sigmashop .canvas {
+            padding-top: 6mm !important;
+            margin-left: 6% !important;
+            margin-right: 6% !important;
+        }
+        .sigma-items thead th {
+            background-color: {{ $brand }} !important;
+            color: #ffffff !important;
+            font-size: 8px; font-weight: bold; letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+        .sigma-items tbody tr:nth-child(even) td { background-color: {{ $panel }}; }
+        .style-sigmashop table.items thead th {
+            background: {{ $brand }}; color: #ffffff; border-color: {{ $brand }};
+        }
+        .style-sigmashop table.totals tr.grand td {
+            background: {{ $brand }}; color: #ffffff; border-color: {{ $brand }};
+        }
     </style>
 
     {{--
@@ -529,7 +645,7 @@
                     <td class="right">
                         @if ($layout->has('title'))
                             <div class="masthead-kind">{{ strtoupper($title) }}</div>
-                            <div class="masthead-number"># {{ $number }}</div>
+                            <div class="masthead-number">{{ filled($number) ? '# '.$number : '' }}</div>
                         @endif
                     </td>
                 </tr>

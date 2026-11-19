@@ -35,7 +35,7 @@
         <div class="classic-box">
             @if ($layout->has('title'))
                 <div class="doc-kind">{{ strtoupper($title) }}</div>
-                <div class="doc-number">{{ $title }} #{{ $number }}</div>
+                <div class="doc-number">{{ $title }}{{ filled($number) ? ' #'.$number : '' }}</div>
             @endif
             @if (filled($referenceNumber))
                 <div class="doc-number">Your ref: {{ $referenceNumber }}</div>
@@ -45,7 +45,7 @@
 @elseif ($pdfLayoutStyle === \App\Support\PdfLayout::STYLE_MINIMAL)
     @if ($layout->has('title'))
         <div class="doc-kind" style="font-size: 15px; letter-spacing: 0.24em; font-weight: bold;">{{ strtoupper($title) }}</div>
-        <div class="doc-number" style="font-size: 10px;"># {{ $number }}{{ filled($referenceNumber) ? '<br>Your ref: '.$referenceNumber : '' }}</div>
+        <div class="doc-number" style="font-size: 10px;">{{ filled($number) ? '# '.$number : '' }}{{ filled($referenceNumber) ? '<br>Your ref: '.$referenceNumber : '' }}</div>
     @endif
 @elseif ($pdfLayoutStyle !== \App\Support\PdfLayout::STYLE_RAIL)
     {{-- modern and banded carry the title in the band across the top --}}
@@ -56,15 +56,16 @@
     @endif
 @endif
 
-@if ($hasPricing)
-    <div class="doc-date">Date: {{ $doc->issue_date?->format('d/m/Y') ?: '-' }}</div>
-    <div class="doc-due-label">Total</div>
-    <div class="doc-due">{{ money((float) ($doc->total ?: 0), $currency) }}</div>
-@else
-    <div class="doc-date">Date: {{ $doc->issue_date?->format('d/m/Y') ?: '-' }}</div>
-    <div class="doc-due-label">Items</div>
-    <div class="doc-due">{{ count($rows) }}</div>
-@endif
+{{--
+    The headline figure is data, not a fixed "Total". A statement's headline is
+    its closing balance and an export's is its row count; reading `$doc->total`
+    on a customer or a plain list would print a misleading "0.00". A document
+    that needs its own headline supplies the two override keys through
+    `DocumentData::make()`; everything else keeps the invoice's behaviour.
+--}}
+<div class="doc-date">{{ $dateLabel ?? 'Date' }}: {{ $dateValue ?? ($doc?->issue_date?->format('d/m/Y') ?: '-') }}</div>
+<div class="doc-due-label">{{ $headlineLabel ?? ($hasPricing ? 'Total' : 'Items') }}</div>
+<div class="doc-due">{{ $headlineValue ?? ($hasPricing ? money((float) ($doc?->total ?: 0), $currency) : count($rows)) }}</div>
 
 @if (filled($referenceNumber) && ! in_array($pdfLayoutStyle, [\App\Support\PdfLayout::STYLE_CLASSIC, \App\Support\PdfLayout::STYLE_MINIMAL], true))
     <div class="doc-number">Your ref: {{ $referenceNumber }}</div>

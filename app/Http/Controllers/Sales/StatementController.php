@@ -7,9 +7,8 @@ use App\Models\SalesCreditNote;
 use App\Models\SalesCustomer;
 use App\Models\SalesInvoice;
 use App\Models\SalesPayment;
-use App\Support\DocumentData;
 use App\Support\ExportsCsv;
-use App\Support\PdfLayout;
+use App\Support\StatementDocument;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -220,23 +219,17 @@ class StatementController extends Controller
             'closing' => round((float) ($ledger->last()['balance'] ?? $customer->openingBalance()), 2),
         ];
 
-        $payload = [
-            'doc' => $customer,
-            'title' => 'Account Statement',
-            'number' => 'STMT-'.str_pad((string) $customer->id, 5, '0', STR_PAD_LEFT).'-'.now()->format('Ymd'),
-            'customerName' => $customer->company_name,
-            'billTo' => $this->billToFor($customer),
-            'ledger' => $ledger
-                ->map(fn (array $row) => collect($row)->except('url')->all())
-                ->values(),
-            'totals' => $totals,
-            'currency' => $customer->currency,
-            'asOf' => now(),
-            'layout' => PdfLayout::forDocumentType('invoice'),
-            'notes' => null,
-        ];
+        $payload = StatementDocument::payload(
+            type: 'statement',
+            title: 'Account Statement',
+            number: 'STMT-'.str_pad((string) $customer->id, 5, '0', STR_PAD_LEFT).'-'.now()->format('Ymd'),
+            billTo: $this->billToFor($customer),
+            ledger: $ledger,
+            totals: $totals,
+            currency: $customer->currency,
+        );
 
-        $html = view('documents.statement', DocumentData::printable($payload))->render();
+        $html = view('documents.pdf', $payload)->render();
 
         return Pdf::loadHTML($html)
             ->setPaper('a4', 'portrait')

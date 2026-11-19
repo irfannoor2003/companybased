@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\Module;
+use App\Models\SidebarPreference;
 use App\Models\User;
 use Illuminate\Support\Collection;
 
@@ -34,27 +35,114 @@ final class NavBuilder
         $user ??= auth()->user();
         $enabledModuleKeys ??= Module::enabledKeys();
         $attendanceTracked = (bool) $user?->isAttendanceTracked();
+        $preferences = self::preferencesFor($user);
 
-        return collect(config('nav.items', []))->map(function (array $item) use ($user, $enabledModuleKeys, $attendanceTracked) {
+        $items = collect(config('nav.items', []))->map(function (array $item) use ($user, $enabledModuleKeys, $attendanceTracked, $preferences) {
             $moduleEnabled = self::moduleEnabled($item, $enabledModuleKeys);
+            $allowed = self::preferenceAllows($preferences, self::navKey($item));
 
             if (! empty($item['group'])) {
                 $children = collect($item['items'] ?? [])
-                    ->filter(fn ($child) => self::visible($child, $user, $enabledModuleKeys, $attendanceTracked))
+                    ->filter(fn ($child) => self::visible($child, $user, $enabledModuleKeys, $attendanceTracked)
+                        && self::preferenceAllows($preferences, self::navKey($child)))
                     ->values();
 
                 return [
                     'item' => $item,
-                    'visible' => $moduleEnabled && $children->isNotEmpty(),
+                    'visible' => $moduleEnabled && $allowed && $children->isNotEmpty(),
                     'children' => $children,
                 ];
             }
 
             return [
                 'item' => $item,
-                'visible' => $moduleEnabled && self::visible($item, $user, $enabledModuleKeys, $attendanceTracked),
+                'visible' => $moduleEnabled && $allowed && self::visible($item, $user, $enabledModuleKeys, $attendanceTracked),
             ];
         });
+
+        /*
+         * Operator-defined custom links are stored as preference rows rather
+         * than in config/nav.php, so they can be added without a deploy. They
+         * get their own labelled "Custom Links" section instead of being mixed
+         * into the built-in entries, so an operator can tell at a glance which
+         * links are theirs. Access is inherent in who the row was saved for;
+         * the ordinary gates above still apply to every built-in link, so a
+         * preference can only ever HIDE a link, never reveal one.
+         */
+        $custom = collect();
+
+        foreach ($preferences as $preference) {
+            if (! $preference->isCustom() || ! $preference->is_visible || ! $preference->url) {
+                continue;
+            }
+
+            $custom->push([
+                'label' => $preference->label ?: 'Link',
+                'icon' => $preference->icon ?: 'globe',
+                'url' => $preference->url,
+                'custom' => true,
+            ]);
+        }
+
+        if ($custom->isNotEmpty()) {
+            $items->push([
+                'item' => [
+                    'group' => 'Custom Links',
+                    'module' => null,
+                ],
+                'visible' => true,
+                'children' => $custom,
+            ]);
+        }
+
+        return $items;
+    }
+
+    /**
+     * The stable key a nav entry is stored under for a preference row.
+     * Routes are unique across the nav; headings get an explicit prefix.
+     */
+    public static function navKey(array $item): string
+    {
+        if (! empty($item['group'])) {
+            return 'group:'.$item['group'];
+        }
+
+        return (string) ($item['route'] ?? '');
+    }
+
+    /**
+     * Role defaults, overlaid per key by the user's own choices. A user row
+     * therefore overrides the role only for the entries it names; everything
+     * else keeps following the role.
+     *
+     * @return Collection<string, SidebarPreference>
+     */
+    private static function preferencesFor(?User $user): Collection
+    {
+        if (! $user) {
+            return collect();
+        }
+
+        $roleIds = $user->roles->pluck('id')->all();
+        $rolePreferences = $roleIds === []
+            ? collect()
+            : SidebarPreference::whereIn('role_id', $roleIds)->orderBy('sort_order')->get()->keyBy('nav_key');
+        $userPreferences = SidebarPreference::where('user_id', $user->id)->orderBy('sort_order')->get()->keyBy('nav_key');
+
+        // Eloquent\Collection::merge() re-keys by the models' primary keys,
+        // which destroys the nav_key keys we just built. toBase() keeps them.
+        return $rolePreferences->toBase()->merge($userPreferences->toBase());
+    }
+
+    /**
+     * No row means the default: visible. An explicit row can only switch it off.
+     */
+    private static function preferenceAllows(Collection $preferences, string $key): bool
+    {
+        $preference = $preferences->get($key);
+
+        return ! $preference || $preference->is_visible;
     }
 
     /**
